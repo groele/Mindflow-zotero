@@ -47,6 +47,8 @@ interface ToolbarProps {
   onExportSVG: () => void;
   onExportMarkdown: () => void;
   onExportJSON: () => void;
+  onExportOPML?: () => void;
+  onExportHTML?: () => void;
   onImportFile: (file: File) => void;
   onCaptureCurrentTab?: () => void;
   isSidepanelMode?: boolean;
@@ -89,6 +91,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onExportSVG,
   onExportMarkdown,
   onExportJSON,
+  onExportOPML,
+  onExportHTML,
   onImportFile,
   onCaptureCurrentTab,
   isSidepanelMode,
@@ -445,6 +449,18 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                 >
                   💾 JSON 工程备份
                 </button>
+                <button
+                  onClick={() => { onExportOPML?.(); setIsExportMenuOpen(false); }}
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
+                >
+                  📑 OPML 2.0 大纲 (.opml)
+                </button>
+                <button
+                  onClick={() => { onExportHTML?.(); setIsExportMenuOpen(false); }}
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
+                >
+                  🌐 独立离线交互网页 (.html)
+                </button>
 
                 <div className="h-px bg-slate-200 dark:bg-slate-700 my-1" />
 
@@ -456,7 +472,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                   className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-1.5"
                 >
                   <Upload className="w-3.5 h-3.5" />
-                  <span>导入 Markdown / JSON</span>
+                  <span>导入 Markdown / JSON / OPML</span>
                 </button>
               </div>
             )}
@@ -466,7 +482,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <input
           ref={fileInputRef}
           type="file"
-          accept=".json,.md,.markdown"
+          accept=".json,.md,.markdown,.opml"
           onChange={handleFileInputChange}
           className="hidden"
         />

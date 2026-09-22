@@ -4,7 +4,8 @@ import {
 } from '../../core/model/types';
 import {
   addChildNode, addSiblingNode, updateNode, deleteNode,
-  toggleNodeCollapse, moveNode, findNode, findAdjacentNode, generateId
+  toggleNodeCollapse, moveNode, findNode, findAdjacentNode, generateId,
+  duplicateNode, pasteSubtree, deleteMultipleNodes
 } from '../../core/model/treeOps';
 import { computeLayout } from '../../core/layout/layoutEngine';
 import { getTheme } from '../../core/theme/themes';
@@ -12,9 +13,12 @@ import { TemplateDefinition } from '../../core/model/templates';
 import { HistoryManager } from '../../core/history/historyManager';
 import { StorageService } from '../../services/storage/storageService';
 import {
-  exportToPNG, exportToSVG, exportToMarkdown, exportToJSON, importFromMarkdown
+  exportToPNG, exportToSVG, exportToMarkdown, exportToJSON, importFromMarkdown,
+  exportToOPML, importFromOPML, exportToInteractiveHTML
 } from '../../services/io/exporter';
+import { playAddNode, playTaskComplete, playDeleteNode } from '../../services/audio/soundService';
 import { Canvas } from '../../components/canvas/Canvas';
+import { CanvasErrorBoundary } from '../../components/canvas/CanvasErrorBoundary';
 import { Toolbar } from '../../components/toolbar/Toolbar';
 import { PropertySidebar } from '../../components/sidebar/PropertySidebar';
 import { LeftWorkbench, WorkbenchTab } from '../../components/sidebar/LeftWorkbench';
@@ -40,8 +44,10 @@ interface AppProps {
 export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   const [doc, setDoc] = useState<MindMapDocument | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [viewport, setViewport] = useState<ViewportTransform>({ x: 0, y: 0, scale: 1 });
+  const clipboardSubtreeRef = useRef<MindMapNode | null>(null);
 
   // Workbench & Sidebar Layout (Ergonomic left-right docking)
   const [isWorkbenchOpen, setIsWorkbenchOpen] = useState(false);
@@ -194,8 +200,11 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   // Layout calculation
   const layout = useMemo(() => {
     if (!doc) return { nodes: [], connections: [], bounds: { minX: 0, maxX: 0, minY: 0, maxY: 0 } };
-    return computeLayout(doc.root, doc.layoutType, theme);
-  }, [doc, theme]);
+    return computeLayout(doc.root, doc.layoutType, theme, {
+      rainbowBranches: settings.rainbowBranches,
+      curveStyle: settings.curveStyle,
+    });
+  }, [doc, theme, settings.rainbowBranches, settings.curveStyle]);
 
   // Commit changes to root and push history
   const commitRootChange = useCallback((newRoot: MindMapNode) => {
@@ -204,6 +213,46 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     syncHistoryState();
     setDoc(prev => prev ? { ...prev, root: newRoot, updatedAt: Date.now() } : null);
   }, [doc, syncHistoryState]);
+
+  // Selection handlers
+  const handleSelectNode = useCallback((id: string | null, isMulti = false) => {
+    if (!id) {
+      setSelectedId(null);
+      setSelectedIds([]);
+      return;
+    }
+    if (isMulti) {
+      setSelectedIds((prev) => {
+        const set = new Set(prev);
+        if (selectedId) set.add(selectedId);
+        if (set.has(id)) {
+          set.delete(id);
+        } else {
+          set.add(id);
+        }
+        return Array.from(set);
+      });
+      setSelectedId(id);
+    } else {
+      setSelectedId(id);
+      setSelectedIds([]);
+    }
+    if (id && !isZenMode) {
+      setIsPropertySidebarOpen(true);
+    }
+  }, [selectedId, isZenMode]);
+
+  const handleSelectMultipleNodes = useCallback((ids: string[]) => {
+    setSelectedIds(ids);
+    if (ids.length > 0) {
+      setSelectedId(ids[ids.length - 1]);
+      if (!isZenMode) {
+        setIsPropertySidebarOpen(true);
+      }
+    } else {
+      setSelectedId(null);
+    }
+  }, [isZenMode]);
 
   // Actions
   const handleAddChild = useCallback(() => {
@@ -216,8 +265,10 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     const { newRoot, newNodeId } = addChildNode(rootToUse, targetId, '分支主题');
     commitRootChange(newRoot);
     setSelectedId(newNodeId);
+    setSelectedIds([]);
     setEditingId(newNodeId);
-  }, [doc, selectedId, settings.autoExpandOnAddChild, commitRootChange]);
+    playAddNode(settings.soundEffects);
+  }, [doc, selectedId, settings.autoExpandOnAddChild, settings.soundEffects, commitRootChange]);
 
   const handleAddSibling = useCallback((insertBefore = false) => {
     if (!doc) return;
@@ -225,15 +276,73 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     const { newRoot, newNodeId } = addSiblingNode(doc.root, targetId, '分支主题', insertBefore);
     commitRootChange(newRoot);
     setSelectedId(newNodeId);
+    setSelectedIds([]);
     setEditingId(newNodeId);
-  }, [doc, selectedId, commitRootChange]);
+    playAddNode(settings.soundEffects);
+  }, [doc, selectedId, settings.soundEffects, commitRootChange]);
 
-  const handleDeleteNode = useCallback(() => {
-    if (!doc || !selectedId || selectedId === doc.root.id) return;
-    const { newRoot, nextSelectedId } = deleteNode(doc.root, selectedId);
+  const handleCopyNode = useCallback((idToCopy?: string) => {
+    if (!doc) return;
+    const targetId = idToCopy || selectedId;
+    if (!targetId) return;
+    const target = findNode(doc.root, targetId);
+    if (target) {
+      clipboardSubtreeRef.current = JSON.parse(JSON.stringify(target));
+    }
+  }, [doc, selectedId]);
+
+  const handlePasteNode = useCallback((targetParentId?: string) => {
+    if (!doc || !clipboardSubtreeRef.current) return;
+    const parentId = targetParentId || selectedId || doc.root.id;
+    const { newRoot, newNodeId } = pasteSubtree(doc.root, parentId, clipboardSubtreeRef.current);
     commitRootChange(newRoot);
-    setSelectedId(nextSelectedId);
-  }, [doc, selectedId, commitRootChange]);
+    setSelectedId(newNodeId);
+    setSelectedIds([]);
+    playAddNode(settings.soundEffects);
+  }, [doc, selectedId, commitRootChange, settings.soundEffects]);
+
+  const handleDuplicateNode = useCallback((idToDuplicate?: string) => {
+    if (!doc) return;
+    const targetId = idToDuplicate || selectedId;
+    if (!targetId || targetId === doc.root.id) return;
+    const { newRoot, newNodeId } = duplicateNode(doc.root, targetId);
+    commitRootChange(newRoot);
+    setSelectedId(newNodeId);
+    setSelectedIds([]);
+    playAddNode(settings.soundEffects);
+  }, [doc, selectedId, commitRootChange, settings.soundEffects]);
+
+  const handleDeleteNode = useCallback((idToDelete?: string) => {
+    if (!doc) return;
+    if (idToDelete) {
+      if (idToDelete === doc.root.id) return;
+      const { newRoot, nextSelectedId } = deleteNode(doc.root, idToDelete);
+      commitRootChange(newRoot);
+      setSelectedId(nextSelectedId);
+      setSelectedIds([]);
+      playDeleteNode(settings.soundEffects);
+      return;
+    }
+
+    const ids = selectedIds.length > 0
+      ? selectedIds.filter((id) => id !== doc.root.id)
+      : (selectedId && selectedId !== doc.root.id ? [selectedId] : []);
+
+    if (ids.length === 0) return;
+
+    if (ids.length === 1) {
+      const { newRoot, nextSelectedId } = deleteNode(doc.root, ids[0]);
+      commitRootChange(newRoot);
+      setSelectedId(nextSelectedId);
+      setSelectedIds([]);
+    } else {
+      const { newRoot } = deleteMultipleNodes(doc.root, ids);
+      commitRootChange(newRoot);
+      setSelectedId(doc.root.id);
+      setSelectedIds([]);
+    }
+    playDeleteNode(settings.soundEffects);
+  }, [doc, selectedId, selectedIds, commitRootChange, settings.soundEffects]);
 
   const handleToggleCollapse = useCallback((id: string) => {
     if (!doc) return;
@@ -268,14 +377,18 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       nextStatus = 'todo';
     }
 
+    if (nextStatus === 'done') {
+      playTaskComplete(settings.soundEffects);
+    }
+
     handleUpdateNodePatch(id, {
       task: {
         ...(target.task || {}),
         status: nextStatus,
-        progress: nextStatus === 'done' ? 100 : nextStatus === 'doing' ? 50 : 0
-      }
+        progress: nextStatus === 'done' ? 100 : nextStatus === 'doing' ? 50 : 0,
+      },
     });
-  }, [doc, handleUpdateNodePatch]);
+  }, [doc, handleUpdateNodePatch, settings.soundEffects]);
 
   const handleCommitEdit = useCallback((id: string, newText: string) => {
     setEditingId(null);
@@ -449,6 +562,24 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
         return;
       }
 
+      // Clipboard shortcuts: Ctrl+C (Copy), Ctrl+V (Paste), Ctrl+D (Duplicate)
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+        handleCopyNode();
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+        e.preventDefault();
+        handlePasteNode();
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
+        e.preventDefault();
+        handleDuplicateNode();
+        return;
+      }
+
       if (e.key === 'Tab') {
         e.preventDefault();
         handleAddChild();
@@ -502,7 +633,8 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
     editingId, selectedId, layout.nodes, isZenMode,
-    handleAddChild, handleAddSibling, handleDeleteNode, handleUndo, handleRedo
+    handleAddChild, handleAddSibling, handleDeleteNode, handleUndo, handleRedo,
+    handleCopyNode, handlePasteNode, handleDuplicateNode
   ]);
 
   // One-click capture current Chrome tab info
@@ -554,6 +686,24 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
         StorageService.saveDocument(newDoc).then(() => {
           setDoc(newDoc);
           setSelectedId(newDoc.root.id);
+          setSelectedIds([]);
+          setTimeout(() => centerCanvas(), 50);
+        });
+      } else if (file.name.endsWith('.opml')) {
+        const importedRoot = importFromOPML(content);
+        const newDoc: MindMapDocument = {
+          id: 'doc_' + generateId(),
+          title: file.name.replace(/\.[^/.]+$/, ''),
+          themeId: doc?.themeId || 'classic-blue',
+          layoutType: 'mindmap',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          root: importedRoot,
+        };
+        StorageService.saveDocument(newDoc).then(() => {
+          setDoc(newDoc);
+          setSelectedId(newDoc.root.id);
+          setSelectedIds([]);
           setTimeout(() => centerCanvas(), 50);
         });
       }
@@ -627,6 +777,8 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
           onExportSVG={() => exportToSVG(layout.nodes, layout.connections, layout.bounds, theme, doc.title, { watermark: license.tier === 'free' })}
           onExportMarkdown={() => exportToMarkdown(doc.root, doc.title)}
           onExportJSON={() => exportToJSON(doc)}
+          onExportOPML={() => exportToOPML(doc.root, doc.title)}
+          onExportHTML={() => exportToInteractiveHTML(layout.nodes, layout.connections, layout.bounds, theme, doc.title, { watermark: license.tier === 'free' })}
           onImportFile={handleImportFile}
           onCaptureCurrentTab={handleCaptureCurrentTab}
           isSidepanelMode={isSidepanelMode}
@@ -697,31 +849,30 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
 
         {/* Central Infinite Canvas */}
         <div className="flex-1 h-full relative overflow-hidden">
-          <Canvas
-            nodes={layout.nodes}
-            connections={layout.connections}
-            bounds={layout.bounds}
-            theme={theme}
-            selectedId={selectedId}
-            editingId={editingId}
-            viewport={viewport}
-            canvasBackground={settings.canvasBackground}
-            onViewportChange={setViewport}
-            onSelectNode={(id) => {
-              setSelectedId(id);
-              if (id && !isZenMode) {
-                setIsPropertySidebarOpen(true);
-              }
-            }}
-            onStartEditNode={(id) => setEditingId(id)}
-            onCommitEditNode={handleCommitEdit}
-            onCancelEditNode={() => setEditingId(null)}
-            onToggleCollapse={handleToggleCollapse}
-            onToggleTaskStatus={handleToggleTaskStatus}
-            onMoveNode={handleMoveNode}
-            searchMatchedIds={searchMatchedIds}
-            onContextMenuNode={handleContextMenuNode}
-          />
+          <CanvasErrorBoundary rootNode={doc.root} onReset={() => centerCanvas(layout.bounds)}>
+            <Canvas
+              nodes={layout.nodes}
+              connections={layout.connections}
+              bounds={layout.bounds}
+              theme={theme}
+              selectedId={selectedId}
+              selectedIds={selectedIds}
+              editingId={editingId}
+              viewport={viewport}
+              canvasBackground={settings.canvasBackground}
+              onViewportChange={setViewport}
+              onSelectNode={handleSelectNode}
+              onSelectMultipleNodes={handleSelectMultipleNodes}
+              onStartEditNode={(id) => setEditingId(id)}
+              onCommitEditNode={handleCommitEdit}
+              onCancelEditNode={() => setEditingId(null)}
+              onToggleCollapse={handleToggleCollapse}
+              onToggleTaskStatus={handleToggleTaskStatus}
+              onMoveNode={handleMoveNode}
+              searchMatchedIds={searchMatchedIds}
+              onContextMenuNode={handleContextMenuNode}
+            />
+          </CanvasErrorBoundary>
 
           {/* In-Canvas Search Floating Widget */}
           <CanvasSearch
@@ -817,9 +968,19 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
           y={contextMenuState.y}
           node={contextMenuState.node}
           onClose={() => setContextMenuState(null)}
-          onAddChild={handleAddChild}
+          onAddChild={(id) => {
+            const { newRoot, newNodeId } = addChildNode(doc.root, id, '分支主题');
+            commitRootChange(newRoot);
+            setSelectedId(newNodeId);
+            setSelectedIds([]);
+            playAddNode(settings.soundEffects);
+          }}
           onAddSibling={() => handleAddSibling(false)}
-          onDelete={handleDeleteNode}
+          onDelete={(id) => handleDeleteNode(id)}
+          onCopyNode={(id) => handleCopyNode(id)}
+          onDuplicateNode={(id) => handleDuplicateNode(id)}
+          onPasteSubtree={(id) => handlePasteNode(id)}
+          hasClipboardContent={!!clipboardSubtreeRef.current}
           onToggleTask={handleToggleTaskStatus}
           onToggleCollapse={handleToggleCollapse}
           onStartEdit={(id) => setEditingId(id)}

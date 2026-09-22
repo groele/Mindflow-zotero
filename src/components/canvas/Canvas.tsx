@@ -8,10 +8,12 @@ interface CanvasProps {
   bounds: { minX: number; maxX: number; minY: number; maxY: number };
   theme: ThemeColors;
   selectedId: string | null;
+  selectedIds?: string[];
   editingId: string | null;
   viewport: ViewportTransform;
   onViewportChange: (vp: ViewportTransform) => void;
-  onSelectNode: (id: string | null) => void;
+  onSelectNode: (id: string | null, isMulti?: boolean) => void;
+  onSelectMultipleNodes?: (ids: string[]) => void;
   onStartEditNode: (id: string) => void;
   onCommitEditNode: (id: string, text: string) => void;
   onCancelEditNode: () => void;
@@ -28,10 +30,12 @@ export const Canvas: React.FC<CanvasProps> = ({
   connections,
   theme,
   selectedId,
+  selectedIds = [],
   editingId,
   viewport,
   onViewportChange,
   onSelectNode,
+  onSelectMultipleNodes,
   onStartEditNode,
   onCommitEditNode,
   onCancelEditNode,
@@ -47,6 +51,11 @@ export const Canvas: React.FC<CanvasProps> = ({
   const dragStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null);
   const isSpacePressedRef = useRef(false);
+
+  // Marquee Selection Box state
+  const [isSelectingBox, setIsSelectingBox] = useState(false);
+  const [boxStart, setBoxStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [boxCurrent, setBoxCurrent] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -106,22 +115,42 @@ export const Canvas: React.FC<CanvasProps> = ({
     return () => el.removeEventListener('wheel', handleWheel);
   }, [handleWheel]);
 
-  // Canvas pan via mouse drag
+  // Canvas pan / marquee box selection via mouse drag
   const handleMouseDown = (e: React.MouseEvent) => {
-    // Left click on canvas background, or middle click, or left click with Space pressed
-    if (e.button === 0 || e.button === 1) {
-      const isTargetCanvas = (e.target as HTMLElement).classList.contains('canvas-background');
-      if (isTargetCanvas || e.button === 1 || isSpacePressedRef.current) {
-        setIsDraggingCanvas(true);
-        dragStartRef.current = { x: e.clientX - viewport.x, y: e.clientY - viewport.y };
-        if (isTargetCanvas) {
-          onSelectNode(null);
-        }
+    if (e.button !== 0 && e.button !== 1) return;
+
+    // Shift + Left Click on canvas -> Marquee box selection
+    if (e.shiftKey && e.button === 0 && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const startX = e.clientX - rect.left;
+      const startY = e.clientY - rect.top;
+      setIsSelectingBox(true);
+      setBoxStart({ x: startX, y: startY });
+      setBoxCurrent({ x: startX, y: startY });
+      return;
+    }
+
+    // Normal Left click on canvas background, or middle click, or left click with Space pressed
+    const isTargetCanvas = (e.target as HTMLElement).classList.contains('canvas-background');
+    if (isTargetCanvas || e.button === 1 || isSpacePressedRef.current) {
+      setIsDraggingCanvas(true);
+      dragStartRef.current = { x: e.clientX - viewport.x, y: e.clientY - viewport.y };
+      if (isTargetCanvas) {
+        onSelectNode(null);
       }
     }
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
+    if (isSelectingBox && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      setBoxCurrent({
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+      });
+      return;
+    }
+
     if (!isDraggingCanvas) return;
     onViewportChange({
       x: e.clientX - dragStartRef.current.x,
@@ -131,6 +160,33 @@ export const Canvas: React.FC<CanvasProps> = ({
   };
 
   const handleMouseUp = () => {
+    if (isSelectingBox) {
+      setIsSelectingBox(false);
+      const minX = Math.min(boxStart.x, boxCurrent.x);
+      const maxX = Math.max(boxStart.x, boxCurrent.x);
+      const minY = Math.min(boxStart.y, boxCurrent.y);
+      const maxY = Math.max(boxStart.y, boxCurrent.y);
+
+      // Trigger box selection only if box is larger than 6x6 px
+      if (maxX - minX > 6 || maxY - minY > 6) {
+        const stageMinX = (minX - viewport.x) / viewport.scale;
+        const stageMaxX = (maxX - viewport.x) / viewport.scale;
+        const stageMinY = (minY - viewport.y) / viewport.scale;
+        const stageMaxY = (maxY - viewport.y) / viewport.scale;
+
+        const hitNodes = nodes.filter((n) => {
+          const nodeRight = n.x + n.width;
+          const nodeBottom = n.y + n.height;
+          return n.x <= stageMaxX && nodeRight >= stageMinX && n.y <= stageMaxY && nodeBottom >= stageMinY;
+        });
+
+        if (onSelectMultipleNodes) {
+          onSelectMultipleNodes(hitNodes.map((n) => n.id));
+        }
+      }
+      return;
+    }
+
     setIsDraggingCanvas(false);
   };
 
@@ -159,6 +215,11 @@ export const Canvas: React.FC<CanvasProps> = ({
     setDraggedNodeId(null);
   };
 
+  // Effective set of selected node IDs
+  const activeSelectedSet = new Set<string>();
+  if (selectedId) activeSelectedSet.add(selectedId);
+  for (const id of selectedIds) activeSelectedSet.add(id);
+
   return (
     <div
       ref={containerRef}
@@ -175,7 +236,7 @@ export const Canvas: React.FC<CanvasProps> = ({
             ? theme.isDark ? 'canvas-grid-lines-dark' : 'canvas-grid-lines'
             : theme.isDark ? 'canvas-grid-dots-dark' : 'canvas-grid-dots'
         }
-        ${isDraggingCanvas ? 'cursor-grabbing' : 'cursor-default'}
+        ${isDraggingCanvas ? 'cursor-grabbing' : isSelectingBox ? 'cursor-crosshair' : 'cursor-default'}
       `}
       style={{ backgroundColor: theme.background }}
     >
@@ -215,12 +276,12 @@ export const Canvas: React.FC<CanvasProps> = ({
             <NodeCard
               key={layoutNode.id}
               layoutNode={layoutNode}
-              isSelected={selectedId === layoutNode.id}
+              isSelected={activeSelectedSet.has(layoutNode.id)}
               isEditing={editingId === layoutNode.id}
               isSearchMatched={searchMatchedIds.includes(layoutNode.id)}
               onSelect={(id, e) => {
                 e.stopPropagation();
-                onSelectNode(id);
+                onSelectNode(id, e.shiftKey || e.ctrlKey || e.metaKey);
               }}
               onContextMenu={(id, e) => {
                 if (onContextMenuNode) {
@@ -239,6 +300,28 @@ export const Canvas: React.FC<CanvasProps> = ({
           ))}
         </div>
       </div>
+
+      {/* Marquee Selection Box Overlay */}
+      {isSelectingBox && (
+        <div
+          className="absolute pointer-events-none border-2 border-blue-500 bg-blue-500/15 rounded-md shadow-sm z-30"
+          style={{
+            left: Math.min(boxStart.x, boxCurrent.x),
+            top: Math.min(boxStart.y, boxCurrent.y),
+            width: Math.abs(boxCurrent.x - boxStart.x),
+            height: Math.abs(boxCurrent.y - boxStart.y),
+          }}
+        />
+      )}
+
+      {/* Multi-selection Floating Indicator */}
+      {activeSelectedSet.size > 1 && (
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/90 text-white text-xs px-4 py-2 rounded-full shadow-lg backdrop-blur flex items-center gap-3 z-40 border border-slate-700">
+          <span className="font-semibold text-blue-400">已多选 {activeSelectedSet.size} 个节点</span>
+          <span className="text-slate-400">|</span>
+          <span className="text-slate-300">Ctrl+C 复制 / Ctrl+D 创建副本 / Del 批量删除</span>
+        </div>
+      )}
     </div>
   );
 };

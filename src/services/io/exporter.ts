@@ -1,20 +1,38 @@
-import { MindMapDocument, MindMapNode, LayoutNode, ConnectionCurve, ThemeColors } from '../../core/model/types';
+import { MindMapDocument, MindMapNode, LayoutNode, ConnectionCurve, ThemeColors, TaskInfo } from '../../core/model/types';
 import { generateId } from '../../core/model/treeOps';
 
-// Export as formatted JSON
-export function exportToJSON(doc: MindMapDocument): void {
+// Export as formatted JSON (supports both MindMapDocument and bare MindMapNode)
+export function exportToJSON(data: MindMapDocument | MindMapNode, fallbackTitle = 'mindmap'): void {
+  let doc: MindMapDocument;
+  if ('root' in data && 'themeId' in data) {
+    doc = data as MindMapDocument;
+  } else {
+    doc = {
+      id: generateId(),
+      title: fallbackTitle,
+      root: data as MindMapNode,
+      themeId: 'classic-light',
+      layoutType: 'mindmap',
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+  }
   const jsonStr = JSON.stringify(doc, null, 2);
   downloadBlob(new Blob([jsonStr], { type: 'application/json' }), `${doc.title}.mindflow.json`);
 }
 
-// Export to Markdown
+// Export to Markdown with task checkboxes and metadata
 export function exportToMarkdown(root: MindMapNode, title: string): void {
   const lines: string[] = [`# ${root.text}\n`];
 
   function walk(node: MindMapNode, depth: number) {
     for (const child of node.children) {
       const indent = '  '.repeat(depth);
-      let line = `${indent}- ${child.text}`;
+      let taskPrefix = '';
+      if (child.task) {
+        taskPrefix = child.task.status === 'done' ? '[x] ' : '[ ] ';
+      }
+      let line = `${indent}- ${taskPrefix}${child.text}`;
       if (child.link) {
         line += ` [🔗](${child.link})`;
       }
@@ -36,7 +54,7 @@ export function exportToMarkdown(root: MindMapNode, title: string): void {
   downloadBlob(new Blob([mdContent], { type: 'text/markdown;charset=utf-8;' }), `${title}.md`);
 }
 
-// Parse Markdown into MindMapNode tree
+// Parse Markdown into MindMapNode tree (with task checkbox support)
 export function importFromMarkdown(mdContent: string): MindMapNode {
   const lines = mdContent.split(/\r?\n/).filter(line => line.trim().length > 0);
   if (lines.length === 0) {
@@ -67,13 +85,22 @@ export function importFromMarkdown(mdContent: string): MindMapNode {
 
   for (let i = startIndex; i < lines.length; i++) {
     const rawLine = lines[i];
-    // Calculate indentation depth
     const leadingSpaces = rawLine.match(/^\s*/)?.[0].length || 0;
     const depth = Math.floor(leadingSpaces / 2);
 
     let cleanText = rawLine.trim().replace(/^[-*+]\s*/, '').replace(/^#+\s*/, '');
     let note: string | undefined;
     let link: string | undefined;
+    let task: TaskInfo | undefined;
+
+    // Checkbox support: [x] or [ ]
+    if (/^\[x\]\s*/i.test(cleanText)) {
+      task = { status: 'done' };
+      cleanText = cleanText.replace(/^\[x\]\s*/i, '');
+    } else if (/^\[\s*\]\s*/.test(cleanText)) {
+      task = { status: 'todo' };
+      cleanText = cleanText.replace(/^\[\s*\]\s*/, '');
+    }
 
     // Parse note if any
     const noteMatch = cleanText.match(/<!--\s*备注:\s*(.*?)\s*-->/);
@@ -94,6 +121,7 @@ export function importFromMarkdown(mdContent: string): MindMapNode {
       text: cleanText || '未命名主题',
       note,
       link,
+      task,
       isExpanded: true,
       children: []
     };
@@ -112,6 +140,178 @@ export function importFromMarkdown(mdContent: string): MindMapNode {
 
   return root;
 }
+
+// ---------------- OPML 2.0 Import / Export ----------------
+
+function renderOutline(node: MindMapNode, indent: string): string {
+  const textAttr = `text="${escapeXml(node.text)}"`;
+  const noteAttr = node.note ? ` _note="${escapeXml(node.note)}"` : '';
+  const linkAttr = node.link ? ` url="${escapeXml(node.link)}"` : '';
+  const statusAttr = node.task ? ` _status="${node.task.status}"` : '';
+
+  if (!node.children || node.children.length === 0) {
+    return `${indent}<outline ${textAttr}${noteAttr}${linkAttr}${statusAttr} />\n`;
+  }
+
+  let res = `${indent}<outline ${textAttr}${noteAttr}${linkAttr}${statusAttr}>\n`;
+  for (const child of node.children) {
+    res += renderOutline(child, indent + '  ');
+  }
+  res += `${indent}</outline>\n`;
+  return res;
+}
+
+export function exportToOPML(root: MindMapNode, title: string): void {
+  const opmlContent = `<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head>
+    <title>${escapeXml(title)}</title>
+  </head>
+  <body>
+${renderOutline(root, '    ')}  </body>
+</opml>`;
+
+  downloadBlob(new Blob([opmlContent], { type: 'text/xml;charset=utf-8' }), `${title}.opml`);
+}
+
+export function parseOPMLString(xmlContent: string): MindMapNode {
+  // If browser DOMParser is available
+  if (typeof DOMParser !== 'undefined') {
+    try {
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(xmlContent, 'text/xml');
+      const parseError = xmlDoc.getElementsByTagName('parsererror');
+      if (parseError.length === 0) {
+        const body = xmlDoc.getElementsByTagName('body')[0];
+        if (body) {
+          const directOutlines = Array.from(body.children).filter(el => el.tagName.toLowerCase() === 'outline');
+          if (directOutlines.length > 0) {
+            function parseElement(el: Element): MindMapNode {
+              const text = el.getAttribute('text') || el.getAttribute('title') || '未命名节点';
+              const note = el.getAttribute('_note') || el.getAttribute('note') || undefined;
+              const link = el.getAttribute('url') || el.getAttribute('xmlUrl') || undefined;
+              const statusAttr = el.getAttribute('_status') || el.getAttribute('status');
+              let task: TaskInfo | undefined;
+              if (statusAttr === 'done' || statusAttr === 'completed') {
+                task = { status: 'done' };
+              } else if (statusAttr === 'doing') {
+                task = { status: 'doing' };
+              } else if (statusAttr === 'todo' || statusAttr === 'incomplete') {
+                task = { status: 'todo' };
+              }
+
+              const childElements = Array.from(el.children).filter(c => c.tagName.toLowerCase() === 'outline');
+              return {
+                id: generateId(),
+                text,
+                note,
+                link,
+                task,
+                isExpanded: true,
+                children: childElements.map(parseElement)
+              };
+            }
+
+            if (directOutlines.length === 1) {
+              return parseElement(directOutlines[0]);
+            } else {
+              const titleEl = xmlDoc.getElementsByTagName('title')[0];
+              const rootText = titleEl ? (titleEl.textContent || '思维导图') : '思维导图';
+              return {
+                id: generateId(),
+                text: rootText,
+                isExpanded: true,
+                children: directOutlines.map(parseElement)
+              };
+            }
+          }
+        }
+      }
+    } catch {
+      // Fallback below
+    }
+  }
+
+  // Pure regex parser fallback (works reliably in Node.js unit tests and offline environments)
+  const tagRegex = /<\/?outline(\s+[^>]*)?\/?>/gi;
+  const roots: MindMapNode[] = [];
+  const stack: MindMapNode[] = [];
+
+  let match;
+  while ((match = tagRegex.exec(xmlContent)) !== null) {
+    const fullTag = match[0];
+    const isClosing = fullTag.startsWith('</');
+    const isSelfClosing = fullTag.endsWith('/>');
+
+    if (isClosing) {
+      if (stack.length > 0) {
+        stack.pop();
+      }
+      continue;
+    }
+
+    const attrsStr = match[1] || '';
+    const getAttr = (name: string): string | undefined => {
+      const r = new RegExp(`${name}=["']([^"']*)["']`, 'i');
+      const m = attrsStr.match(r);
+      return m ? unescapeXml(m[1]) : undefined;
+    };
+
+    const text = getAttr('text') || getAttr('title') || '未命名节点';
+    const note = getAttr('_note') || getAttr('note');
+    const link = getAttr('url') || getAttr('xmlUrl');
+    const statusAttr = getAttr('_status') || getAttr('status');
+    let task: TaskInfo | undefined;
+    if (statusAttr === 'done' || statusAttr === 'completed') {
+      task = { status: 'done' };
+    } else if (statusAttr === 'doing') {
+      task = { status: 'doing' };
+    } else if (statusAttr === 'todo' || statusAttr === 'incomplete') {
+      task = { status: 'todo' };
+    }
+
+    const newNode: MindMapNode = {
+      id: generateId(),
+      text,
+      note,
+      link,
+      task,
+      isExpanded: true,
+      children: []
+    };
+
+    if (stack.length === 0) {
+      roots.push(newNode);
+    } else {
+      const parent = stack[stack.length - 1];
+      parent.children.push(newNode);
+    }
+
+    if (!isSelfClosing) {
+      stack.push(newNode);
+    }
+  }
+
+  if (roots.length === 1) {
+    return roots[0];
+  }
+
+  const titleMatch = xmlContent.match(/<title>([^<]*)<\/title>/i);
+  const title = titleMatch ? unescapeXml(titleMatch[1].trim()) : '思维导图';
+
+  return {
+    id: generateId(),
+    text: title || '思维导图',
+    isExpanded: true,
+    children: roots
+  };
+}
+
+export function importFromOPML(xmlContent: string): MindMapNode {
+  return parseOPMLString(xmlContent);
+}
+
+// ---------------- SVG / PNG / HTML ----------------
 
 export interface ExportOptions {
   watermark?: boolean;
@@ -275,6 +475,160 @@ export async function exportToPNG(
   a.click();
 }
 
+// Export as Standalone Offline Interactive HTML
+export function exportToInteractiveHTML(
+  nodes: LayoutNode[],
+  connections: ConnectionCurve[],
+  bounds: { minX: number; maxX: number; minY: number; maxY: number },
+  theme: ThemeColors,
+  title: string,
+  _options?: ExportOptions
+): void {
+  const padding = 100;
+  const width = Math.ceil(bounds.maxX - bounds.minX + padding * 2);
+  const height = Math.ceil(bounds.maxY - bounds.minY + padding * 2);
+  const offsetX = -bounds.minX + padding;
+  const offsetY = -bounds.minY + padding;
+
+  let curvesSvg = '';
+  for (const conn of connections) {
+    curvesSvg += `<path d="${conn.path}" fill="none" stroke="${conn.color}" stroke-width="${conn.strokeWidth}" stroke-linecap="round" />\n`;
+  }
+
+  let nodesSvg = '';
+  for (const n of nodes) {
+    const rx = n.level === 0 ? 12 : (n.shape === 'pill' ? 16 : 8);
+    const stroke = n.level === 0 ? 'none' : n.borderColor;
+    const fill = n.level === 0 ? n.bgColor : theme.surface;
+    const fontSize = n.level === 0 ? 16 : (n.level === 1 ? 14 : 12);
+    const fontWeight = n.level === 0 ? 'bold' : (n.level === 1 ? '600' : 'normal');
+    const textColor = n.level === 0 ? n.textColor : theme.nodeText;
+    const textY = n.height / 2 + (fontSize / 3);
+
+    nodesSvg += `
+    <g class="mind-node" transform="translate(${n.x}, ${n.y})">
+      <rect width="${n.width}" height="${n.height}" rx="${rx}" fill="${fill}" stroke="${stroke}" stroke-width="1.5" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.08))" />
+      <text x="${n.width / 2}" y="${textY}" text-anchor="middle" font-size="${fontSize}" font-weight="${fontWeight}" fill="${textColor}">${escapeXml(n.node.text)}</text>
+    </g>`;
+  }
+
+  const htmlContent = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeXml(title)} - MindFlow 交互导图</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body, html { width: 100%; height: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: ${theme.background}; color: ${theme.text}; }
+    #header {
+      position: absolute; top: 16px; left: 16px; right: 16px; z-index: 10;
+      display: flex; justify-content: space-between; align-items: center; pointer-events: none;
+    }
+    .header-card {
+      background: ${theme.surface}; padding: 8px 16px; border-radius: 12px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.1); pointer-events: auto; display: flex; align-items: center; gap: 12px;
+    }
+    .title { font-weight: 700; font-size: 16px; }
+    .badge { font-size: 11px; background: rgba(59, 130, 246, 0.15); color: #3b82f6; padding: 2px 8px; border-radius: 9999px; font-weight: 600; }
+    .controls { display: flex; gap: 8px; pointer-events: auto; }
+    .btn {
+      background: ${theme.surface}; border: 1px solid rgba(125,125,125,0.2); color: ${theme.text};
+      padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06); transition: all 0.15s;
+    }
+    .btn:hover { background: rgba(125,125,125,0.1); }
+    #canvas-container { width: 100%; height: 100%; cursor: grab; user-select: none; }
+    #canvas-container:active { cursor: grabbing; }
+    svg { width: 100%; height: 100%; display: block; }
+    .node-text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .mind-node { transition: transform 0.1s; }
+  </style>
+</head>
+<body>
+  <div id="header">
+    <div class="header-card">
+      <span class="title">${escapeXml(title)}</span>
+      <span class="badge">${nodes.length} 节点</span>
+    </div>
+    <div class="controls">
+      <button class="btn" onclick="zoomIn()">放大 (+)</button>
+      <button class="btn" onclick="zoomOut()">缩小 (-)</button>
+      <button class="btn" onclick="resetView()">重置视口</button>
+    </div>
+  </div>
+
+  <div id="canvas-container">
+    <svg id="svg-canvas" viewBox="0 0 ${width} ${height}">
+      <g id="viewport" transform="translate(${offsetX}, ${offsetY}) scale(1)">
+        ${curvesSvg}
+        ${nodesSvg}
+      </g>
+    </svg>
+  </div>
+
+  <script>
+    let scale = 1;
+    let panX = ${offsetX};
+    let panY = ${offsetY};
+    let isDragging = false;
+    let startX = 0, startY = 0;
+
+    const viewport = document.getElementById('viewport');
+    const container = document.getElementById('canvas-container');
+
+    function updateTransform() {
+      viewport.setAttribute('transform', 'translate(' + panX + ', ' + panY + ') scale(' + scale + ')');
+    }
+
+    container.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      startX = e.clientX - panX;
+      startY = e.clientY - panY;
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      panX = e.clientX - startX;
+      panY = e.clientY - startY;
+      updateTransform();
+    });
+
+    window.addEventListener('mouseup', () => { isDragging = false; });
+
+    container.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
+      const newScale = Math.min(Math.max(0.2, scale * zoomFactor), 4);
+      const mouseX = e.clientX;
+      const mouseY = e.clientY;
+      panX = mouseX - (mouseX - panX) * (newScale / scale);
+      panY = mouseY - (mouseY - panY) * (newScale / scale);
+      scale = newScale;
+      updateTransform();
+    }, { passive: false });
+
+    function zoomIn() {
+      scale = Math.min(4, scale * 1.2);
+      updateTransform();
+    }
+    function zoomOut() {
+      scale = Math.max(0.2, scale / 1.2);
+      updateTransform();
+    }
+    function resetView() {
+      scale = 1;
+      panX = ${offsetX};
+      panY = ${offsetY};
+      updateTransform();
+    }
+  </script>
+</body>
+</html>`;
+
+  downloadBlob(new Blob([htmlContent], { type: 'text/html;charset=utf-8' }), `${title}.html`);
+}
+
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
@@ -290,7 +644,7 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 }
 
 function escapeXml(unsafe: string): string {
-  return unsafe.replace(/[<>&'"]/g, (c) => {
+  return (unsafe || '').replace(/[<>&'"]/g, (c) => {
     switch (c) {
       case '<': return '&lt;';
       case '>': return '&gt;';
@@ -300,6 +654,15 @@ function escapeXml(unsafe: string): string {
       default: return c;
     }
   });
+}
+
+function unescapeXml(str: string): string {
+  return (str || '')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'");
 }
 
 function downloadBlob(blob: Blob, filename: string) {

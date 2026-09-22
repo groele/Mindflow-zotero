@@ -32,6 +32,9 @@ export interface AppSettings {
   toolbarButtons: ToolbarButtonsConfig;
   canvasBackground: 'dots' | 'grid' | 'blank'; // 画布背景网格纹理
   zoomStep: number;                            // 缩放步进灵敏度 (0.1 ~ 0.3)
+  rainbowBranches: boolean;                    // 彩虹分支：各主分支独立和谐色彩
+  curveStyle: 'bezier' | 'straight' | 'rounded'; // 连线样式 (平滑曲线/笔直线条/圆角折线)
+  soundEffects: boolean;                       // 是否开启操作音效反馈
 
   // 2. 默认偏好
   defaultThemeId: string;                      // 新建导图默认主题 (例如 classic-blue)
@@ -65,6 +68,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   },
   canvasBackground: 'dots',
   zoomStep: 0.15,
+  rainbowBranches: true,
+  curveStyle: 'bezier',
+  soundEffects: true,
 
   defaultThemeId: 'classic-blue',
   defaultLayout: 'mindmap',

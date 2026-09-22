@@ -46,23 +46,44 @@ interface LayoutResult {
   bounds: { minX: number; maxX: number; minY: number; maxY: number };
 }
 
+export interface LayoutOptions {
+  rainbowBranches?: boolean;
+  curveStyle?: 'bezier' | 'straight' | 'rounded';
+}
+
+export const RAINBOW_BRANCH_COLORS = [
+  '#3b82f6', // 经典蓝
+  '#10b981', // 翡翠绿
+  '#f59e0b', // 暖琥珀
+  '#ec4899', // 霓虹粉
+  '#8b5cf6', // 优雅紫
+  '#06b6d4', // 清透青
+  '#f97316', // 活力橙
+  '#14b8a6', // 松柏青
+  '#e11d48', // 胭脂红
+  '#6366f1', // 靛青蓝
+];
+
 export function computeLayout(
   root: MindMapNode,
   layoutType: LayoutType,
-  theme: ThemeColors
+  theme: ThemeColors,
+  options?: LayoutOptions
 ): LayoutResult {
   const nodes: LayoutNode[] = [];
   const connections: ConnectionCurve[] = [];
+  const curveStyle = options?.curveStyle || 'bezier';
+  const branchColors = options?.rainbowBranches ? RAINBOW_BRANCH_COLORS : theme.branchColors;
 
   switch (layoutType) {
     case 'mindmap':
-      computeMindmapLayout(root, theme, nodes, connections);
+      computeMindmapLayout(root, theme, nodes, connections, branchColors, curveStyle);
       break;
     case 'logic-right':
-      computeLogicRightLayout(root, theme, nodes, connections);
+      computeLogicRightLayout(root, theme, nodes, connections, branchColors, curveStyle);
       break;
     case 'org-down':
-      computeOrgDownLayout(root, theme, nodes, connections);
+      computeOrgDownLayout(root, theme, nodes, connections, branchColors, curveStyle);
       break;
   }
 
@@ -91,7 +112,9 @@ function computeMindmapLayout(
   root: MindMapNode,
   theme: ThemeColors,
   outNodes: LayoutNode[],
-  outConnections: ConnectionCurve[]
+  outConnections: ConnectionCurve[],
+  branchColors: string[] = theme.branchColors,
+  curveStyle: 'bezier' | 'straight' | 'rounded' = 'bezier'
 ) {
   const rootDim = measureNode(root, 0);
   const rootNode: LayoutNode = {
@@ -102,7 +125,7 @@ function computeMindmapLayout(
     width: rootDim.width,
     height: rootDim.height,
     level: 0,
-    color: theme.branchColors[0],
+    color: branchColors[0] || theme.branchColors[0],
     textColor: theme.rootText,
     bgColor: theme.rootBg,
     borderColor: theme.rootBg,
@@ -137,7 +160,9 @@ function computeMindmapLayout(
       theme,
       outNodes,
       outConnections,
-      0 // color index start
+      0, // color index start
+      branchColors,
+      curveStyle
     );
   }
 
@@ -151,7 +176,9 @@ function computeMindmapLayout(
       theme,
       outNodes,
       outConnections,
-      rightChildren.length // offset color index
+      rightChildren.length, // offset color index
+      branchColors,
+      curveStyle
     );
   }
 }
@@ -180,7 +207,9 @@ function layoutSubtree(
   theme: ThemeColors,
   outNodes: LayoutNode[],
   outConnections: ConnectionCurve[],
-  branchColorOffset = 0
+  branchColorOffset = 0,
+  branchColors: string[] = theme.branchColors,
+  curveStyle: 'bezier' | 'straight' | 'rounded' = 'bezier'
 ) {
   const childGap = 16;
   const levelXGap = 64;
@@ -198,7 +227,7 @@ function layoutSubtree(
 
     // Color: level 1 gets new color; subsequent levels inherit parent color
     const branchColor = level === 1
-      ? theme.branchColors[(branchColorOffset + index) % theme.branchColors.length]
+      ? branchColors[(branchColorOffset + index) % branchColors.length]
       : parentNode.color;
 
     let childX = 0;
@@ -234,7 +263,7 @@ function layoutSubtree(
     outNodes.push(layoutChild);
 
     // Build connection line
-    const curve = createHorizontalCurve(parentNode, layoutChild, side, child.color || branchColor);
+    const curve = createHorizontalCurve(parentNode, layoutChild, side, child.color || branchColor, curveStyle);
     outConnections.push(curve);
 
     // Recurse for deeper children
@@ -247,7 +276,9 @@ function layoutSubtree(
         theme,
         outNodes,
         outConnections,
-        branchColorOffset
+        branchColorOffset,
+        branchColors,
+        curveStyle
       );
     }
 
@@ -259,7 +290,8 @@ function createHorizontalCurve(
   from: LayoutNode,
   to: LayoutNode,
   side: 'left' | 'right',
-  color: string
+  color: string,
+  curveStyle: 'bezier' | 'straight' | 'rounded' = 'bezier'
 ): ConnectionCurve {
   let x1 = 0, y1 = 0, x2 = 0, y2 = 0;
 
@@ -275,13 +307,21 @@ function createHorizontalCurve(
     y2 = to.y + to.height / 2;
   }
 
-  const dx = x2 - x1;
-  const cp1x = x1 + dx * 0.45;
-  const cp1y = y1;
-  const cp2x = x1 + dx * 0.55;
-  const cp2y = y2;
-
-  const path = `M ${x1.toFixed(1)} ${y1.toFixed(1)} C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${x2.toFixed(1)} ${y2.toFixed(1)}`;
+  let path = '';
+  if (curveStyle === 'straight') {
+    path = `M ${x1.toFixed(1)} ${y1.toFixed(1)} L ${x2.toFixed(1)} ${y2.toFixed(1)}`;
+  } else if (curveStyle === 'rounded') {
+    const midX = (x1 + x2) / 2;
+    path = `M ${x1.toFixed(1)} ${y1.toFixed(1)} H ${midX.toFixed(1)} V ${y2.toFixed(1)} H ${x2.toFixed(1)}`;
+  } else {
+    // bezier
+    const dx = x2 - x1;
+    const cp1x = x1 + dx * 0.45;
+    const cp1y = y1;
+    const cp2x = x1 + dx * 0.55;
+    const cp2y = y2;
+    path = `M ${x1.toFixed(1)} ${y1.toFixed(1)} C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${x2.toFixed(1)} ${y2.toFixed(1)}`;
+  }
 
   return {
     id: `conn_${from.id}_${to.id}`,
@@ -298,7 +338,9 @@ function computeLogicRightLayout(
   root: MindMapNode,
   theme: ThemeColors,
   outNodes: LayoutNode[],
-  outConnections: ConnectionCurve[]
+  outConnections: ConnectionCurve[],
+  branchColors: string[] = theme.branchColors,
+  curveStyle: 'bezier' | 'straight' | 'rounded' = 'bezier'
 ) {
   const rootDim = measureNode(root, 0);
   const rootNode: LayoutNode = {
@@ -309,7 +351,7 @@ function computeLogicRightLayout(
     width: rootDim.width,
     height: rootDim.height,
     level: 0,
-    color: theme.branchColors[0],
+    color: branchColors[0] || theme.branchColors[0],
     textColor: theme.rootText,
     bgColor: theme.rootBg,
     borderColor: theme.rootBg,
@@ -330,7 +372,9 @@ function computeLogicRightLayout(
     theme,
     outNodes,
     outConnections,
-    0
+    0,
+    branchColors,
+    curveStyle
   );
 }
 
@@ -339,7 +383,9 @@ function computeOrgDownLayout(
   root: MindMapNode,
   theme: ThemeColors,
   outNodes: LayoutNode[],
-  outConnections: ConnectionCurve[]
+  outConnections: ConnectionCurve[],
+  branchColors: string[] = theme.branchColors,
+  curveStyle: 'bezier' | 'straight' | 'rounded' = 'bezier'
 ) {
   const rootDim = measureNode(root, 0);
   const rootNode: LayoutNode = {
@@ -350,7 +396,7 @@ function computeOrgDownLayout(
     width: rootDim.width,
     height: rootDim.height,
     level: 0,
-    color: theme.branchColors[0],
+    color: branchColors[0] || theme.branchColors[0],
     textColor: theme.rootText,
     bgColor: theme.rootBg,
     borderColor: theme.rootBg,
@@ -363,7 +409,7 @@ function computeOrgDownLayout(
     return;
   }
 
-  layoutOrgSubtree(rootNode, root.children, 1, theme, outNodes, outConnections);
+  layoutOrgSubtree(rootNode, root.children, 1, theme, outNodes, outConnections, branchColors, curveStyle);
 }
 
 function calculateOrgSubtreeWidth(node: MindMapNode, level: number): number {
@@ -386,7 +432,9 @@ function layoutOrgSubtree(
   level: number,
   theme: ThemeColors,
   outNodes: LayoutNode[],
-  outConnections: ConnectionCurve[]
+  outConnections: ConnectionCurve[],
+  branchColors: string[] = theme.branchColors,
+  curveStyle: 'bezier' | 'straight' | 'rounded' = 'bezier'
 ) {
   const childGap = 24;
   const levelYGap = 54;
@@ -402,7 +450,7 @@ function layoutOrgSubtree(
     const subWidth = widths[index];
     const childDim = measureNode(child, level);
     const branchColor = level === 1
-      ? theme.branchColors[index % theme.branchColors.length]
+      ? branchColors[index % branchColors.length]
       : parentNode.color;
 
     const childX = currentX + (subWidth - childDim.width) / 2;
@@ -434,8 +482,17 @@ function layoutOrgSubtree(
     const x2 = layoutChild.x + layoutChild.width / 2;
     const y2 = layoutChild.y;
 
-    const midY = (y1 + y2) / 2;
-    const path = `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`;
+    let path = '';
+    if (curveStyle === 'straight') {
+      path = `M ${x1.toFixed(1)} ${y1.toFixed(1)} L ${x2.toFixed(1)} ${y2.toFixed(1)}`;
+    } else if (curveStyle === 'rounded') {
+      const midY = (y1 + y2) / 2;
+      path = `M ${x1.toFixed(1)} ${y1.toFixed(1)} V ${midY.toFixed(1)} H ${x2.toFixed(1)} V ${y2.toFixed(1)}`;
+    } else {
+      // bezier
+      const midY = (y1 + y2) / 2;
+      path = `M ${x1.toFixed(1)} ${y1.toFixed(1)} C ${x1.toFixed(1)} ${midY.toFixed(1)}, ${x2.toFixed(1)} ${midY.toFixed(1)}, ${x2.toFixed(1)} ${y2.toFixed(1)}`;
+    }
 
     outConnections.push({
       id: `conn_${parentNode.id}_${layoutChild.id}`,
@@ -447,7 +504,7 @@ function layoutOrgSubtree(
     });
 
     if (child.children && child.children.length > 0 && child.isExpanded !== false) {
-      layoutOrgSubtree(layoutChild, child.children, level + 1, theme, outNodes, outConnections);
+      layoutOrgSubtree(layoutChild, child.children, level + 1, theme, outNodes, outConnections, branchColors, curveStyle);
     }
 
     currentX += subWidth + childGap;

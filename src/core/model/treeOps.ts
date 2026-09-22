@@ -244,3 +244,83 @@ export function findAdjacentNode(
 
   return bestNode ? bestNode.id : null;
 }
+
+// Duplicate a node and insert as its sibling
+export function duplicateNode(
+  root: MindMapNode,
+  targetId: string
+): { newRoot: MindMapNode; newNodeId: string } {
+  if (root.id === targetId) return { newRoot: root, newNodeId: root.id };
+
+  const newRoot = cloneTree(root);
+  const parentInfo = findParent(newRoot, targetId);
+  if (!parentInfo) return { newRoot: root, newNodeId: root.id };
+
+  const targetNode = parentInfo.parent.children[parentInfo.index];
+  const duplicatedSubtree = cloneTree(targetNode, true);
+  duplicatedSubtree.text = `${duplicatedSubtree.text} (副本)`;
+
+  parentInfo.parent.children.splice(parentInfo.index + 1, 0, duplicatedSubtree);
+  return { newRoot, newNodeId: duplicatedSubtree.id };
+}
+
+// Paste a cloned subtree under a parent node
+export function pasteSubtree(
+  root: MindMapNode,
+  parentId: string,
+  subtree: MindMapNode
+): { newRoot: MindMapNode; newNodeId: string } {
+  const newRoot = cloneTree(root);
+  const targetParent = findNode(newRoot, parentId);
+  const pasted = cloneTree(subtree, true);
+
+  if (targetParent) {
+    if (!targetParent.children) targetParent.children = [];
+    targetParent.children.push(pasted);
+    targetParent.isExpanded = true;
+  }
+
+  return { newRoot, newNodeId: pasted.id };
+}
+
+// Batch delete multiple nodes
+export function deleteMultipleNodes(
+  root: MindMapNode,
+  targetIds: string[]
+): { newRoot: MindMapNode; nextSelectedId: string } {
+  const idsToDelete = new Set(targetIds.filter(id => id !== root.id));
+  if (idsToDelete.size === 0) return { newRoot: root, nextSelectedId: root.id };
+
+  let currentRoot = cloneTree(root);
+  let nextSelectedId = root.id;
+
+  function filterChildren(node: MindMapNode): MindMapNode {
+    if (!node.children) return node;
+    const keptChildren = node.children.filter(c => !idsToDelete.has(c.id));
+    return {
+      ...node,
+      children: keptChildren.map(filterChildren),
+    };
+  }
+
+  currentRoot = filterChildren(currentRoot);
+  return { newRoot: currentRoot, nextSelectedId };
+}
+
+// Batch update multiple nodes
+export function updateMultipleNodes(
+  root: MindMapNode,
+  targetIds: string[],
+  patch: Partial<MindMapNode>
+): MindMapNode {
+  const idSet = new Set(targetIds);
+  function walk(node: MindMapNode): MindMapNode {
+    const isTarget = idSet.has(node.id);
+    const updated = isTarget ? { ...node, ...patch } : node;
+    return {
+      ...updated,
+      children: node.children ? node.children.map(walk) : [],
+    };
+  }
+  return walk(root);
+}

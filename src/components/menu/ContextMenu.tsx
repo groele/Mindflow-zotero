@@ -17,6 +17,10 @@ export interface ContextMenuProps {
   onToggleCollapse: (id: string) => void;
   onStartEdit: (id: string) => void;
   onFocusSubtree?: (id: string) => void;
+  onCopyNode?: (id: string) => void;
+  onDuplicateNode?: (id: string) => void;
+  onPasteSubtree?: (id: string) => void;
+  hasClipboardContent?: boolean;
 }
 
 export const ContextMenu: React.FC<ContextMenuProps> = ({
@@ -31,6 +35,10 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   onToggleCollapse,
   onStartEdit,
   onFocusSubtree,
+  onCopyNode,
+  onDuplicateNode,
+  onPasteSubtree,
+  hasClipboardContent = false,
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -186,13 +194,61 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
         </button>
       )}
 
+      {onCopyNode && (
+        <button
+          onClick={() => {
+            onCopyNode(node.id);
+            onClose();
+          }}
+          className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-left"
+        >
+          <div className="flex items-center gap-2">
+            <Copy className="w-3.5 h-3.5 text-blue-500" />
+            <span>复制分支节点</span>
+          </div>
+          <kbd className="text-[10px] font-mono text-slate-400">Ctrl+C</kbd>
+        </button>
+      )}
+
+      {onDuplicateNode && (
+        <button
+          onClick={() => {
+            onDuplicateNode(node.id);
+            onClose();
+          }}
+          className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-left"
+        >
+          <div className="flex items-center gap-2">
+            <Copy className="w-3.5 h-3.5 text-emerald-500" />
+            <span>创建副本</span>
+          </div>
+          <kbd className="text-[10px] font-mono text-slate-400">Ctrl+D</kbd>
+        </button>
+      )}
+
+      {onPasteSubtree && hasClipboardContent && (
+        <button
+          onClick={() => {
+            onPasteSubtree(node.id);
+            onClose();
+          }}
+          className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-left"
+        >
+          <div className="flex items-center gap-2">
+            <Plus className="w-3.5 h-3.5 text-purple-500" />
+            <span>粘贴子分支</span>
+          </div>
+          <kbd className="text-[10px] font-mono text-slate-400">Ctrl+V</kbd>
+        </button>
+      )}
+
       <button
         onClick={handleCopyText}
         className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-left"
       >
         <div className="flex items-center gap-2">
           <Copy className="w-3.5 h-3.5 text-slate-500" />
-          <span>复制主题文本</span>
+          <span>复制主题纯文本</span>
         </div>
       </button>
 

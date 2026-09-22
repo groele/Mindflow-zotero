@@ -7,12 +7,16 @@ import {
   moveNode,
   cloneTree,
   findNode,
-  findAdjacentNode
+  findAdjacentNode,
+  duplicateNode,
+  pasteSubtree,
+  deleteMultipleNodes,
+  updateMultipleNodes
 } from '../src/core/model/treeOps.ts';
-import { computeLayout } from '../src/core/layout/layoutEngine.ts';
+import { computeLayout, RAINBOW_BRANCH_COLORS } from '../src/core/layout/layoutEngine.ts';
 import { getTheme, THEMES } from '../src/core/theme/themes.ts';
 import { HistoryManager } from '../src/core/history/historyManager.ts';
-import { importFromMarkdown } from '../src/services/io/exporter.ts';
+import { importFromMarkdown, parseOPMLString } from '../src/services/io/exporter.ts';
 import { TEMPLATES } from '../src/core/model/templates.ts';
 
 console.log('--- 开始 MindFlow 核心模块与 Master Prompt 功能测试 ---');
@@ -343,7 +347,109 @@ assert.deepStrictEqual(searchNodes(searchTree, 'WebDAV'), ['c2']);
 assert.deepStrictEqual(searchNodes(searchTree, '规划'), ['root_s']);
 console.log('✓ 脑图全文多维度（标题/备注/标签）即时搜索匹配测试全部通过！');
 
-console.log('🎉 所有自动化验证与商业级质量门槛 (12/12) 均顺利通过！');
+// 13. 测试节点副本生成 (Duplicate)、剪贴板子树粘贴 (Paste) 与批量增删改操作
+console.log('13. 测试节点副本生成 (Duplicate)、剪贴板粘贴与批量操作...');
+const tree13 = {
+  id: 'r_base',
+  text: '系统主干',
+  children: [
+    {
+      id: 'sub1',
+      text: '分支一',
+      children: [
+        { id: 'sub1_child', text: '子分支细节', children: [] }
+      ]
+    },
+    { id: 'sub2', text: '分支二', children: [] }
+  ]
+};
+
+// 测试 duplicateNode
+const { newRoot: dupRoot, newNodeId: dupId } = duplicateNode(tree13, 'sub1');
+assert.strictEqual(dupRoot.children.length, 3);
+const dupNode = findNode(dupRoot, dupId);
+assert.ok(dupNode);
+assert.strictEqual(dupNode.text, '分支一 (副本)');
+assert.notStrictEqual(dupNode.id, 'sub1');
+assert.strictEqual(dupNode.children.length, 1);
+assert.notStrictEqual(dupNode.children[0].id, 'sub1_child');
+assert.strictEqual(dupNode.children[0].text, '子分支细节');
+
+// 测试 pasteSubtree
+const clipboardSubtree = {
+  id: 'clip_original',
+  text: '剪贴板内容',
+  children: [{ id: 'clip_child', text: '剪贴板子项', children: [] }]
+};
+const { newRoot: pastedRoot, newNodeId: pastedId } = pasteSubtree(dupRoot, 'sub2', clipboardSubtree);
+const pastedParent = findNode(pastedRoot, 'sub2');
+assert.strictEqual(pastedParent.children.length, 1);
+assert.strictEqual(pastedParent.children[0].id, pastedId);
+assert.notStrictEqual(pastedParent.children[0].id, 'clip_original');
+assert.strictEqual(pastedParent.children[0].text, '剪贴板内容');
+
+// 测试 updateMultipleNodes 批量打标签/改色
+const batchUpdated = updateMultipleNodes(pastedRoot, ['sub1', 'sub2'], { color: '#3b82f6', shape: 'pill' });
+assert.strictEqual(findNode(batchUpdated, 'sub1').color, '#3b82f6');
+assert.strictEqual(findNode(batchUpdated, 'sub2').color, '#3b82f6');
+assert.strictEqual(findNode(batchUpdated, 'sub1').shape, 'pill');
+
+// 测试 deleteMultipleNodes 批量删除节点
+const { newRoot: batchDeleted } = deleteMultipleNodes(batchUpdated, ['sub1', 'sub2']);
+assert.strictEqual(batchDeleted.children.length, 1); // 仅剩 dupId 节点
+assert.strictEqual(batchDeleted.children[0].id, dupId);
+console.log('✓ 节点克隆、副本生成、剪贴板子树深拷贝与批量多选增删改测试全部通过！');
+
+// 14. 测试 OPML 2.0 双向解析与彩虹分支 / 连线风格计算
+console.log('14. 测试 OPML 2.0 标准解析、彩虹分支着色与三种连线风格...');
+const sampleOpml = `<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head>
+    <title>敏捷开发规划</title>
+  </head>
+  <body>
+    <outline text="敏捷开发规划">
+      <outline text="迭代一" _note="核心功能交付" _status="done" />
+      <outline text="迭代二" _status="todo">
+        <outline text="任务 A" />
+      </outline>
+    </outline>
+  </body>
+</opml>`;
+
+const parsedOpmlRoot = parseOPMLString(sampleOpml);
+assert.strictEqual(parsedOpmlRoot.text, '敏捷开发规划');
+assert.strictEqual(parsedOpmlRoot.children.length, 2);
+assert.strictEqual(parsedOpmlRoot.children[0].text, '迭代一');
+assert.strictEqual(parsedOpmlRoot.children[0].note, '核心功能交付');
+assert.strictEqual(parsedOpmlRoot.children[0].task.status, 'done');
+assert.strictEqual(parsedOpmlRoot.children[1].text, '迭代二');
+assert.strictEqual(parsedOpmlRoot.children[1].task.status, 'todo');
+assert.strictEqual(parsedOpmlRoot.children[1].children[0].text, '任务 A');
+
+// 测试彩虹分支与直连线风格计算
+const rainbowStraightLayout = computeLayout(parsedOpmlRoot, 'mindmap', theme, {
+  rainbowBranches: true,
+  curveStyle: 'straight'
+});
+assert.strictEqual(rainbowStraightLayout.nodes.length, 4);
+assert.strictEqual(rainbowStraightLayout.connections.length, 3);
+// 直连线验证: 路径包含直线指令 L
+assert.ok(rainbowStraightLayout.connections[0].path.includes(' L '));
+// 彩虹分支验证: 第一主分支使用 RAINBOW_BRANCH_COLORS[0]
+const branch1Node = rainbowStraightLayout.nodes.find(n => n.node.text === '迭代一');
+assert.strictEqual(branch1Node.color, RAINBOW_BRANCH_COLORS[0]);
+
+// 测试圆角正交线风格计算
+const roundedLayout = computeLayout(parsedOpmlRoot, 'logic-right', theme, {
+  curveStyle: 'rounded'
+});
+// 圆角正交线验证: 路径包含水平及垂直正交指令 H 和 V
+assert.ok(roundedLayout.connections[0].path.includes(' H ') && roundedLayout.connections[0].path.includes(' V '));
+console.log('✓ OPML 2.0 导入解析、彩虹分支渲染与贝塞尔/直连/圆角三种连线风格测试全部通过！');
+
+console.log('🎉 所有自动化验证与商业级质量门槛 (14/14) 均顺利通过！');
+
 
 
 
