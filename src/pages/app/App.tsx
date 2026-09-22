@@ -23,6 +23,10 @@ import { TemplateModal } from '../../components/modal/TemplateModal';
 import { CommandPalette } from '../../components/command/CommandPalette';
 import { Minimap } from '../../components/minimap/Minimap';
 import { SettingsModal } from '../../components/modal/SettingsModal';
+import { CanvasSearch } from '../../components/search/CanvasSearch';
+import { ContextMenu } from '../../components/menu/ContextMenu';
+import { PresentationMode } from '../../components/presentation/PresentationMode';
+import { LicenseService, LicenseInfo } from '../../services/license/licenseService';
 import { AppSettings, DEFAULT_SETTINGS } from '../../core/model/settingsTypes';
 import { SettingsService } from '../../services/storage/settingsService';
 import { BackupService } from '../../services/storage/backupService';
@@ -53,15 +57,23 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isZenMode, setIsZenMode] = useState(false);
 
+  // New features: In-canvas Search, Presentation Mode, Node Context Menu, Commercial License
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchMatchedIds, setSearchMatchedIds] = useState<string[]>([]);
+  const [isPresentationOpen, setIsPresentationOpen] = useState(false);
+  const [contextMenuState, setContextMenuState] = useState<{ x: number; y: number; node: MindMapNode } | null>(null);
+  const [license, setLicense] = useState<LicenseInfo>({ tier: 'free' });
+
   // Settings State
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
 
-  // Load Settings on mount
+  // Load Settings and License on mount
   useEffect(() => {
     SettingsService.getSettings().then((loaded) => {
       setSettings(loaded);
       setDockPosition(loaded.workbenchDockPosition);
     });
+    LicenseService.getLicense().then(setLicense);
   }, []);
 
   // History Manager
@@ -307,6 +319,16 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     }
   }, [layout.nodes]);
 
+  // Handle node right click
+  const handleContextMenuNode = useCallback((nodeId: string, clientX: number, clientY: number) => {
+    if (!doc) return;
+    const target = findNode(doc.root, nodeId);
+    if (target) {
+      setSelectedId(nodeId);
+      setContextMenuState({ x: clientX, y: clientY, node: target });
+    }
+  }, [doc]);
+
   // Insert Inbox item to mind map
   const handleInsertInboxItem = useCallback((item: InboxItem) => {
     if (!doc) return;
@@ -343,6 +365,26 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   // Global keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Escape closes floating search or context menu
+      if (e.key === 'Escape') {
+        if (contextMenuState) {
+          setContextMenuState(null);
+          return;
+        }
+        if (isSearchOpen) {
+          setIsSearchOpen(false);
+          return;
+        }
+        if (isPresentationOpen) {
+          setIsPresentationOpen(false);
+          return;
+        }
+        if (isZenMode) {
+          setIsZenMode(false);
+          return;
+        }
+      }
+
       // Command Palette: Ctrl+K or Cmd+K
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
@@ -350,16 +392,40 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
         return;
       }
 
-      // Zen mode escape
-      if (e.key === 'Escape' && isZenMode) {
-        setIsZenMode(false);
-        return;
-      }
-
       // If editing text in input or textarea, skip global shortcuts
       if (editingId) return;
       const activeTag = document.activeElement?.tagName.toLowerCase();
       if (activeTag === 'input' || activeTag === 'textarea') return;
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        setIsSearchOpen(prev => !prev);
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === '1') {
+        e.preventDefault();
+        centerCanvas(layout.bounds);
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === '0') {
+        e.preventDefault();
+        if (containerRef.current) {
+          setViewport({
+            x: containerRef.current.clientWidth / 2,
+            y: containerRef.current.clientHeight / 2,
+            scale: 1,
+          });
+        }
+        return;
+      }
+
+      if (e.key === 'F5' || ((e.altKey || e.metaKey) && e.key.toLowerCase() === 'p')) {
+        e.preventDefault();
+        setIsPresentationOpen(true);
+        return;
+      }
 
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
@@ -548,13 +614,17 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
             }
           }}
           onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+          onOpenSearch={() => setIsSearchOpen(prev => !prev)}
+          onStartPresentation={() => setIsPresentationOpen(true)}
+          onFitScreen={() => centerCanvas(layout.bounds)}
           onOpenTemplates={() => setIsTemplateModalOpen(true)}
           onToggleZen={() => setIsZenMode(true)}
           onOpenShortcuts={() => setIsShortcutsOpen(true)}
           onOpenSettings={() => setIsSettingsOpen(true)}
+          isPro={license.tier !== 'free'}
           toolbarButtons={settings.toolbarButtons}
-          onExportPNG={() => exportToPNG(layout.nodes, layout.connections, layout.bounds, theme, doc.title)}
-          onExportSVG={() => exportToSVG(layout.nodes, layout.connections, layout.bounds, theme, doc.title)}
+          onExportPNG={() => exportToPNG(layout.nodes, layout.connections, layout.bounds, theme, doc.title, { watermark: license.tier === 'free' })}
+          onExportSVG={() => exportToSVG(layout.nodes, layout.connections, layout.bounds, theme, doc.title, { watermark: license.tier === 'free' })}
           onExportMarkdown={() => exportToMarkdown(doc.root, doc.title)}
           onExportJSON={() => exportToJSON(doc)}
           onImportFile={handleImportFile}
@@ -649,6 +719,17 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
             onToggleCollapse={handleToggleCollapse}
             onToggleTaskStatus={handleToggleTaskStatus}
             onMoveNode={handleMoveNode}
+            searchMatchedIds={searchMatchedIds}
+            onContextMenuNode={handleContextMenuNode}
+          />
+
+          {/* In-Canvas Search Floating Widget */}
+          <CanvasSearch
+            isOpen={isSearchOpen}
+            onClose={() => setIsSearchOpen(false)}
+            rootNode={doc.root}
+            onJumpToNode={handleSelectAndCenterNode}
+            onHighlightMatches={setSearchMatchedIds}
           />
 
           {/* Minimap Widget (Hidden in Zen or Sidepanel mode) */}
@@ -696,8 +777,8 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
         onToggleZen={() => setIsZenMode(prev => !prev)}
         onChangeLayout={(l) => setDoc(prev => prev ? { ...prev, layoutType: l } : null)}
         onChangeTheme={(th) => setDoc(prev => prev ? { ...prev, themeId: th } : null)}
-        onExportPNG={() => exportToPNG(layout.nodes, layout.connections, layout.bounds, theme, doc.title)}
-        onExportSVG={() => exportToSVG(layout.nodes, layout.connections, layout.bounds, theme, doc.title)}
+        onExportPNG={() => exportToPNG(layout.nodes, layout.connections, layout.bounds, theme, doc.title, { watermark: license.tier === 'free' })}
+        onExportSVG={() => exportToSVG(layout.nodes, layout.connections, layout.bounds, theme, doc.title, { watermark: license.tier === 'free' })}
         onExportMarkdown={() => exportToMarkdown(doc.root, doc.title)}
         onOpenShortcuts={() => setIsShortcutsOpen(true)}
         onOpenSettings={() => setIsSettingsOpen(true)}
@@ -726,6 +807,32 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
           setDockPosition(newSettings.workbenchDockPosition);
         }}
         onReloadWorkspace={reloadWorkspace}
+        onLicenseChanged={() => LicenseService.getLicense().then(setLicense)}
+      />
+
+      {/* Node Context Menu (Right Click) */}
+      {contextMenuState && (
+        <ContextMenu
+          x={contextMenuState.x}
+          y={contextMenuState.y}
+          node={contextMenuState.node}
+          onClose={() => setContextMenuState(null)}
+          onAddChild={handleAddChild}
+          onAddSibling={() => handleAddSibling(false)}
+          onDelete={handleDeleteNode}
+          onToggleTask={handleToggleTaskStatus}
+          onToggleCollapse={handleToggleCollapse}
+          onStartEdit={(id) => setEditingId(id)}
+          onFocusSubtree={(id) => handleSelectAndCenterNode(id)}
+        />
+      )}
+
+      {/* Fullscreen Presentation Mode */}
+      <PresentationMode
+        isOpen={isPresentationOpen}
+        onClose={() => setIsPresentationOpen(false)}
+        rootNode={doc.root}
+        theme={theme}
       />
     </div>
   );

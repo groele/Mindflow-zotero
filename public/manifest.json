@@ -1,9 +1,10 @@
 {
   "manifest_version": 3,
-  "name": "MindFlow - 现代思维导图与伴读笔记",
-  "short_name": "MindFlow",
-  "version": "1.0.0",
-  "description": "极速、美观优雅的 Chrome 浏览器思维导图，支持全屏沉浸式创作、Side Panel 侧边栏伴读、大纲视图与全键盘盲操。",
+  "name": "__MSG_appName__",
+  "short_name": "__MSG_appShortName__",
+  "version": "2.3.0",
+  "default_locale": "zh_CN",
+  "description": "__MSG_appDesc__",
   "permissions": [
     "storage",
     "sidePanel",
@@ -17,7 +18,7 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "MindFlow 思维导图"
+    "default_title": "__MSG_appTitle__"
   },
   "side_panel": {
     "default_path": "sidepanel.html"

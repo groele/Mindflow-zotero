@@ -1,0 +1,22 @@
+{
+  "appName": {
+    "message": "MindFlow - Modern Mind Map & Companion Notes",
+    "description": "The name of the extension"
+  },
+  "appShortName": {
+    "message": "MindFlow",
+    "description": "The short name of the extension"
+  },
+  "appDesc": {
+    "message": "Fast, elegant Chrome mind mapping extension. Features full-screen mode, Side Panel companion reading, bidirectional outline, WebDAV cloud sync, and snapshot backups.",
+    "description": "The description of the extension"
+  },
+  "appTitle": {
+    "message": "MindFlow Mind Map",
+    "description": "Title shown on toolbar hover"
+  },
+  "contextMenuClip": {
+    "message": "📌 Clip to MindFlow",
+    "description": "Context menu title for clipping text"
+  }
+}

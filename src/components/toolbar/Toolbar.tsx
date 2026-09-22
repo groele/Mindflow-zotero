@@ -3,7 +3,8 @@ import {
   Plus, CornerDownRight, Trash2, Undo2, Redo2,
   Palette, Layout, ListTree, Download, Upload,
   HelpCircle, Maximize2, ZoomIn, ZoomOut,
-  Globe, ChevronDown, Check, Inbox, Sparkles, Command, Settings
+  Globe, ChevronDown, Check, Inbox, Sparkles, Command, Settings,
+  Presentation, Search as SearchIcon, Scan, Crown
 } from 'lucide-react';
 import { LayoutType, ThemeColors } from '../../core/model/types';
 import { THEMES } from '../../core/theme/themes';
@@ -28,15 +29,19 @@ interface ToolbarProps {
   onZoomIn: () => void;
   onZoomOut: () => void;
   onResetZoom: () => void;
+  onFitScreen?: () => void;
   isOutlineOpen: boolean;
   onToggleOutline: () => void;
   isInboxOpen?: boolean;
   onToggleInbox?: () => void;
   onOpenCommandPalette?: () => void;
+  onOpenSearch?: () => void;
+  onStartPresentation?: () => void;
   onOpenTemplates?: () => void;
   onToggleZen?: () => void;
   onOpenShortcuts: () => void;
   onOpenSettings?: () => void;
+  isPro?: boolean;
   toolbarButtons?: ToolbarButtonsConfig;
   onExportPNG: () => void;
   onExportSVG: () => void;
@@ -66,15 +71,19 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onZoomIn,
   onZoomOut,
   onResetZoom,
+  onFitScreen,
   isOutlineOpen,
   onToggleOutline,
   isInboxOpen,
   onToggleInbox,
   onOpenCommandPalette,
+  onOpenSearch,
+  onStartPresentation,
   onOpenTemplates,
   onToggleZen,
   onOpenShortcuts,
   onOpenSettings,
+  isPro = false,
   toolbarButtons,
   onExportPNG,
   onExportSVG,
@@ -364,6 +373,33 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           </button>
         )}
 
+        {/* In-canvas Search */}
+        {onOpenSearch && (
+          <button
+            onClick={onOpenSearch}
+            title="在导图中搜索 (Ctrl+F)"
+            className="p-1.5 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          >
+            <SearchIcon className="w-4 h-4 text-sky-500" />
+          </button>
+        )}
+
+        {/* Presentation Mode */}
+        {onStartPresentation && (
+          <button
+            onClick={onStartPresentation}
+            title="全屏路演/演示模式 (Presentation Mode)"
+            className="relative p-1.5 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 transition-colors"
+          >
+            <Presentation className="w-4 h-4" />
+            {!isPro && (
+              <span className="absolute -top-1 -right-1 px-1 text-[8px] font-bold bg-amber-500 text-white rounded-full leading-tight shadow-sm">
+                PRO
+              </span>
+            )}
+          </button>
+        )}
+
         {/* Export / Import dropdown */}
         {buttons.export && (
           <div className="relative">
@@ -435,6 +471,18 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           className="hidden"
         />
 
+        {/* Pro Badge / Upgrade */}
+        {!isPro && onOpenSettings && (
+          <button
+            onClick={onOpenSettings}
+            title="升级 MindFlow Pro 解锁 10+ 主题与无水印商业导出"
+            className="hidden md:flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-full shadow-sm shadow-amber-500/20 transition-all hover:scale-105"
+          >
+            <Crown className="w-3 h-3 fill-white" />
+            <span>PRO</span>
+          </button>
+        )}
+
         {/* Shortcuts Cheat Sheet */}
         <button
           onClick={onOpenShortcuts}
@@ -455,9 +503,18 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           </button>
         )}
 
-        {/* Zoom controls */}
+        {/* Zoom & Fit controls */}
         {buttons.zoom && (
           <div className="hidden sm:flex items-center gap-0.5 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg">
+            {onFitScreen && (
+              <button
+                onClick={onFitScreen}
+                title="自适应全屏居中 (Ctrl+1)"
+                className="p-1 rounded text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700"
+              >
+                <Scan className="w-3.5 h-3.5 text-blue-500" />
+              </button>
+            )}
             <button
               onClick={onZoomOut}
               title="缩小画布"
@@ -467,7 +524,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             </button>
             <button
               onClick={onResetZoom}
-              title="重置缩放 (100%)"
+              title="重置为 100% 原始大小 (Ctrl+0)"
               className="px-1.5 text-[11px] font-medium text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 rounded"
             >
               {Math.round(scale * 100)}%

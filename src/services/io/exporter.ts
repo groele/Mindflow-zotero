@@ -113,13 +113,20 @@ export function importFromMarkdown(mdContent: string): MindMapNode {
   return root;
 }
 
+export interface ExportOptions {
+  watermark?: boolean;
+  watermarkText?: string;
+  highDpi?: boolean;
+}
+
 // Export as SVG
 export function exportToSVG(
   nodes: LayoutNode[],
   connections: ConnectionCurve[],
   bounds: { minX: number; maxX: number; minY: number; maxY: number },
   theme: ThemeColors,
-  title: string
+  title: string,
+  options?: ExportOptions
 ): string {
   const padding = 60;
   const width = bounds.maxX - bounds.minX + padding * 2;
@@ -158,6 +165,14 @@ export function exportToSVG(
   }
 
   svg += `</g>\n`;
+
+  // Optional Watermark
+  if (options?.watermark) {
+    const watermarkText = escapeXml(options.watermarkText || 'Created with MindFlow');
+    const watermarkColor = theme.isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)';
+    svg += `<text x="${width - 24}" y="${height - 20}" text-anchor="end" font-size="12" fill="${watermarkColor}" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="500">${watermarkText}</text>\n`;
+  }
+
   svg += `</svg>`;
 
   downloadBlob(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }), `${title}.svg`);
@@ -170,7 +185,8 @@ export async function exportToPNG(
   connections: ConnectionCurve[],
   bounds: { minX: number; maxX: number; minY: number; maxY: number },
   theme: ThemeColors,
-  title: string
+  title: string,
+  options?: ExportOptions
 ): Promise<void> {
   const padding = 80;
   const width = Math.ceil(bounds.maxX - bounds.minX + padding * 2);
@@ -239,6 +255,17 @@ export async function exportToPNG(
   }
 
   ctx.restore();
+
+  // Draw optional watermark
+  if (options?.watermark) {
+    ctx.save();
+    ctx.font = '500 13px system-ui, -apple-system, sans-serif';
+    ctx.fillStyle = theme.isDark ? 'rgba(255, 255, 255, 0.35)' : 'rgba(0, 0, 0, 0.35)';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(options.watermarkText || 'Created with MindFlow', width - 24, height - 20);
+    ctx.restore();
+  }
 
   // Trigger download
   const dataUrl = canvas.toDataURL('image/png');

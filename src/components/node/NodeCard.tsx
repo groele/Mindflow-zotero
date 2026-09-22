@@ -6,7 +6,9 @@ interface NodeCardProps {
   layoutNode: LayoutNode;
   isSelected: boolean;
   isEditing: boolean;
+  isSearchMatched?: boolean;
   onSelect: (id: string, e: React.MouseEvent) => void;
+  onContextMenu?: (id: string, e: React.MouseEvent) => void;
   onStartEdit: (id: string) => void;
   onCommitEdit: (id: string, newText: string) => void;
   onCancelEdit: () => void;
@@ -21,7 +23,9 @@ export const NodeCard: React.FC<NodeCardProps> = ({
   layoutNode,
   isSelected,
   isEditing,
+  isSearchMatched = false,
   onSelect,
+  onContextMenu,
   onStartEdit,
   onCommitEdit,
   onCancelEdit,
@@ -123,6 +127,11 @@ export const NodeCard: React.FC<NodeCardProps> = ({
       onDragOver={(e) => onDragOver && onDragOver(node.id, e)}
       onDrop={(e) => onDrop && onDrop(node.id, e)}
       onClick={(e) => onSelect(node.id, e)}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onContextMenu && onContextMenu(node.id, e);
+      }}
       onDoubleClick={(e) => {
         e.stopPropagation();
         onStartEdit(node.id);
@@ -132,6 +141,7 @@ export const NodeCard: React.FC<NodeCardProps> = ({
         ${shapeClasses}
         ${isRoot ? 'shadow-lg font-bold text-base' : 'text-sm font-medium border'}
         ${isSelected ? 'ring-2 ring-blue-500 ring-offset-2 ring-offset-transparent shadow-node-selected z-20' : 'shadow-node hover:shadow-node-hover z-10'}
+        ${isSearchMatched ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-amber-100 dark:ring-offset-slate-900 shadow-lg scale-105 z-30' : ''}
         ${shape !== 'underline' ? 'backdrop-blur-sm' : ''}
       `}
     >

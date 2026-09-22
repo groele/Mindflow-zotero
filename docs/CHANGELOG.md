@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.3.0] - 2026-09-22
+
+### 🎯 可实践人机工效与交互提升 (Practical Usability)
+- **画布即时搜索 (`Ctrl + F`)**：支持全图递归全文搜索（标题/备注/标签），悬浮搜索框，结果数量统计，支持 `Enter`/`Shift+Enter` 顺逆向循环导航并自动将镜头平滑飞跃居中目标节点。
+- **视口自适应适配**：新增 `Ctrl + 1` 一键计算全图边界并自动最佳缩放适配屏幕居中；`Ctrl + 0` 一键重置为 100% 原始大小。
+- **桌面级节点右键菜单 (ContextMenu)**：在节点上右键呼出原生质感菜单（插入子节点、插入同级节点、删除、转为待办任务、复制文本、折叠/展开分支、聚焦子树）。
+- **下钻专注模式 (Focus Subtree)**：支持从右键菜单选择聚焦特定子分支，快速理清超大思维导图。
+- **优雅导出水印体系**：社区版导出附带精致品牌标识，Pro 版享有纯净无水印 4K PNG 与矢量 SVG 导出。
+
+### 🚀 可部署与应用商店合规 (Deployable & Store Ready)
+- **Chrome Web Store 国际化支持 (`_locales`)**：支持中英双语国际化字典，符合 Google Web Store 审核标准。
+- **上线与合规法律文件**：新增 `PRIVACY.md`（遵循 GDPR 与 Chrome 单一用途无追踪政策）、`TERMS.md`（服务条款与商用许可）以及 `docs/STORE_LISTING.md`（商店元数据与物料指南）。
+- **自动化打包脚本 (`scripts/package-extension.js`)**：一键校验产物并打包为符合 Chrome Web Store 要求的 Zip 归档。
+- **GitHub Actions CI/CD 流水线 (`.github/workflows/ci-cd.yml`)**：代码提交及打标签时自动运行测试、构建与打包，并自动发布 Release 资产。
+
+### 💼 可商业化体系 (Commercialization & Pro Architecture)
+- **商业授权引擎 (`LicenseService`)**：基于离线非对称校验和算法（`MFPRO-XXXX-XXXX-XXXX-XXXX`），支持 100% 离线验签与持久化。
+- **商业路演演示模式 (Presentation Mode)**：支持 `F5` 或工具栏一键进入全屏沉浸式演示，自适应按逻辑层级推进聚焦，胜过 PPT 的演说神器。
+- **系统设置新增 Pro 会员特权面板**：清晰展示社区版与 Pro 版功能特权矩阵、序列号激活与注销。
+- **单元测试扩充 (12/12)**：新增 License 离线算法验证与全文检索递归测试。
+
+---
+
 ## [2.2.0] - 2026-09-22
 
 ### ⚙️ 系统设置中心 (Settings Center & Preferences)

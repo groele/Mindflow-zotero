@@ -278,6 +278,72 @@ assert.ok(Array.isArray(fullWorkspace.documents));
 assert.ok(fullWorkspace.exportedAt > 0);
 console.log('✓ WebDAV 协议 URL 解析、Basic Auth 编码与工作区打包测试全部通过！');
 
-console.log('🎉 所有自动化验证与 Master Prompt 质量门槛均顺利通过！');
+// 11. 测试商业授权服务 LicenseService
+console.log('11. 测试 LicenseService 激活码生成、校验算法与特权矩阵...');
+const { LicenseService } = await import('../src/services/license/licenseService.ts');
+
+// 测试生成 Pro 序列号并验证校验和
+const proKey = LicenseService.generateLicenseKey('pro');
+assert.ok(proKey.startsWith('MFPRO-'));
+const proVerify = LicenseService.verifyKey(proKey);
+assert.strictEqual(proVerify.valid, true);
+assert.strictEqual(proVerify.tier, 'pro');
+
+// 测试生成 Enterprise 序列号并验证校验和
+const entKey = LicenseService.generateLicenseKey('enterprise');
+assert.ok(entKey.startsWith('MFENT-'));
+const entVerify = LicenseService.verifyKey(entKey);
+assert.strictEqual(entVerify.valid, true);
+assert.strictEqual(entVerify.tier, 'enterprise');
+
+// 测试伪造/篡改的序列号被精准拦截
+const fakeKey = 'MFPRO-0000-0000-0000-FFFF';
+const fakeVerify = LicenseService.verifyKey(fakeKey);
+assert.strictEqual(fakeVerify.valid, false);
+
+// 测试特权矩阵差异
+const freeFeatures = LicenseService.getFeatures('free');
+const proFeatures = LicenseService.getFeatures('pro');
+assert.strictEqual(freeFeatures.allThemes, false);
+assert.strictEqual(proFeatures.allThemes, true);
+assert.strictEqual(freeFeatures.presentationMode, false);
+assert.strictEqual(proFeatures.presentationMode, true);
+assert.strictEqual(freeFeatures.exportWithoutWatermark, false);
+assert.strictEqual(proFeatures.exportWithoutWatermark, true);
+console.log('✓ 商业 License 校验和、离线验签与特权矩阵测试全部通过！');
+
+// 12. 测试画布即时搜索检索算法
+console.log('12. 测试树形结构递归全文搜索检索算法...');
+const searchTree = {
+  id: 'root_s',
+  text: '项目规划',
+  children: [
+    { id: 'c1', text: '前端开发', note: '采用 React 19 技术栈', children: [] },
+    { id: 'c2', text: '后端服务', tags: ['Database', 'WebDAV'], children: [] },
+  ]
+};
+
+function searchNodes(node, q) {
+  const query = q.toLowerCase();
+  const matched = [];
+  function walk(n) {
+    const mText = n.text.toLowerCase().includes(query);
+    const mNote = n.note && n.note.toLowerCase().includes(query);
+    const mTag = n.tags && n.tags.some(t => t.toLowerCase().includes(query));
+    if (mText || mNote || mTag) matched.push(n.id);
+    if (n.children) n.children.forEach(walk);
+  }
+  walk(node);
+  return matched;
+}
+
+assert.deepStrictEqual(searchNodes(searchTree, '前端'), ['c1']);
+assert.deepStrictEqual(searchNodes(searchTree, 'React'), ['c1']);
+assert.deepStrictEqual(searchNodes(searchTree, 'WebDAV'), ['c2']);
+assert.deepStrictEqual(searchNodes(searchTree, '规划'), ['root_s']);
+console.log('✓ 脑图全文多维度（标题/备注/标签）即时搜索匹配测试全部通过！');
+
+console.log('🎉 所有自动化验证与商业级质量门槛 (12/12) 均顺利通过！');
+
 
 

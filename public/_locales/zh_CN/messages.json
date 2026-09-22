@@ -1,0 +1,22 @@
+{
+  "appName": {
+    "message": "MindFlow - 现代思维导图与伴读笔记",
+    "description": "The name of the extension"
+  },
+  "appShortName": {
+    "message": "MindFlow",
+    "description": "The short name of the extension"
+  },
+  "appDesc": {
+    "message": "极速、美观优雅的 Chrome 浏览器思维导图与伴读笔记，支持全屏沉浸式创作、Side Panel 侧边栏伴读、大纲双向联动、WebDAV 云同步与版本快照。",
+    "description": "The description of the extension"
+  },
+  "appTitle": {
+    "message": "MindFlow 思维导图",
+    "description": "Title shown on toolbar hover"
+  },
+  "contextMenuClip": {
+    "message": "📌 摘录到思维导图",
+    "description": "Context menu title for clipping text"
+  }
+}

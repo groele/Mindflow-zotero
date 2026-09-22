@@ -18,6 +18,8 @@ interface CanvasProps {
   onToggleCollapse: (id: string) => void;
   onToggleTaskStatus?: (id: string) => void;
   onMoveNode: (sourceId: string, targetId: string) => void;
+  onContextMenuNode?: (id: string, clientX: number, clientY: number) => void;
+  searchMatchedIds?: string[];
   canvasBackground?: 'dots' | 'grid' | 'blank';
 }
 
@@ -36,6 +38,8 @@ export const Canvas: React.FC<CanvasProps> = ({
   onToggleCollapse,
   onToggleTaskStatus,
   onMoveNode,
+  onContextMenuNode,
+  searchMatchedIds = [],
   canvasBackground = 'dots',
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -213,9 +217,15 @@ export const Canvas: React.FC<CanvasProps> = ({
               layoutNode={layoutNode}
               isSelected={selectedId === layoutNode.id}
               isEditing={editingId === layoutNode.id}
+              isSearchMatched={searchMatchedIds.includes(layoutNode.id)}
               onSelect={(id, e) => {
                 e.stopPropagation();
                 onSelectNode(id);
+              }}
+              onContextMenu={(id, e) => {
+                if (onContextMenuNode) {
+                  onContextMenuNode(id, e.clientX, e.clientY);
+                }
               }}
               onStartEdit={(id) => onStartEditNode(id)}
               onCommitEdit={(id, text) => onCommitEditNode(id, text)}
