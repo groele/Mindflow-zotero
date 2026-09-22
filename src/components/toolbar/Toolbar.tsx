@@ -4,7 +4,7 @@ import {
   Palette, Layout, ListTree, Download, Upload,
   HelpCircle, Maximize2, ZoomIn, ZoomOut,
   Globe, ChevronDown, Check, Inbox, Sparkles, Command, Settings,
-  Presentation, Search as SearchIcon, Scan, Crown
+  Presentation, Search as SearchIcon, Scan
 } from 'lucide-react';
 import { LayoutType, ThemeColors } from '../../core/model/types';
 import { THEMES } from '../../core/theme/themes';
@@ -85,7 +85,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onToggleZen,
   onOpenShortcuts,
   onOpenSettings,
-  isPro = false,
+  isPro: _isPro = false,
   toolbarButtons,
   onExportPNG,
   onExportSVG,
@@ -393,14 +393,9 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           <button
             onClick={onStartPresentation}
             title="全屏路演/演示模式 (Presentation Mode)"
-            className="relative p-1.5 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 transition-colors"
+            className="p-1.5 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 transition-colors"
           >
             <Presentation className="w-4 h-4" />
-            {!isPro && (
-              <span className="absolute -top-1 -right-1 px-1 text-[8px] font-bold bg-amber-500 text-white rounded-full leading-tight shadow-sm">
-                PRO
-              </span>
-            )}
           </button>
         )}
 
@@ -486,18 +481,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           onChange={handleFileInputChange}
           className="hidden"
         />
-
-        {/* Pro Badge / Upgrade */}
-        {!isPro && onOpenSettings && (
-          <button
-            onClick={onOpenSettings}
-            title="升级 MindFlow Pro 解锁 10+ 主题与无水印商业导出"
-            className="hidden md:flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-full shadow-sm shadow-amber-500/20 transition-all hover:scale-105"
-          >
-            <Crown className="w-3 h-3 fill-white" />
-            <span>PRO</span>
-          </button>
-        )}
 
         {/* Shortcuts Cheat Sheet */}
         <button

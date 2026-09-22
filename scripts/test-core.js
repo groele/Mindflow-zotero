@@ -305,16 +305,19 @@ const fakeKey = 'MFPRO-0000-0000-0000-FFFF';
 const fakeVerify = LicenseService.verifyKey(fakeKey);
 assert.strictEqual(fakeVerify.valid, false);
 
-// 测试特权矩阵差异
+// 测试全功能免费开放特权矩阵
 const freeFeatures = LicenseService.getFeatures('free');
 const proFeatures = LicenseService.getFeatures('pro');
-assert.strictEqual(freeFeatures.allThemes, false);
+assert.strictEqual(freeFeatures.allThemes, true);
 assert.strictEqual(proFeatures.allThemes, true);
-assert.strictEqual(freeFeatures.presentationMode, false);
+assert.strictEqual(freeFeatures.presentationMode, true);
 assert.strictEqual(proFeatures.presentationMode, true);
-assert.strictEqual(freeFeatures.exportWithoutWatermark, false);
+assert.strictEqual(freeFeatures.exportWithoutWatermark, true);
 assert.strictEqual(proFeatures.exportWithoutWatermark, true);
-console.log('✓ 商业 License 校验和、离线验签与特权矩阵测试全部通过！');
+assert.strictEqual(freeFeatures.webdavAutoSync, true);
+assert.strictEqual(freeFeatures.unlimitedSnapshots, true);
+assert.strictEqual(await LicenseService.isPro(), true);
+console.log('✓ 商业 License 校验和、离线验签与 100% 全功能免费特权矩阵测试全部通过！');
 
 // 12. 测试画布即时搜索检索算法
 console.log('12. 测试树形结构递归全文搜索检索算法...');

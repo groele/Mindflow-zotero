@@ -2,13 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   X, Sliders, Cloud, ShieldCheck, Settings, Info, Check, AlertCircle,
   Eye, EyeOff, Loader2, Upload, Download, RefreshCw, HardDrive, Trash2,
-  Crown, Key, Award, Sparkles, CheckCircle2
+  Sparkles, CheckCircle2
 } from 'lucide-react';
 import { AppSettings, WebDAVConfig } from '../../core/model/settingsTypes';
 import { SettingsService } from '../../services/storage/settingsService';
 import { WebDAVService, WebDAVSyncResult } from '../../services/sync/webdavService';
 import { BackupService, StorageQuotaInfo } from '../../services/storage/backupService';
-import { LicenseService, LicenseInfo } from '../../services/license/licenseService';
 import { THEMES } from '../../core/theme/themes';
 
 interface SettingsModalProps {
@@ -28,7 +27,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   settings,
   onUpdateSettings,
   onReloadWorkspace,
-  onLicenseChanged,
 }) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('interface');
   const [currentSettings, setCurrentSettings] = useState<AppSettings>(settings);
@@ -45,12 +43,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [backupNotice, setBackupNotice] = useState<string | null>(null);
   const backupFileInputRef = useRef<HTMLInputElement>(null);
 
-  // License & Commercial states
-  const [license, setLicense] = useState<LicenseInfo>({ tier: 'free' });
-  const [activationKey, setActivationKey] = useState('');
-  const [activating, setActivating] = useState(false);
-  const [activateNotice, setActivateNotice] = useState<{ success: boolean; message: string } | null>(null);
-
   useEffect(() => {
     setCurrentSettings(settings);
   }, [settings]);
@@ -58,48 +50,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       BackupService.getStorageQuota().then(setQuota);
-      LicenseService.getLicense().then(setLicense);
       setTestResult(null);
       setSyncNotice(null);
       setBackupNotice(null);
-      setActivateNotice(null);
     }
   }, [isOpen]);
-
-  const handleActivate = async () => {
-    if (!activationKey.trim()) {
-      setActivateNotice({ success: false, message: '请输入有效的激活码' });
-      return;
-    }
-    setActivating(true);
-    setActivateNotice(null);
-    const res = await LicenseService.activate(activationKey);
-    setActivating(false);
-    if (res.success) {
-      const updatedLicense = await LicenseService.getLicense();
-      setLicense(updatedLicense);
-      setActivateNotice({ success: true, message: '🎉 恭喜！MindFlow Pro 终身版已成功激活！' });
-      setActivationKey('');
-      if (onLicenseChanged) onLicenseChanged();
-    } else {
-      setActivateNotice({ success: false, message: res.error || '激活失败' });
-    }
-  };
-
-  const handleDeactivate = async () => {
-    if (window.confirm('确定要注销当前的 Pro 授权吗？')) {
-      await LicenseService.deactivate();
-      const updated = await LicenseService.getLicense();
-      setLicense(updated);
-      setActivateNotice({ success: true, message: '已成功注销授权，当前已恢复为免费版。' });
-      if (onLicenseChanged) onLicenseChanged();
-    }
-  };
-
-  const handleGenerateTrialKey = () => {
-    const trialKey = LicenseService.generateLicenseKey('pro');
-    setActivationKey(trialKey);
-  };
 
   if (!isOpen) return null;
 
@@ -313,17 +268,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               onClick={() => setActiveTab('license')}
               className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-colors ${
                 activeTab === 'license'
-                  ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-xs font-semibold'
-                  : 'text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30'
+                  ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-xs font-semibold'
+                  : 'text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'
               }`}
             >
               <div className="flex items-center gap-2">
-                <Crown className="w-3.5 h-3.5" />
-                <span>Pro 会员与特权</span>
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>全功能免费</span>
               </div>
-              {license.tier !== 'free' && (
-                <span className="text-[9px] px-1 bg-white/20 rounded font-bold">PRO</span>
-              )}
+              <span className="text-[9px] px-1 bg-emerald-500 text-white rounded font-bold">100% 免费</span>
             </button>
 
             <button
@@ -943,148 +896,65 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
             )}
 
-            {/* TAB 5: PRO LICENSE & MONETIZATION */}
+            {/* TAB 5: 100% FREE & UNLOCKED PERMANENTLY */}
             {activeTab === 'license' && (
               <div className="space-y-4">
-                {/* Pro Status Banner */}
-                <div
-                  className={`p-4 rounded-2xl border flex items-center justify-between ${
-                    license.tier !== 'free'
-                      ? 'bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border-amber-500/30'
-                      : 'bg-slate-100/70 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800'
-                  }`}
-                >
+                {/* 100% Free Status Banner */}
+                <div className="p-4 rounded-2xl border bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-transparent border-emerald-500/30 flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div
-                      className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-md ${
-                        license.tier !== 'free'
-                          ? 'bg-gradient-to-br from-amber-500 to-amber-600 text-white shadow-amber-500/30'
-                          : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-300'
-                      }`}
-                    >
-                      <Crown className="w-5 h-5 fill-current" />
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-md bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-emerald-500/30">
+                      <Sparkles className="w-5 h-5 fill-current" />
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
                         <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-                          {license.tier === 'enterprise'
-                            ? 'MindFlow Enterprise 企业授权'
-                            : license.tier === 'pro'
-                            ? 'MindFlow Pro 专业版 (终身激活)'
-                            : 'MindFlow 社区免费版'}
+                          MindFlow 全功能永久免费开放
                         </h4>
-                        <span
-                          className={`px-2 py-0.5 text-[10px] font-bold rounded-full uppercase tracking-wider ${
-                            license.tier !== 'free'
-                              ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700'
-                              : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
-                          }`}
-                        >
-                          {license.tier !== 'free' ? 'PRO ACTIVE' : 'FREE TIER'}
+                        <span className="px-2 py-0.5 text-[10px] font-bold rounded-full uppercase tracking-wider bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">
+                          100% FREE • 全功能无限制
                         </span>
                       </div>
                       <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                        {license.tier !== 'free'
-                          ? `授权对象: ${license.licensee || 'Individual'} • 永久享有所有后续商业功能升级`
-                          : '当前正在使用基础版功能，升级可解锁全部 10 款主题、路演演示模式与无水印商业导出。'}
+                        MindFlow 已彻底取消任何会员收费限制与门槛，所有 10+ 款主题、无水印商业导出及高级扩展功能面向全体用户永久免费开放！
                       </p>
                     </div>
                   </div>
-
-                  {license.tier !== 'free' && (
-                    <button
-                      onClick={handleDeactivate}
-                      className="px-2.5 py-1 text-[11px] text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors border border-red-200 dark:border-red-900/50"
-                    >
-                      注销授权
-                    </button>
-                  )}
                 </div>
 
-                {/* Features Comparison Matrix */}
+                {/* Features Unlocked List */}
                 <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">
                   <div className="bg-slate-50 dark:bg-slate-800/60 px-4 py-2 text-[11px] font-semibold text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800 flex justify-between">
-                    <span>版本特权权益对比</span>
-                    <span>社区版 vs Pro 专业版</span>
+                    <span>已解锁全部高级功能清单</span>
+                    <span className="text-emerald-600 dark:text-emerald-400 font-bold">✓ 全部免费开放</span>
                   </div>
 
                   <div className="divide-y divide-slate-100 dark:divide-slate-800/60 text-[11px]">
                     {[
-                      { name: '10 大全量专业主题 (赛博朋克/学术纸感/极夜等)', free: '基础 5 套', pro: '全部 10+ 套无限制' },
-                      { name: '商业级路演演示模式 (Presentation Mode)', free: '不可用', pro: '全屏自适应演讲' },
-                      { name: '无水印 4K PNG / 矢量 SVG 高清导出', free: '含 MindFlow 水印', pro: '纯净无水印' },
-                      { name: '多版本历史快照备份 (Snapshots)', free: '限 10 份', pro: '无限快照留存' },
-                      { name: 'WebDAV 实时增量云端自动同步', free: '手动同步', pro: '文档保存即刻同步' },
-                      { name: '大型复杂导图子树下钻专注 (Focus Subtree)', free: '不可用', pro: '任意分支独立下钻' },
+                      { name: '10 大全量专业主题 (赛博朋克/学术纸感/极夜/莫兰迪等)', status: '全部 10+ 款无限制' },
+                      { name: '商业级路演演示模式 (Presentation Mode)', status: '全屏演讲自由使用' },
+                      { name: '4K PNG / 矢量 SVG / HTML 导出', status: '纯净无水印' },
+                      { name: '多版本历史快照备份与时光机穿梭 (Snapshots)', status: '无限快照容量' },
+                      { name: 'WebDAV 实时增量云端自动同步', status: '无限制自动同步' },
+                      { name: '大型复杂导图子树下钻专注 (Focus Subtree)', status: '任意分支独立下钻' },
+                      { name: 'OPML 2.0 / Markdown 待办勾选双向互通', status: '全格式生态开放' },
+                      { name: '原生微交互音效反馈与彩虹分支谱系', status: '全部个性化视觉艺术' },
                     ].map((item, idx) => (
                       <div key={idx} className="px-4 py-2.5 flex items-center justify-between hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
                         <span className="font-medium text-slate-700 dark:text-slate-200">{item.name}</span>
-                        <div className="flex items-center gap-6">
-                          <span className="text-slate-400 text-right w-24">{item.free}</span>
-                          <span className="text-amber-600 dark:text-amber-400 font-semibold text-right w-28 flex items-center justify-end gap-1">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-amber-500" />
-                            {item.pro}
-                          </span>
-                        </div>
+                        <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                          {item.status}
+                        </span>
                       </div>
                     ))}
                   </div>
                 </div>
 
-                {/* License Key Activation Section */}
-                <div className="p-4 bg-slate-50/80 dark:bg-slate-800/40 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 font-semibold text-slate-800 dark:text-slate-200">
-                      <Key className="w-4 h-4 text-amber-500" />
-                      <span>输入序列号 / 激活码</span>
-                    </div>
-                    <button
-                      onClick={handleGenerateTrialKey}
-                      className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
-                    >
-                      <Sparkles className="w-3 h-3" />
-                      <span>获取测试体验激活码</span>
-                    </button>
+                <div className="p-4 bg-emerald-50/60 dark:bg-emerald-950/30 rounded-2xl border border-emerald-200 dark:border-emerald-800/60 flex items-center justify-between text-xs text-emerald-800 dark:text-emerald-300">
+                  <div className="flex items-center gap-2">
+                    <Check className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                    <span>无需付费、无需输入激活码，您已享有当前及后续版本的所有完整功能与服务。</span>
                   </div>
-
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={activationKey}
-                      onChange={(e) => setActivationKey(e.target.value)}
-                      placeholder="MFPRO-XXXX-XXXX-XXXX-XXXX"
-                      className="flex-1 px-3 py-2 text-xs font-mono uppercase bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
-                    />
-                    <button
-                      onClick={handleActivate}
-                      disabled={activating || !activationKey.trim()}
-                      className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 disabled:opacity-40 text-white font-semibold rounded-xl text-xs shadow-md shadow-amber-500/20 transition-all shrink-0 flex items-center gap-1.5"
-                    >
-                      {activating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Award className="w-3.5 h-3.5" />}
-                      <span>立即激活</span>
-                    </button>
-                  </div>
-
-                  {activateNotice && (
-                    <div
-                      className={`p-2.5 rounded-xl text-xs flex items-center gap-2 ${
-                        activateNotice.success
-                          ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
-                          : 'bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-300 border border-red-200 dark:border-red-800'
-                      }`}
-                    >
-                      {activateNotice.success ? (
-                        <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500" />
-                      ) : (
-                        <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
-                      )}
-                      <span>{activateNotice.message}</span>
-                    </div>
-                  )}
-
-                  <p className="text-[10px] text-slate-400">
-                    * 激活验证完全基于本地加密校验，100% 离线可用，无需将密钥回传至第三方网络服务器。
-                  </p>
                 </div>
               </div>
             )}
@@ -1098,7 +968,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-slate-900 dark:text-white">MindFlow 思维导图与伴读笔记</h3>
-                    <p className="text-[11px] text-blue-600 dark:text-blue-400 font-medium">版本 2.2.0 (Manifest V3 规范)</p>
+                    <p className="text-[11px] text-blue-600 dark:text-blue-400 font-medium">版本 2.4.0 (Manifest V3 规范 • 100% 全功能免费版)</p>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
                       基于 Chrome 浏览器的模块化、离线优先、全键盘盲操思维导图引擎。
                     </p>

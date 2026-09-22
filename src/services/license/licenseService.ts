@@ -1,7 +1,6 @@
 /**
- * MindFlow License & Commercialization Architecture
- * Provides offline license key generation, cryptographic checksum verification,
- * feature gating, and license persistence.
+ * MindFlow License & Feature Service
+ * 100% Free & Open Source: All features completely unlocked with zero paywalls or restrictions.
  */
 
 export type LicenseTier = 'free' | 'pro' | 'enterprise';
@@ -11,7 +10,7 @@ export interface LicenseInfo {
   key?: string;
   licensee?: string;
   activatedAt?: string;
-  expiresAt?: string | null; // null for lifetime
+  expiresAt?: string | null;
   isLifetime?: boolean;
 }
 
@@ -30,7 +29,7 @@ const STORAGE_KEY = 'mindflow_license_info';
 
 export class LicenseService {
   /**
-   * Get current license information from local storage
+   * Get current license information from local storage (default is 100% free & unlocked forever)
    */
   static async getLicense(): Promise<LicenseInfo> {
     try {
@@ -38,12 +37,20 @@ export class LicenseService {
         const result = await chrome.storage.local.get(STORAGE_KEY);
         const stored = result[STORAGE_KEY];
         if (stored && typeof stored === 'object' && 'tier' in stored) {
-          return stored as LicenseInfo;
+          return {
+            ...(stored as LicenseInfo),
+            tier: 'pro',
+            isLifetime: true,
+          };
         }
       } else if (typeof localStorage !== 'undefined') {
         const stored = localStorage.getItem(STORAGE_KEY);
         if (stored) {
-          return JSON.parse(stored);
+          return {
+            ...JSON.parse(stored),
+            tier: 'pro',
+            isLifetime: true,
+          };
         }
       }
     } catch (e) {
@@ -51,27 +58,25 @@ export class LicenseService {
     }
 
     return {
-      tier: 'free',
-      isLifetime: false,
+      tier: 'pro',
+      licensee: 'MindFlow 社区用户 (全功能永久免费)',
+      isLifetime: true,
     };
   }
 
   /**
-   * Check if the current user has Pro or higher privileges
+   * Check if the current user has Pro privileges (Always true - 100% free for everyone)
    */
   static async isPro(): Promise<boolean> {
-    const license = await this.getLicense();
-    return license.tier === 'pro' || license.tier === 'enterprise';
+    return true;
   }
 
   /**
    * Verify license key format and cryptographic checksum
-   * Valid format: MFPRO-[4 hex]-[4 hex]-[4 hex]-[4 hex] or MFENT-[4 hex]-[4 hex]-[4 hex]-[4 hex]
-   * Example: MFPRO-8F2A-4D91-B70C-E362
    */
   static verifyKey(key: string): { valid: boolean; tier: LicenseTier; error?: string } {
     if (!key || typeof key !== 'string') {
-      return { valid: false, tier: 'free', error: '激活码不能为空' };
+      return { valid: false, tier: 'pro', error: '激活码不能为空' };
     }
 
     const cleanKey = key.trim().toUpperCase();
@@ -81,7 +86,7 @@ export class LicenseService {
     if (!match) {
       return {
         valid: false,
-        tier: 'free',
+        tier: 'pro',
         error: '激活码格式无效。正确格式为 MFPRO-XXXX-XXXX-XXXX-XXXX',
       };
     }
@@ -92,17 +97,14 @@ export class LicenseService {
     const p3 = match[4];
     const p4 = match[5];
 
-    // Checksum verification algorithm:
-    // (sum(p1) * 31 + sum(p2) * 17 + sum(p3) * 7) % 65536 == hex(p4)
     const sumBytes = (s: string) => s.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
     const expectedChecksum = ((sumBytes(p1) * 31 + sumBytes(p2) * 17 + sumBytes(p3) * 7) & 0xffff);
     const actualChecksum = parseInt(p4, 16);
 
-    // Also support universal development/trial license key: MFPRO-DEMO-2026-PRO9-8C2A
     const isDemoKey = cleanKey.startsWith('MFPRO-DEMO-');
 
     if (actualChecksum !== expectedChecksum && !isDemoKey) {
-      return { valid: false, tier: 'free', error: '激活码校验失败，请检查是否输错或已被撤销' };
+      return { valid: false, tier: 'pro', error: '激活码校验失败' };
     }
 
     const tier: LicenseTier = prefix === 'MFENT' ? 'enterprise' : 'pro';
@@ -110,7 +112,7 @@ export class LicenseService {
   }
 
   /**
-   * Generate a valid license key for testing or commercial issuance
+   * Generate a valid license key
    */
   static generateLicenseKey(tier: 'pro' | 'enterprise' = 'pro'): string {
     const prefix = tier === 'enterprise' ? 'MFENT' : 'MFPRO';
@@ -136,9 +138,9 @@ export class LicenseService {
   }
 
   /**
-   * Activate a license key and persist it locally
+   * Activate a custom license key and persist it locally
    */
-  static async activate(key: string, licensee = 'Individual Pro'): Promise<{ success: boolean; error?: string }> {
+  static async activate(key: string, licensee = 'Community User'): Promise<{ success: boolean; error?: string }> {
     const verification = this.verifyKey(key);
     if (!verification.valid) {
       return { success: false, error: verification.error };
@@ -149,7 +151,7 @@ export class LicenseService {
       key: key.trim().toUpperCase(),
       licensee,
       activatedAt: new Date().toISOString(),
-      expiresAt: null, // Lifetime license
+      expiresAt: null,
       isLifetime: true,
     };
 
@@ -166,31 +168,34 @@ export class LicenseService {
   }
 
   /**
-   * Deactivate current license and revert to Free tier
+   * Deactivate current license
    */
   static async deactivate(): Promise<void> {
-    const freeLicense: LicenseInfo = { tier: 'free', isLifetime: false };
+    const defaultLicense: LicenseInfo = {
+      tier: 'pro',
+      isLifetime: true,
+      licensee: 'MindFlow 社区用户 (全功能永久免费)',
+    };
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-      await chrome.storage.local.set({ [STORAGE_KEY]: freeLicense });
+      await chrome.storage.local.set({ [STORAGE_KEY]: defaultLicense });
     } else if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(freeLicense));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultLicense));
     }
   }
 
   /**
-   * Query feature access permission matrix
+   * Query feature access permission matrix - ALL FEATURES 100% UNLOCKED AND FREE
    */
-  static getFeatures(tier: LicenseTier): FeatureMatrix {
-    const isProOrAbove = tier === 'pro' || tier === 'enterprise';
+  static getFeatures(_tier?: LicenseTier): FeatureMatrix {
     return {
-      unlimitedMaps: true, // Always allow free local maps
-      allThemes: isProOrAbove, // Free tier gets first 5 themes
-      exportWithoutWatermark: isProOrAbove, // Free tier includes watermark
-      presentationMode: isProOrAbove, // Business presentation mode
-      unlimitedSnapshots: isProOrAbove, // Free tier up to 10
-      webdavAutoSync: isProOrAbove, // WebDAV auto-sync on change
-      subtreeFocus: isProOrAbove, // Subtree drill-down focus
-      customBranding: tier === 'enterprise', // Enterprise custom logo
+      unlimitedMaps: true,          // 全部免费
+      allThemes: true,              // 10+ 款主题全部免费
+      exportWithoutWatermark: true, // 彻底取消水印限制，全部无水印
+      presentationMode: true,       // 演示模式全部免费
+      unlimitedSnapshots: true,     // 无限版本快照全部免费
+      webdavAutoSync: true,         // WebDAV 云同步全部免费
+      subtreeFocus: true,           // 子树下钻专注全部免费
+      customBranding: true,         // 自定义品牌全部免费
     };
   }
 }

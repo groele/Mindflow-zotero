@@ -30,7 +30,6 @@ import { SettingsModal } from '../../components/modal/SettingsModal';
 import { CanvasSearch } from '../../components/search/CanvasSearch';
 import { ContextMenu } from '../../components/menu/ContextMenu';
 import { PresentationMode } from '../../components/presentation/PresentationMode';
-import { LicenseService, LicenseInfo } from '../../services/license/licenseService';
 import { AppSettings, DEFAULT_SETTINGS } from '../../core/model/settingsTypes';
 import { SettingsService } from '../../services/storage/settingsService';
 import { BackupService } from '../../services/storage/backupService';
@@ -68,18 +67,16 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   const [searchMatchedIds, setSearchMatchedIds] = useState<string[]>([]);
   const [isPresentationOpen, setIsPresentationOpen] = useState(false);
   const [contextMenuState, setContextMenuState] = useState<{ x: number; y: number; node: MindMapNode } | null>(null);
-  const [license, setLicense] = useState<LicenseInfo>({ tier: 'free' });
 
   // Settings State
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
 
-  // Load Settings and License on mount
+  // Load Settings on mount
   useEffect(() => {
     SettingsService.getSettings().then((loaded) => {
       setSettings(loaded);
       setDockPosition(loaded.workbenchDockPosition);
     });
-    LicenseService.getLicense().then(setLicense);
   }, []);
 
   // History Manager
@@ -771,14 +768,14 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
           onToggleZen={() => setIsZenMode(true)}
           onOpenShortcuts={() => setIsShortcutsOpen(true)}
           onOpenSettings={() => setIsSettingsOpen(true)}
-          isPro={license.tier !== 'free'}
+          isPro={true}
           toolbarButtons={settings.toolbarButtons}
-          onExportPNG={() => exportToPNG(layout.nodes, layout.connections, layout.bounds, theme, doc.title, { watermark: license.tier === 'free' })}
-          onExportSVG={() => exportToSVG(layout.nodes, layout.connections, layout.bounds, theme, doc.title, { watermark: license.tier === 'free' })}
+          onExportPNG={() => exportToPNG(layout.nodes, layout.connections, layout.bounds, theme, doc.title, { watermark: false })}
+          onExportSVG={() => exportToSVG(layout.nodes, layout.connections, layout.bounds, theme, doc.title, { watermark: false })}
           onExportMarkdown={() => exportToMarkdown(doc.root, doc.title)}
           onExportJSON={() => exportToJSON(doc)}
           onExportOPML={() => exportToOPML(doc.root, doc.title)}
-          onExportHTML={() => exportToInteractiveHTML(layout.nodes, layout.connections, layout.bounds, theme, doc.title, { watermark: license.tier === 'free' })}
+          onExportHTML={() => exportToInteractiveHTML(layout.nodes, layout.connections, layout.bounds, theme, doc.title, { watermark: false })}
           onImportFile={handleImportFile}
           onCaptureCurrentTab={handleCaptureCurrentTab}
           isSidepanelMode={isSidepanelMode}
@@ -928,8 +925,8 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
         onToggleZen={() => setIsZenMode(prev => !prev)}
         onChangeLayout={(l) => setDoc(prev => prev ? { ...prev, layoutType: l } : null)}
         onChangeTheme={(th) => setDoc(prev => prev ? { ...prev, themeId: th } : null)}
-        onExportPNG={() => exportToPNG(layout.nodes, layout.connections, layout.bounds, theme, doc.title, { watermark: license.tier === 'free' })}
-        onExportSVG={() => exportToSVG(layout.nodes, layout.connections, layout.bounds, theme, doc.title, { watermark: license.tier === 'free' })}
+        onExportPNG={() => exportToPNG(layout.nodes, layout.connections, layout.bounds, theme, doc.title, { watermark: false })}
+        onExportSVG={() => exportToSVG(layout.nodes, layout.connections, layout.bounds, theme, doc.title, { watermark: false })}
         onExportMarkdown={() => exportToMarkdown(doc.root, doc.title)}
         onOpenShortcuts={() => setIsShortcutsOpen(true)}
         onOpenSettings={() => setIsSettingsOpen(true)}
@@ -958,7 +955,6 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
           setDockPosition(newSettings.workbenchDockPosition);
         }}
         onReloadWorkspace={reloadWorkspace}
-        onLicenseChanged={() => LicenseService.getLicense().then(setLicense)}
       />
 
       {/* Node Context Menu (Right Click) */}

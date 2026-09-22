@@ -11,7 +11,8 @@
 - **短名称 (Short Name)**: `MindFlow`
 - **默认分类 (Category)**: `Productivity` (效率办公)
 - **支持语言 (Supported Locales)**: `zh_CN` (中文简体), `en` (英语)
-- **价格与分发 (Pricing)**: 免费下载（内含 Pro 功能激活）
+- **价格与分发 (Pricing)**: 100% 完全免费（全功能永久无限制开放）
+- **开源协议 (License)**: MIT License (完全自由开源)
 - **隐私权政策链接**: `https://github.com/groele/mindflow/blob/main/PRIVACY.md`
 - **官方支持链接**: `https://github.com/groele/mindflow/issues`
 

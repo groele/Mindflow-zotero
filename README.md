@@ -1,12 +1,13 @@
 # 🚀 MindFlow - 现代 Chrome 浏览器思维导图与伴读笔记
 
-[![GitHub release](https://img.shields.io/badge/release-v2.2.0-blue.svg)](https://github.com/groele/mindflow)
+[![GitHub release](https://img.shields.io/badge/release-v2.4.0-blue.svg)](https://github.com/groele/mindflow)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-19-61dafb.svg)](https://react.dev/)
 [![Chrome MV3](https://img.shields.io/badge/Chrome%20Extension-Manifest%20V3-success.svg)](https://developer.chrome.com/docs/extensions/mv3/intro/)
+[![Free & Open Source](https://img.shields.io/badge/Status-100%25%20Free%20%26%20Open%20Source-brightgreen.svg)](https://github.com/groele/mindflow)
 
-> 借鉴主流标杆（XMind、MindNode、ProcessOn），深度融合 Chrome 浏览器生态打造的轻量级、极速、高颜值思维导图扩展程序。离线优先、全键盘极速操作、10 款专业主题、支持 WebDAV 云端跨端同步与企业级快照防丢备份。
+> 借鉴主流标杆（XMind、MindNode、ProcessOn），深度融合 Chrome 浏览器生态打造的轻量级、极速、高颜值思维导图扩展程序。100% 全功能永久免费开放、离线优先、全键盘极速操作、10+ 款专业主题、支持 WebDAV 云端跨端同步与企业级快照防丢备份。
 
 ---
 
@@ -140,7 +141,7 @@ Mindmapext/
 # 1. 安装依赖
 npm install
 
-# 2. 运行自动化单元测试 (10/10 通过)
+# 2. 运行自动化单元测试 (14/14 全部通过)
 npm test
 
 # 3. 启动本地热更新服务器
