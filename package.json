@@ -1,0 +1,37 @@
+{
+  "name": "mindflow",
+  "version": "2.2.0",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "vite-node scripts/test-core.js"
+  },
+  "keywords": ["mindmap", "chrome-extension", "webdav", "react", "typescript"],
+  "author": "groele",
+  "license": "MIT",
+  "description": "MindFlow - 现代 Chrome 浏览器思维导图插件，支持全键盘极速导图、10款专业主题、WebDAV云同步与版本快照备份",
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.47.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "tailwind-merge": "^3.7.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/chrome": "^0.3.0",
+    "@types/node": "^26.6.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "autoprefixer": "^10.6.1",
+    "postcss": "^8.5.28",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0",
+    "vite-node": "^6.0.0"
+  }
+}
