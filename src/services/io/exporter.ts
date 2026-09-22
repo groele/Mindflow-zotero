@@ -675,3 +675,47 @@ function downloadBlob(blob: Blob, filename: string) {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+
+/**
+ * Print mind map to vector PDF with pure, clean landscape stylesheet
+ */
+export function printToPDF(): void {
+  if (typeof window === 'undefined') return;
+
+  const styleId = 'mindflow-print-styles';
+  let styleEl = document.getElementById(styleId);
+  if (!styleEl) {
+    styleEl = document.createElement('style');
+    styleEl.id = styleId;
+    styleEl.innerHTML = `
+      @media print {
+        @page {
+          size: landscape;
+          margin: 10mm;
+        }
+        body {
+          background: #ffffff !important;
+          color: #000000 !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+        header, nav, aside, .toolbar-container, .minimap-container, .command-palette, .modal-backdrop, button, .quick-micro-toolbar {
+          display: none !important;
+        }
+        .canvas-container, main {
+          position: static !important;
+          width: 100% !important;
+          height: auto !important;
+          overflow: visible !important;
+        }
+        .canvas-background {
+          background-image: none !important;
+        }
+      }
+    `;
+    document.head.appendChild(styleEl);
+  }
+
+  window.print();
+}
+

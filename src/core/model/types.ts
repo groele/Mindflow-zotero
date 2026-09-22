@@ -39,10 +39,20 @@ export interface InboxItem {
   isProcessed: boolean;
 }
 
+export interface RelationshipLink {
+  id: string;
+  fromId: string;
+  toId: string;
+  label?: string;
+  style?: 'dashed' | 'solid';
+  color?: string;
+}
+
 export interface MindMapDocument {
   id: string;
   title: string;
   root: MindMapNode;
+  relationships?: RelationshipLink[];
   themeId: string;
   layoutType: LayoutType;
   createdAt: number;

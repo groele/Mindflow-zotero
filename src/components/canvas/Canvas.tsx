@@ -1,10 +1,17 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { LayoutNode, ConnectionCurve, ViewportTransform, ThemeColors } from '../../core/model/types';
+import {
+  LayoutNode, ConnectionCurve, ViewportTransform, ThemeColors,
+  RelationshipLink, TaskStatus
+} from '../../core/model/types';
 import { NodeCard } from '../node/NodeCard';
+import {
+  Plus, ArrowDown, Edit3, Link2, Palette, CheckSquare, Trash2, X, Check
+} from 'lucide-react';
 
 interface CanvasProps {
   nodes: LayoutNode[];
   connections: ConnectionCurve[];
+  relationships?: RelationshipLink[];
   bounds: { minX: number; maxX: number; minY: number; maxY: number };
   theme: ThemeColors;
   selectedId: string | null;
@@ -23,11 +30,24 @@ interface CanvasProps {
   onContextMenuNode?: (id: string, clientX: number, clientY: number) => void;
   searchMatchedIds?: string[];
   canvasBackground?: 'dots' | 'grid' | 'blank';
+  // Micro-toolbar & Relationship actions
+  onAddChildNode?: (parentId: string) => void;
+  onAddSiblingNode?: () => void;
+  onDeleteSelectedNode?: (id: string) => void;
+  onQuickColorNode?: (id: string, color: string) => void;
+  onCreateRelationship?: (fromId: string, toId: string) => void;
+  onDeleteRelationship?: (id: string) => void;
+  onEditRelationshipLabel?: (id: string, label: string) => void;
+  // Multi-selection batch actions
+  onBatchColor?: (color: string) => void;
+  onBatchTaskStatus?: (status: TaskStatus) => void;
+  onBatchDelete?: () => void;
 }
 
 export const Canvas: React.FC<CanvasProps> = ({
   nodes,
   connections,
+  relationships = [],
   theme,
   selectedId,
   selectedIds = [],
@@ -45,6 +65,16 @@ export const Canvas: React.FC<CanvasProps> = ({
   onContextMenuNode,
   searchMatchedIds = [],
   canvasBackground = 'dots',
+  onAddChildNode,
+  onAddSiblingNode,
+  onDeleteSelectedNode,
+  onQuickColorNode,
+  onCreateRelationship,
+  onDeleteRelationship,
+  onEditRelationshipLabel,
+  onBatchColor,
+  onBatchTaskStatus,
+  onBatchDelete,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isDraggingCanvas, setIsDraggingCanvas] = useState(false);
@@ -57,6 +87,10 @@ export const Canvas: React.FC<CanvasProps> = ({
   const [boxStart, setBoxStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [boxCurrent, setBoxCurrent] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
+  // Floating Micro-toolbar & Relationship Connection states
+  const [connectingFromId, setConnectingFromId] = useState<string | null>(null);
+  const [showQuickColors, setShowQuickColors] = useState(false);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === 'Space') {
@@ -64,6 +98,12 @@ export const Canvas: React.FC<CanvasProps> = ({
         if (activeTag !== 'input' && activeTag !== 'textarea') {
           isSpacePressedRef.current = true;
         }
+      }
+      if (e.key === 'Escape') {
+        if (connectingFromId) {
+          setConnectingFromId(null);
+        }
+        setShowQuickColors(false);
       }
     };
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -77,7 +117,7 @@ export const Canvas: React.FC<CanvasProps> = ({
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, []);
+  }, [connectingFromId]);
 
   // Wheel handling: zoom or pan
   const handleWheel = useCallback((e: WheelEvent) => {
@@ -220,6 +260,11 @@ export const Canvas: React.FC<CanvasProps> = ({
   if (selectedId) activeSelectedSet.add(selectedId);
   for (const id of selectedIds) activeSelectedSet.add(id);
 
+  const activeMicroNode =
+    activeSelectedSet.size === 1 && !editingId && !connectingFromId
+      ? nodes.find((n) => n.id === selectedId)
+      : null;
+
   return (
     <div
       ref={containerRef}
@@ -236,10 +281,25 @@ export const Canvas: React.FC<CanvasProps> = ({
             ? theme.isDark ? 'canvas-grid-lines-dark' : 'canvas-grid-lines'
             : theme.isDark ? 'canvas-grid-dots-dark' : 'canvas-grid-dots'
         }
-        ${isDraggingCanvas ? 'cursor-grabbing' : isSelectingBox ? 'cursor-crosshair' : 'cursor-default'}
+        ${isDraggingCanvas ? 'cursor-grabbing' : isSelectingBox || connectingFromId ? 'cursor-crosshair' : 'cursor-default'}
       `}
       style={{ backgroundColor: theme.background }}
     >
+      {/* Connecting Relationship Banner on Top */}
+      {connectingFromId && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-purple-600 text-white text-xs font-semibold px-4 py-2 rounded-full shadow-2xl flex items-center gap-2.5 z-50 animate-bounce">
+          <Link2 className="w-4 h-4" />
+          <span>请在画布上点击目标节点以完成关联线连接</span>
+          <button
+            type="button"
+            onClick={() => setConnectingFromId(null)}
+            className="ml-2 px-1.5 py-0.5 bg-white/20 hover:bg-white/30 rounded text-[10px] transition-colors"
+          >
+            ESC 取消
+          </button>
+        </div>
+      )}
+
       {/* Transformed Stage */}
       <div
         className="absolute inset-0 origin-top-left pointer-events-none"
@@ -247,7 +307,7 @@ export const Canvas: React.FC<CanvasProps> = ({
           transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})`,
         }}
       >
-        {/* SVG Layer for Connections */}
+        {/* SVG Layer for Connections and Relationships */}
         <svg
           className="absolute overflow-visible w-full h-full pointer-events-none"
           style={{ overflow: 'visible' }}
@@ -256,7 +316,20 @@ export const Canvas: React.FC<CanvasProps> = ({
             <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
               <feDropShadow dx="0" dy="2" stdDeviation="3" floodOpacity="0.08" />
             </filter>
+            <marker
+              id="rel-arrow"
+              viewBox="0 0 10 10"
+              refX="9"
+              refY="5"
+              markerWidth="6"
+              markerHeight="6"
+              orient="auto-start-reverse"
+            >
+              <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#8b5cf6" />
+            </marker>
           </defs>
+
+          {/* Tree Hierarchical Connections */}
           {connections.map((conn) => (
             <path
               key={conn.id}
@@ -268,10 +341,95 @@ export const Canvas: React.FC<CanvasProps> = ({
               className="transition-colors duration-200"
             />
           ))}
+
+          {/* Cross-node Relationship Links */}
+          {relationships.map((rel) => {
+            const from = nodes.find((n) => n.id === rel.fromId);
+            const to = nodes.find((n) => n.id === rel.toId);
+            if (!from || !to) return null;
+            const fromCenter = { x: from.x + from.width / 2, y: from.y + from.height / 2 };
+            const toCenter = { x: to.x + to.width / 2, y: to.y + to.height / 2 };
+            const dx = toCenter.x - fromCenter.x;
+            const dy = toCenter.y - fromCenter.y;
+            const dist = Math.hypot(dx, dy) || 1;
+            const curvature = Math.min(Math.max(dist * 0.2, 30), 80);
+            const midX = (fromCenter.x + toCenter.x) / 2;
+            const midY = (fromCenter.y + toCenter.y) / 2;
+            const ctrlX = midX - (dy / dist) * curvature;
+            const ctrlY = midY + (dx / dist) * curvature;
+            const pathD = `M ${fromCenter.x} ${fromCenter.y} Q ${ctrlX} ${ctrlY} ${toCenter.x} ${toCenter.y}`;
+            const strokeColor = rel.color || '#8b5cf6';
+
+            return (
+              <path
+                key={rel.id}
+                d={pathD}
+                fill="none"
+                stroke={strokeColor}
+                strokeWidth="2"
+                strokeDasharray={rel.style === 'solid' ? undefined : '5,4'}
+                markerEnd="url(#rel-arrow)"
+                className="transition-colors duration-200 opacity-80 hover:opacity-100"
+              />
+            );
+          })}
         </svg>
 
-        {/* DOM Layer for Interactive Nodes */}
+        {/* DOM Layer for Interactive Nodes & Relationship Labels */}
         <div className="absolute inset-0 pointer-events-auto">
+          {/* Relationship Editable Labels */}
+          {relationships.map((rel) => {
+            const from = nodes.find((n) => n.id === rel.fromId);
+            const to = nodes.find((n) => n.id === rel.toId);
+            if (!from || !to) return null;
+            const fromCenter = { x: from.x + from.width / 2, y: from.y + from.height / 2 };
+            const toCenter = { x: to.x + to.width / 2, y: to.y + to.height / 2 };
+            const dx = toCenter.x - fromCenter.x;
+            const dy = toCenter.y - fromCenter.y;
+            const dist = Math.hypot(dx, dy) || 1;
+            const curvature = Math.min(Math.max(dist * 0.2, 30), 80);
+            const midX = (fromCenter.x + toCenter.x) / 2;
+            const midY = (fromCenter.y + toCenter.y) / 2;
+            const ctrlX = midX - (dy / dist) * curvature;
+            const ctrlY = midY + (dx / dist) * curvature;
+            const labelX = 0.25 * fromCenter.x + 0.5 * ctrlX + 0.25 * toCenter.x;
+            const labelY = 0.25 * fromCenter.y + 0.5 * ctrlY + 0.25 * toCenter.y;
+
+            return (
+              <div
+                key={`label-${rel.id}`}
+                style={{
+                  left: `${labelX}px`,
+                  top: `${labelY}px`,
+                  transform: 'translate(-50%, -50%)',
+                }}
+                className="absolute group flex items-center gap-1 bg-white/95 dark:bg-slate-900/95 border border-purple-300 dark:border-purple-800 text-purple-700 dark:text-purple-300 text-[10px] px-2 py-0.5 rounded-full shadow-md backdrop-blur-xs cursor-pointer hover:scale-105 transition-transform z-30 select-none"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const nextLabel = window.prompt('编辑关联线描述文本:', rel.label || '');
+                  if (nextLabel !== null) {
+                    onEditRelationshipLabel?.(rel.id, nextLabel.trim());
+                  }
+                }}
+              >
+                <Link2 className="w-2.5 h-2.5 opacity-70" />
+                <span>{rel.label || '关联'}</span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDeleteRelationship?.(rel.id);
+                  }}
+                  title="删除此关联线"
+                  className="opacity-0 group-hover:opacity-100 hover:text-red-500 transition-opacity ml-0.5"
+                >
+                  <X className="w-2.5 h-2.5" />
+                </button>
+              </div>
+            );
+          })}
+
+          {/* Mind Map Nodes */}
           {nodes.map((layoutNode) => (
             <NodeCard
               key={layoutNode.id}
@@ -281,6 +439,13 @@ export const Canvas: React.FC<CanvasProps> = ({
               isSearchMatched={searchMatchedIds.includes(layoutNode.id)}
               onSelect={(id, e) => {
                 e.stopPropagation();
+                if (connectingFromId) {
+                  if (id !== connectingFromId) {
+                    onCreateRelationship?.(connectingFromId, id);
+                  }
+                  setConnectingFromId(null);
+                  return;
+                }
                 onSelectNode(id, e.shiftKey || e.ctrlKey || e.metaKey);
               }}
               onContextMenu={(id, e) => {
@@ -298,6 +463,94 @@ export const Canvas: React.FC<CanvasProps> = ({
               onDrop={handleNodeDrop}
             />
           ))}
+
+          {/* Floating Micro-Toolbar above Selected Node */}
+          {activeMicroNode && (
+            <div
+              className="absolute -translate-x-1/2 -translate-y-full mb-2.5 flex items-center gap-0.5 p-1 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700/80 z-40 pointer-events-auto transition-all animate-in fade-in zoom-in-95 duration-150"
+              style={{
+                left: `${activeMicroNode.x + activeMicroNode.width / 2}px`,
+                top: `${activeMicroNode.y - 6}px`,
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={() => onAddChildNode?.(activeMicroNode.id)}
+                title="添加子节点 (Tab)"
+                className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5 text-blue-600" />
+              </button>
+              <button
+                type="button"
+                onClick={() => onAddSiblingNode?.()}
+                title="添加同级节点 (Enter)"
+                className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition-colors"
+              >
+                <ArrowDown className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
+              </button>
+              <button
+                type="button"
+                onClick={() => onStartEditNode(activeMicroNode.id)}
+                title="编辑文字 (Space / 双击)"
+                className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition-colors"
+              >
+                <Edit3 className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setConnectingFromId(activeMicroNode.id)}
+                title="建立跨分支关联线"
+                className="p-1.5 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-950/40 text-purple-600 transition-colors"
+              >
+                <Link2 className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => onToggleTaskStatus?.(activeMicroNode.id)}
+                title="任务状态 (待办 / 进行中 / 完成)"
+                className="p-1.5 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-emerald-600 transition-colors"
+              >
+                <CheckSquare className="w-3.5 h-3.5" />
+              </button>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowQuickColors(!showQuickColors)}
+                  title="节点快捷换色"
+                  className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors"
+                >
+                  <Palette className="w-3.5 h-3.5" />
+                </button>
+                {showQuickColors && (
+                  <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 p-1.5 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-800 flex items-center gap-1.5 z-50">
+                    {['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#64748b'].map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => {
+                          onQuickColorNode?.(activeMicroNode.id, c);
+                          setShowQuickColors(false);
+                        }}
+                        className="w-4 h-4 rounded-full border border-white dark:border-slate-800 shadow-sm hover:scale-125 transition-transform"
+                        style={{ backgroundColor: c }}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="w-px h-3.5 bg-slate-200 dark:bg-slate-700" />
+              <button
+                type="button"
+                onClick={() => onDeleteSelectedNode?.(activeMicroNode.id)}
+                title="删除节点 (Delete)"
+                className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40 text-red-500 transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -314,12 +567,39 @@ export const Canvas: React.FC<CanvasProps> = ({
         />
       )}
 
-      {/* Multi-selection Floating Indicator */}
+      {/* Enhanced Multi-selection Floating Batch Toolbar */}
       {activeSelectedSet.size > 1 && (
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/90 text-white text-xs px-4 py-2 rounded-full shadow-lg backdrop-blur flex items-center gap-3 z-40 border border-slate-700">
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/95 text-white text-xs px-4 py-2.5 rounded-2xl shadow-2xl backdrop-blur flex items-center gap-3 z-40 border border-slate-700 animate-in fade-in slide-in-from-bottom-2 duration-150">
           <span className="font-semibold text-blue-400">已多选 {activeSelectedSet.size} 个节点</span>
-          <span className="text-slate-400">|</span>
-          <span className="text-slate-300">Ctrl+C 复制 / Ctrl+D 创建副本 / Del 批量删除</span>
+          <div className="w-px h-3.5 bg-slate-700" />
+          {/* Quick Batch Color */}
+          <div className="flex items-center gap-1.5">
+            {['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6'].map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => onBatchColor?.(c)}
+                title={`批量设为此主题色`}
+                className="w-3.5 h-3.5 rounded-full hover:scale-125 transition-transform"
+                style={{ backgroundColor: c }}
+              />
+            ))}
+          </div>
+          <div className="w-px h-3.5 bg-slate-700" />
+          <button
+            type="button"
+            onClick={() => onBatchTaskStatus?.('done')}
+            className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[11px] text-emerald-400 font-medium flex items-center gap-1 transition-colors"
+          >
+            <Check className="w-3 h-3" /> 批量标记完成
+          </button>
+          <button
+            type="button"
+            onClick={() => onBatchDelete?.()}
+            className="px-2 py-1 rounded bg-red-950/60 hover:bg-red-900 text-[11px] text-red-300 font-medium flex items-center gap-1 transition-colors"
+          >
+            <Trash2 className="w-3 h-3" /> 批量删除
+          </button>
         </div>
       )}
     </div>

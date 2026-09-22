@@ -968,7 +968,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-slate-900 dark:text-white">MindFlow 思维导图与伴读笔记</h3>
-                    <p className="text-[11px] text-blue-600 dark:text-blue-400 font-medium">版本 2.4.0 (Manifest V3 规范 • 100% 全功能免费版)</p>
+                    <p className="text-[11px] text-blue-600 dark:text-blue-400 font-medium">版本 2.5.0 (Manifest V3 规范 • 100% 全功能免费版)</p>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
                       基于 Chrome 浏览器的模块化、离线优先、全键盘盲操思维导图引擎。
                     </p>

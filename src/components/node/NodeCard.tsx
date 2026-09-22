@@ -37,6 +37,8 @@ export const NodeCard: React.FC<NodeCardProps> = ({
 }) => {
   const { node, x, y, width, height, level, color, shape } = layoutNode;
   const [editText, setEditText] = useState(node.text);
+  const [isDragOverTarget, setIsDragOverTarget] = useState(false);
+  const [showNotePopover, setShowNotePopover] = useState(false);
   const isComposingRef = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -124,8 +126,23 @@ export const NodeCard: React.FC<NodeCardProps> = ({
       style={nodeStyle}
       draggable={!isEditing && !isRoot}
       onDragStart={(e) => onDragStart && onDragStart(node.id, e)}
-      onDragOver={(e) => onDragOver && onDragOver(node.id, e)}
-      onDrop={(e) => onDrop && onDrop(node.id, e)}
+      onDragEnter={(e) => {
+        e.preventDefault();
+        setIsDragOverTarget(true);
+      }}
+      onDragLeave={(e) => {
+        e.preventDefault();
+        setIsDragOverTarget(false);
+      }}
+      onDragOver={(e) => {
+        e.preventDefault();
+        if (!isDragOverTarget) setIsDragOverTarget(true);
+        onDragOver && onDragOver(node.id, e);
+      }}
+      onDrop={(e) => {
+        setIsDragOverTarget(false);
+        onDrop && onDrop(node.id, e);
+      }}
       onClick={(e) => onSelect(node.id, e)}
       onContextMenu={(e) => {
         e.preventDefault();
@@ -140,11 +157,18 @@ export const NodeCard: React.FC<NodeCardProps> = ({
         absolute select-none flex items-center justify-between px-3 cursor-pointer transition-all duration-150
         ${shapeClasses}
         ${isRoot ? 'shadow-lg font-bold text-base' : 'text-sm font-medium border'}
-        ${isSelected ? 'ring-2 ring-blue-500 ring-offset-2 ring-offset-transparent shadow-node-selected z-20' : 'shadow-node hover:shadow-node-hover z-10'}
+        ${isDragOverTarget ? 'ring-2 ring-indigo-500 ring-offset-2 scale-[1.04] bg-indigo-50/40 dark:bg-indigo-950/50 shadow-xl z-40' : ''}
+        ${isSelected && !isDragOverTarget ? 'ring-2 ring-blue-500 ring-offset-2 ring-offset-transparent shadow-node-selected z-20' : 'shadow-node hover:shadow-node-hover z-10'}
         ${isSearchMatched ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-amber-100 dark:ring-offset-slate-900 shadow-lg scale-105 z-30' : ''}
         ${shape !== 'underline' ? 'backdrop-blur-sm' : ''}
       `}
     >
+      {/* Visual Drop Target Badge */}
+      {isDragOverTarget && (
+        <div className="absolute -top-6 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-indigo-600 text-white text-[10px] font-bold rounded-full shadow-md whitespace-nowrap animate-bounce pointer-events-none z-50">
+          ➕ 移至此分支
+        </div>
+      )}
       {/* Content wrapper */}
       <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden">
         {/* Node icons */}
@@ -208,11 +232,36 @@ export const NodeCard: React.FC<NodeCardProps> = ({
           </div>
         )}
 
-        {/* Note indicator */}
+        {/* Note indicator with interactive preview */}
         {node.note && (
-          <span title={node.note} className="flex-shrink-0 text-slate-400 hover:text-amber-500 transition-colors">
-            <FileText className="w-3.5 h-3.5" />
-          </span>
+          <div
+            className="relative flex-shrink-0"
+            onMouseEnter={() => setShowNotePopover(true)}
+            onMouseLeave={() => setShowNotePopover(false)}
+          >
+            <span
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowNotePopover(!showNotePopover);
+              }}
+              className="text-slate-400 hover:text-amber-500 transition-colors cursor-pointer flex items-center"
+            >
+              <FileText className="w-3.5 h-3.5" />
+            </span>
+            {showNotePopover && (
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="absolute left-0 bottom-full mb-2 w-56 p-2.5 rounded-xl bg-slate-900/95 text-slate-100 text-xs shadow-2xl backdrop-blur-md border border-slate-700/80 z-50 pointer-events-auto leading-relaxed animate-in fade-in zoom-in-95 duration-150"
+              >
+                <div className="text-[10px] font-bold text-amber-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+                  <FileText className="w-3 h-3" /> 备注内容
+                </div>
+                <div className="max-h-32 overflow-y-auto whitespace-pre-wrap font-normal break-words text-[11px] text-slate-200">
+                  {node.note}
+                </div>
+              </div>
+            )}
+          </div>
         )}
 
         {/* Hyperlink button */}

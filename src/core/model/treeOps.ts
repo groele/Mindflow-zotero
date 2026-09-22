@@ -324,3 +324,85 @@ export function updateMultipleNodes(
   }
   return walk(root);
 }
+
+// Set node collapse state by hierarchical tree level
+export function setCollapseByLevel(
+  root: MindMapNode,
+  maxVisibleLevel: number
+): MindMapNode {
+  const newRoot = cloneTree(root);
+
+  function walk(node: MindMapNode, currentLevel: number) {
+    const hasChildren = node.children && node.children.length > 0;
+    if (hasChildren) {
+      if (maxVisibleLevel >= 99) {
+        // Expand all
+        node.isExpanded = true;
+      } else {
+        // If currentLevel < maxVisibleLevel, this node stays expanded so its children are visible
+        // If currentLevel >= maxVisibleLevel, its children should be hidden
+        node.isExpanded = currentLevel < maxVisibleLevel;
+      }
+      for (const child of node.children) {
+        walk(child, currentLevel + 1);
+      }
+    }
+  }
+
+  walk(newRoot, 0);
+  return newRoot;
+}
+
+// Replace text in a specific node
+export function replaceNodeText(
+  root: MindMapNode,
+  targetId: string,
+  fromText: string,
+  toText: string
+): MindMapNode {
+  if (!fromText) return root;
+  const newRoot = cloneTree(root);
+  const target = findNode(newRoot, targetId);
+  if (target) {
+    if (target.text.includes(fromText)) {
+      target.text = target.text.split(fromText).join(toText);
+    }
+    if (target.note && target.note.includes(fromText)) {
+      target.note = target.note.split(fromText).join(toText);
+    }
+  }
+  return newRoot;
+}
+
+// Replace text across the entire mind map tree
+export function replaceAllNodeText(
+  root: MindMapNode,
+  fromText: string,
+  toText: string
+): { newRoot: MindMapNode; count: number } {
+  if (!fromText) return { newRoot: root, count: 0 };
+  const newRoot = cloneTree(root);
+  let count = 0;
+
+  function walk(node: MindMapNode) {
+    if (node.text.includes(fromText)) {
+      const occurrences = node.text.split(fromText).length - 1;
+      count += occurrences;
+      node.text = node.text.split(fromText).join(toText);
+    }
+    if (node.note && node.note.includes(fromText)) {
+      const occurrences = node.note.split(fromText).length - 1;
+      count += occurrences;
+      node.note = node.note.split(fromText).join(toText);
+    }
+    if (node.children) {
+      for (const child of node.children) {
+        walk(child);
+      }
+    }
+  }
+
+  walk(newRoot);
+  return { newRoot, count };
+}
+

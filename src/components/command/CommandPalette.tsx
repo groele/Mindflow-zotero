@@ -30,6 +30,7 @@ interface CommandPaletteProps {
   onExportPNG: () => void;
   onExportSVG: () => void;
   onExportMarkdown: () => void;
+  onExportPDF?: () => void;
   onOpenShortcuts: () => void;
   onOpenSettings?: () => void;
 }
@@ -49,6 +50,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   onExportPNG,
   onExportSVG,
   onExportMarkdown,
+  onExportPDF,
   onOpenShortcuts,
   onOpenSettings,
 }) => {
@@ -171,6 +173,13 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       icon: <Download className="w-4 h-4 text-teal-500" />,
       action: onExportMarkdown,
     },
+    ...(onExportPDF ? [{
+      id: 'cmd_export_pdf',
+      title: '导出为矢量 PDF 文档 (Print to PDF)',
+      category: '操作指令' as const,
+      icon: <Download className="w-4 h-4 text-rose-500" />,
+      action: onExportPDF,
+    }] : []),
     {
       id: 'cmd_shortcuts',
       title: '查看全部快捷键指南',

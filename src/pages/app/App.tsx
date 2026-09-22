@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
-  MindMapDocument, MindMapNode, ViewportTransform, LayoutType, InboxItem, TaskStatus
+  MindMapDocument, MindMapNode, ViewportTransform, LayoutType, InboxItem, TaskStatus,
+  RelationshipLink
 } from '../../core/model/types';
 import {
   addChildNode, addSiblingNode, updateNode, deleteNode,
   toggleNodeCollapse, moveNode, findNode, findAdjacentNode, generateId,
-  duplicateNode, pasteSubtree, deleteMultipleNodes
+  duplicateNode, pasteSubtree, deleteMultipleNodes, updateMultipleNodes,
+  setCollapseByLevel, replaceNodeText, replaceAllNodeText
 } from '../../core/model/treeOps';
 import { computeLayout } from '../../core/layout/layoutEngine';
 import { getTheme } from '../../core/theme/themes';
@@ -14,7 +16,7 @@ import { HistoryManager } from '../../core/history/historyManager';
 import { StorageService } from '../../services/storage/storageService';
 import {
   exportToPNG, exportToSVG, exportToMarkdown, exportToJSON, importFromMarkdown,
-  exportToOPML, importFromOPML, exportToInteractiveHTML
+  exportToOPML, importFromOPML, exportToInteractiveHTML, printToPDF
 } from '../../services/io/exporter';
 import { playAddNode, playTaskComplete, playDeleteNode } from '../../services/audio/soundService';
 import { Canvas } from '../../components/canvas/Canvas';
@@ -67,6 +69,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   const [searchMatchedIds, setSearchMatchedIds] = useState<string[]>([]);
   const [isPresentationOpen, setIsPresentationOpen] = useState(false);
   const [contextMenuState, setContextMenuState] = useState<{ x: number; y: number; node: MindMapNode } | null>(null);
+  const [relationships, setRelationships] = useState<RelationshipLink[]>([]);
 
   // Settings State
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
@@ -134,6 +137,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   const reloadWorkspace = useCallback(() => {
     StorageService.getActiveDocument().then((loadedDoc) => {
       setDoc(loadedDoc);
+      setRelationships(loadedDoc.relationships || []);
       setSelectedId(loadedDoc.root.id);
       historyRef.current.clear();
       syncHistoryState();
@@ -158,7 +162,10 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
       const listener = (msg: any) => {
         if (msg.type === 'DOC_UPDATED') {
-          StorageService.getActiveDocument().then(setDoc);
+          StorageService.getActiveDocument().then((updated) => {
+            setDoc(updated);
+            setRelationships(updated.relationships || []);
+          });
         }
       };
       chrome.runtime.onMessage.addListener(listener);
@@ -177,7 +184,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     if (!doc) return;
     clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(async () => {
-      await StorageService.saveDocument(doc);
+      await StorageService.saveDocument({ ...doc, relationships });
       if (settings.webdav.enabled && settings.webdav.autoSyncOnSave) {
         try {
           const backupData = await BackupService.getFullWorkspaceData();
@@ -187,7 +194,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
         }
       }
     }, 600);
-  }, [doc, settings.webdav]);
+  }, [doc, relationships, settings.webdav]);
 
   // Theme
   const theme = useMemo(() => {
@@ -208,8 +215,8 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     if (!doc) return;
     historyRef.current.push(doc.root);
     syncHistoryState();
-    setDoc(prev => prev ? { ...prev, root: newRoot, updatedAt: Date.now() } : null);
-  }, [doc, syncHistoryState]);
+    setDoc(prev => prev ? { ...prev, root: newRoot, relationships, updatedAt: Date.now() } : null);
+  }, [doc, relationships, syncHistoryState]);
 
   // Selection handlers
   const handleSelectNode = useCallback((id: string | null, isMulti = false) => {
@@ -438,6 +445,92 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       setContextMenuState({ x: clientX, y: clientY, node: target });
     }
   }, [doc]);
+
+  // Relationships Handlers
+  const handleCreateRelationship = useCallback((fromId: string, toId: string) => {
+    if (fromId === toId || !doc) return;
+    const exists = relationships.some(
+      (r) => (r.fromId === fromId && r.toId === toId) || (r.fromId === toId && r.toId === fromId)
+    );
+    if (exists) return;
+
+    const newRel: RelationshipLink = {
+      id: generateId(),
+      fromId,
+      toId,
+      label: '关联',
+      style: 'dashed',
+      color: '#8b5cf6',
+    };
+    const nextRels = [...relationships, newRel];
+    setRelationships(nextRels);
+    const updated = { ...doc, relationships: nextRels, updatedAt: Date.now() };
+    setDoc(updated);
+    StorageService.saveDocument(updated);
+  }, [doc, relationships]);
+
+  const handleDeleteRelationship = useCallback((id: string) => {
+    if (!doc) return;
+    const nextRels = relationships.filter((r) => r.id !== id);
+    setRelationships(nextRels);
+    const updated = { ...doc, relationships: nextRels, updatedAt: Date.now() };
+    setDoc(updated);
+    StorageService.saveDocument(updated);
+  }, [doc, relationships]);
+
+  const handleEditRelationshipLabel = useCallback((id: string, label: string) => {
+    if (!doc) return;
+    const nextRels = relationships.map((r) => (r.id === id ? { ...r, label } : r));
+    setRelationships(nextRels);
+    const updated = { ...doc, relationships: nextRels, updatedAt: Date.now() };
+    setDoc(updated);
+    StorageService.saveDocument(updated);
+  }, [doc, relationships]);
+
+  // Search & Replace Handlers
+  const handleReplaceNodeText = useCallback((nodeId: string, fromText: string, toText: string) => {
+    if (!doc) return;
+    const newRoot = replaceNodeText(doc.root, nodeId, fromText, toText);
+    commitRootChange(newRoot);
+  }, [doc, commitRootChange]);
+
+  const handleReplaceAllNodeText = useCallback((fromText: string, toText: string) => {
+    if (!doc) return;
+    const { newRoot, count } = replaceAllNodeText(doc.root, fromText, toText);
+    if (count > 0) {
+      commitRootChange(newRoot);
+    }
+  }, [doc, commitRootChange]);
+
+  // Level Collapse / Expand Handler
+  const handleCollapseByLevel = useCallback((level: number) => {
+    if (!doc) return;
+    const newRoot = setCollapseByLevel(doc.root, level);
+    commitRootChange(newRoot);
+  }, [doc, commitRootChange]);
+
+  // Batch Selection Handlers
+  const handleBatchColor = useCallback((color: string) => {
+    if (!doc || selectedIds.length === 0) return;
+    const newRoot = updateMultipleNodes(doc.root, selectedIds, { color });
+    commitRootChange(newRoot);
+  }, [doc, selectedIds, commitRootChange]);
+
+  const handleBatchTaskStatus = useCallback((status: TaskStatus) => {
+    if (!doc || selectedIds.length === 0) return;
+    const newRoot = updateMultipleNodes(doc.root, selectedIds, { task: { status } });
+    commitRootChange(newRoot);
+    if (status === 'done') playTaskComplete(settings.soundEffects);
+  }, [doc, selectedIds, commitRootChange, settings.soundEffects]);
+
+  const handleBatchDelete = useCallback(() => {
+    if (!doc || selectedIds.length === 0) return;
+    const { newRoot, nextSelectedId } = deleteMultipleNodes(doc.root, selectedIds);
+    commitRootChange(newRoot);
+    setSelectedIds([]);
+    setSelectedId(nextSelectedId);
+    playDeleteNode(settings.soundEffects);
+  }, [doc, selectedIds, commitRootChange, settings.soundEffects]);
 
   // Insert Inbox item to mind map
   const handleInsertInboxItem = useCallback((item: InboxItem) => {
@@ -773,9 +866,11 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
           onExportPNG={() => exportToPNG(layout.nodes, layout.connections, layout.bounds, theme, doc.title, { watermark: false })}
           onExportSVG={() => exportToSVG(layout.nodes, layout.connections, layout.bounds, theme, doc.title, { watermark: false })}
           onExportMarkdown={() => exportToMarkdown(doc.root, doc.title)}
-          onExportJSON={() => exportToJSON(doc)}
+          onExportJSON={() => exportToJSON({ ...doc, relationships })}
           onExportOPML={() => exportToOPML(doc.root, doc.title)}
           onExportHTML={() => exportToInteractiveHTML(layout.nodes, layout.connections, layout.bounds, theme, doc.title, { watermark: false })}
+          onExportPDF={printToPDF}
+          onCollapseByLevel={handleCollapseByLevel}
           onImportFile={handleImportFile}
           onCaptureCurrentTab={handleCaptureCurrentTab}
           isSidepanelMode={isSidepanelMode}
@@ -812,6 +907,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
               if (selectedDoc) {
                 await StorageService.setActiveDocumentId(id);
                 setDoc(selectedDoc);
+                setRelationships(selectedDoc.relationships || []);
                 setSelectedId(selectedDoc.root.id);
                 historyRef.current.clear();
                 syncHistoryState();
@@ -834,6 +930,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
             onInsertInboxItem={handleInsertInboxItem}
             onRestoreSnapshot={(restored) => {
               setDoc(restored);
+              setRelationships(restored.relationships || []);
               setSelectedId(restored.root.id);
               historyRef.current.clear();
               syncHistoryState();
@@ -850,6 +947,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
             <Canvas
               nodes={layout.nodes}
               connections={layout.connections}
+              relationships={relationships}
               bounds={layout.bounds}
               theme={theme}
               selectedId={selectedId}
@@ -868,6 +966,16 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
               onMoveNode={handleMoveNode}
               searchMatchedIds={searchMatchedIds}
               onContextMenuNode={handleContextMenuNode}
+              onAddChildNode={handleAddChild}
+              onAddSiblingNode={() => handleAddSibling(false)}
+              onDeleteSelectedNode={(id) => handleDeleteNode(id)}
+              onQuickColorNode={(id, color) => handleUpdateNodePatch(id, { color })}
+              onCreateRelationship={handleCreateRelationship}
+              onDeleteRelationship={handleDeleteRelationship}
+              onEditRelationshipLabel={handleEditRelationshipLabel}
+              onBatchColor={handleBatchColor}
+              onBatchTaskStatus={handleBatchTaskStatus}
+              onBatchDelete={handleBatchDelete}
             />
           </CanvasErrorBoundary>
 
@@ -878,6 +986,8 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
             rootNode={doc.root}
             onJumpToNode={handleSelectAndCenterNode}
             onHighlightMatches={setSearchMatchedIds}
+            onReplaceCurrent={handleReplaceNodeText}
+            onReplaceAll={handleReplaceAllNodeText}
           />
 
           {/* Minimap Widget (Hidden in Zen or Sidepanel mode) */}
@@ -928,6 +1038,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
         onExportPNG={() => exportToPNG(layout.nodes, layout.connections, layout.bounds, theme, doc.title, { watermark: false })}
         onExportSVG={() => exportToSVG(layout.nodes, layout.connections, layout.bounds, theme, doc.title, { watermark: false })}
         onExportMarkdown={() => exportToMarkdown(doc.root, doc.title)}
+        onExportPDF={printToPDF}
         onOpenShortcuts={() => setIsShortcutsOpen(true)}
         onOpenSettings={() => setIsSettingsOpen(true)}
       />

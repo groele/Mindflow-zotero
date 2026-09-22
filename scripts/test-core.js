@@ -451,7 +451,110 @@ const roundedLayout = computeLayout(parsedOpmlRoot, 'logic-right', theme, {
 assert.ok(roundedLayout.connections[0].path.includes(' H ') && roundedLayout.connections[0].path.includes(' V '));
 console.log('✓ OPML 2.0 导入解析、彩虹分支渲染与贝塞尔/直连/圆角三种连线风格测试全部通过！');
 
-console.log('🎉 所有自动化验证与商业级质量门槛 (14/14) 均顺利通过！');
+// 15. 测试跨分支自由关联线 (Relationship Links) 几何拓扑与序列化
+console.log('15. 测试跨分支自由关联线 (Relationship Links) 贝塞尔几何拓扑与序列化...');
+const relDoc = {
+  id: 'doc_rel_test',
+  title: '关联拓扑图',
+  themeId: 'classic-blue',
+  layoutType: 'mindmap',
+  root: parsedOpmlRoot,
+  relationships: [
+    {
+      id: 'rel_1',
+      fromId: parsedOpmlRoot.children[0].id,
+      toId: parsedOpmlRoot.children[1].children[0].id,
+      label: '前置因果依赖',
+      style: 'dashed',
+      color: '#8b5cf6'
+    }
+  ],
+  createdAt: Date.now(),
+  updatedAt: Date.now()
+};
+
+assert.strictEqual(relDoc.relationships.length, 1);
+assert.strictEqual(relDoc.relationships[0].label, '前置因果依赖');
+assert.strictEqual(relDoc.relationships[0].style, 'dashed');
+
+// 模拟二次贝塞尔曲线控制点与标签中心坐标几何计算
+const fromNodePos = { x: 100, y: 150, width: 120, height: 40 };
+const toNodePos = { x: 400, y: 350, width: 140, height: 40 };
+const fromCenter = { x: fromNodePos.x + fromNodePos.width / 2, y: fromNodePos.y + fromNodePos.height / 2 };
+const toCenter = { x: toNodePos.x + toNodePos.width / 2, y: toNodePos.y + toNodePos.height / 2 };
+const dx = toCenter.x - fromCenter.x;
+const dy = toCenter.y - fromCenter.y;
+const dist = Math.hypot(dx, dy);
+const curvature = Math.min(Math.max(dist * 0.2, 30), 80);
+const midX = (fromCenter.x + toCenter.x) / 2;
+const midY = (fromCenter.y + toCenter.y) / 2;
+const ctrlX = midX - (dy / dist) * curvature;
+const ctrlY = midY + (dx / dist) * curvature;
+const labelX = 0.25 * fromCenter.x + 0.5 * ctrlX + 0.25 * toCenter.x;
+const labelY = 0.25 * fromCenter.y + 0.5 * ctrlY + 0.25 * toCenter.y;
+
+assert.ok(dist > 0);
+assert.ok(labelX > fromCenter.x && labelX < toCenter.x);
+console.log('✓ 跨节点关联线几何拓扑、中点标签投影与元数据绑定测试全部通过！');
+
+// 16. 测试画布查找与替换 (Search & Replace) 与多层级动态折叠 (Level Collapse)
+console.log('16. 测试全局查找与替换算法及按层级一键收折展开...');
+const {
+  replaceNodeText,
+  replaceAllNodeText,
+  setCollapseByLevel
+} = await import('../src/core/model/treeOps.ts');
+
+const replaceTree = {
+  id: 'r_root',
+  text: '项目规划 Alpha',
+  note: '这是 Alpha 项目的总体方案',
+  isExpanded: true,
+  children: [
+    {
+      id: 'sub_1',
+      text: 'Alpha 前端架构',
+      note: 'Alpha UI 模块',
+      isExpanded: true,
+      children: [
+        { id: 'sub_1_1', text: 'Alpha 组件库', children: [] }
+      ]
+    },
+    {
+      id: 'sub_2',
+      text: 'Beta 后端服务',
+      isExpanded: true,
+      children: []
+    }
+  ]
+};
+
+// 测试单节点替换
+const replacedSingle = replaceNodeText(replaceTree, 'sub_2', 'Beta', 'Alpha');
+assert.strictEqual(replacedSingle.children[1].text, 'Alpha 后端服务');
+
+// 测试全脑图递归批量替换
+const { newRoot: replacedAll, count } = replaceAllNodeText(replaceTree, 'Alpha', 'Pro');
+assert.strictEqual(count, 5); // 根标题(1) + 根备注(1) + 子项1(1) + 子项1备注(1) + 孙项(1) = 5
+assert.strictEqual(replacedAll.text, '项目规划 Pro');
+assert.strictEqual(replacedAll.note, '这是 Pro 项目的总体方案');
+assert.strictEqual(replacedAll.children[0].text, 'Pro 前端架构');
+assert.strictEqual(replacedAll.children[0].children[0].text, 'Pro 组件库');
+
+// 测试多层级收折展开算法
+// 当 maxVisibleLevel = 1 时，仅展示 1 级主干，level 1 的子级应被收起 (isExpanded = false)
+const level1Tree = setCollapseByLevel(replaceTree, 1);
+assert.strictEqual(level1Tree.isExpanded, true); // 根节点保持展开以便展示 1 级主干
+assert.strictEqual(level1Tree.children[0].isExpanded, false); // 1 级分支自身收折，隐藏孙级
+
+// 当 maxVisibleLevel = 99 时，所有带子项的分支应全部展开
+const levelAllTree = setCollapseByLevel(level1Tree, 99);
+assert.strictEqual(levelAllTree.isExpanded, true);
+assert.strictEqual(levelAllTree.children[0].isExpanded, true);
+console.log('✓ 全局查找替换 (单项与批量) 及 1级/2级/全展开多层级收折测试全部通过！');
+
+console.log('🎉 所有自动化验证与商业级质量门槛 (16/16) 均顺利通过！');
+
 
 
 

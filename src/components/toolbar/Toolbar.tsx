@@ -4,7 +4,7 @@ import {
   Palette, Layout, ListTree, Download, Upload,
   HelpCircle, Maximize2, ZoomIn, ZoomOut,
   Globe, ChevronDown, Check, Inbox, Sparkles, Command, Settings,
-  Presentation, Search as SearchIcon, Scan
+  Presentation, Search as SearchIcon, Scan, Layers
 } from 'lucide-react';
 import { LayoutType, ThemeColors } from '../../core/model/types';
 import { THEMES } from '../../core/theme/themes';
@@ -49,6 +49,8 @@ interface ToolbarProps {
   onExportJSON: () => void;
   onExportOPML?: () => void;
   onExportHTML?: () => void;
+  onExportPDF?: () => void;
+  onCollapseByLevel?: (level: number) => void;
   onImportFile: (file: File) => void;
   onCaptureCurrentTab?: () => void;
   isSidepanelMode?: boolean;
@@ -93,6 +95,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onExportJSON,
   onExportOPML,
   onExportHTML,
+  onExportPDF,
+  onCollapseByLevel,
   onImportFile,
   onCaptureCurrentTab,
   isSidepanelMode,
@@ -113,6 +117,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
   const [isLayoutMenuOpen, setIsLayoutMenuOpen] = useState(false);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+  const [isLevelMenuOpen, setIsLevelMenuOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -355,6 +360,49 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           </button>
         )}
 
+        {/* Branch Level Fold / Expand menu */}
+        {onCollapseByLevel && (
+          <div className="relative">
+            <button
+              onClick={() => {
+                setIsLevelMenuOpen(!isLevelMenuOpen);
+                setIsExportMenuOpen(false);
+                setIsThemeMenuOpen(false);
+                setIsLayoutMenuOpen(false);
+              }}
+              title="分支层级折叠与展开"
+              className={`p-1.5 rounded-lg transition-colors ${isLevelMenuOpen ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+            >
+              <Layers className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            </button>
+            {isLevelMenuOpen && (
+              <div className="absolute left-0 mt-1 w-44 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
+                <div className="px-3 py-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                  视图层级折叠
+                </div>
+                <button
+                  onClick={() => { onCollapseByLevel(99); setIsLevelMenuOpen(false); }}
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center justify-between"
+                >
+                  <span>🌟 展开全部节点</span>
+                </button>
+                <button
+                  onClick={() => { onCollapseByLevel(2); setIsLevelMenuOpen(false); }}
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center justify-between"
+                >
+                  <span>🌿 展开至 2 级分支</span>
+                </button>
+                <button
+                  onClick={() => { onCollapseByLevel(1); setIsLevelMenuOpen(false); }}
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center justify-between"
+                >
+                  <span>🌲 仅显示 1 级主干</span>
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Outline view toggle */}
         {buttons.outline && (
           <button
@@ -455,6 +503,12 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                   className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
                 >
                   🌐 独立离线交互网页 (.html)
+                </button>
+                <button
+                  onClick={() => { onExportPDF?.(); setIsExportMenuOpen(false); }}
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
+                >
+                  📄 矢量 PDF 打印排版 (PDF)
                 </button>
 
                 <div className="h-px bg-slate-200 dark:bg-slate-700 my-1" />
