@@ -375,10 +375,12 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
           themeId: settings.defaultThemeId,
           layoutType: settings.defaultLayout,
           metadata: {
-            zoteroItemKey: primaryItemKey,
             zoteroItemKeys: parsedItems.map((i) => i.zoteroUri),
             zoteroLibraryID: primaryItem.libraryID,
-            autoSyncToZotero: true,
+            // A multi-paper map has no single Zotero parent item. Linking it
+            // to the first paper would archive the entire topic under an
+            // unrelated child attachment on every subsequent save.
+            autoSyncToZotero: false,
           },
         };
       }
@@ -397,7 +399,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       setTimeout(() => centerCanvas(), 60);
 
       // Auto archive directly into Zotero literature item attachment (.mindflow) and child note!
-      if (isZoteroMode) {
+      if (isZoteroMode && parsedItems.length === 1) {
         setSaveStatus({ state: 'saving', message: '正在自动归档至 Zotero 文献条目…' });
         try {
           const res = await saveMindMapToZoteroAttachment(savedDoc, primaryItemKey, { silent: false });
@@ -407,7 +409,12 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
           setSaveStatus({ state: 'warning', message: '导图已创建，但归档至条目附件受阻：' + (e?.message || e) });
         }
       } else {
-        setSaveStatus({ state: 'saved', message: '已在当前工作区创建学术文献导图' });
+        setSaveStatus({
+          state: 'saved',
+          message: parsedItems.length > 1
+            ? '专题导图已保存到本机工作区。它关联多篇文献，不会自动归档到第一篇文献。'
+            : '已在当前工作区创建学术文献导图',
+        });
       }
     },
     [centerCanvas, flushCurrentDocument, isZoteroMode, settings, syncHistoryState]
@@ -445,9 +452,10 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
         metadata: {
           zoteroCollectionName: collectionName,
           zoteroItemKeys: parsedItems.map((i) => i.zoteroUri),
-          zoteroItemKey: parsedItems[0]?.zoteroUri,
           zoteroLibraryID: parsedItems[0]?.libraryID,
-          autoSyncToZotero: true,
+          // Zotero collections cannot own child attachments. Keep the
+          // collection map in the workspace until a deliberate target is set.
+          autoSyncToZotero: false,
         },
       };
 
@@ -464,11 +472,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       setIsWelcomeOpen(false);
       setTimeout(() => centerCanvas(), 60);
 
-      if (isZoteroMode && parsedItems.length > 0) {
-        saveMindMapToZoteroAttachment(saved, parsedItems[0].zoteroUri, { silent: false }).then((res) => {
-          setSaveStatus({ state: res.success ? 'saved' : 'warning', message: res.message });
-        }).catch((error) => setSaveStatus({ state: 'warning', message: `导图已创建，附件归档失败：${error?.message || error}` }));
-      }
+      setSaveStatus({ state: 'saved', message: '分类导图已保存到本机工作区；分类不是文献条目，导图未自动挂到第一篇文献。' });
     },
     [centerCanvas, flushCurrentDocument, isZoteroMode, settings, syncHistoryState]
   );
@@ -1564,9 +1568,16 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     let parentKey = current.metadata?.zoteroItemKey;
     if (!parentKey && isZoteroMode) {
       const selected = getSelectedZoteroItems();
-      if (selected && selected.length > 0) {
-        parentKey = selected[0].zoteroUri;
+      if (selected.length !== 1) {
+        setSaveStatus({
+          state: 'warning',
+          message: selected.length > 1
+            ? '请选择且仅选择一篇 Zotero 文献作为导图附件的归档目标。'
+            : '请先在 Zotero 中选择一篇文献作为导图附件的归档目标。',
+        });
+        return;
       }
+      parentKey = selected[0].zoteroUri;
     }
     await zoteroSyncQueueRef.current;
     const res = await saveMindMapToZoteroAttachment(current, parentKey, { silent: false });

@@ -107,6 +107,29 @@
   Zotero.MindFlow = {
     rootURI: typeof rootURI !== 'undefined' ? rootURI : '',
     addonId: ADDON_ID,
+    localizedDocs: new Set(),
+
+    ensureLocalization(doc) {
+      if (!doc || this.localizedDocs.has(doc)) return;
+      const existing = doc.querySelector('link[rel="localization"][href="mindflow.ftl"]');
+      if (existing) return;
+      try {
+        doc.defaultView?.MozXULElement?.insertFTLIfNeeded('mindflow.ftl');
+        if (doc.querySelector('link[rel="localization"][href="mindflow.ftl"]')) {
+          this.localizedDocs.add(doc);
+        }
+      } catch (error) {
+        Zotero.logError?.('[MindFlow] Could not load item-pane translations: ' + error);
+      }
+    },
+
+    removeLocalization(doc) {
+      if (!this.localizedDocs.has(doc)) return;
+      try {
+        doc.querySelector('link[rel="localization"][href="mindflow.ftl"]')?.remove();
+      } catch (_) {}
+      this.localizedDocs.delete(doc);
+    },
 
     init() {
       this.initWindowListener();
@@ -146,7 +169,118 @@
         }
       }
 
+      // Use Zotero's item-pane extension API so the maps belonging to the
+      // selected paper are visible alongside its native notes and attachments.
+      this.registerItemPaneSection();
+
       Zotero.log('[MindFlow] Initialized successfully in Zotero');
+    },
+
+    registerItemPaneSection() {
+      if (typeof Zotero.ItemPaneManager?.registerSection !== 'function') return;
+      try {
+        const sectionStates = new WeakMap();
+        const icon = `${CHROME_ROOT}icons/mindflow.svg`;
+        this.itemPaneSectionID = Zotero.ItemPaneManager.registerSection({
+          paneID: 'mindflow-item-pane',
+          pluginID: ADDON_ID,
+          header: { l10nID: 'mindflow-item-pane-header', icon },
+          sidenav: { l10nID: 'mindflow-item-pane-header', icon },
+          onInit: ({ doc, body, item, refresh }) => {
+            this.ensureLocalization(doc);
+            const state = { itemID: regularLiteratureItems([item])[0]?.id || null, refresh, notifierID: null };
+            if (Zotero.Notifier?.registerObserver) {
+              try {
+                state.notifierID = Zotero.Notifier.registerObserver({
+                  notify: (event, type, ids) => {
+                    if (type !== 'item' || !state.itemID || !Array.isArray(ids)) return;
+                    const affectsItem = ids.some((id) => {
+                      if (Number(id) === state.itemID) return true;
+                      const changed = Zotero.Items.get(Number(id));
+                      return changed?.parentItemID === state.itemID;
+                    });
+                    if (affectsItem || event === 'delete') {
+                      Promise.resolve(state.refresh?.()).catch((error) => {
+                        Zotero.logError?.('[MindFlow] Item pane refresh failed: ' + error);
+                      });
+                    }
+                  },
+                }, ['item'], ADDON_ID);
+              } catch (error) {
+                Zotero.logError?.('[MindFlow] Item pane observer registration failed: ' + error);
+              }
+            }
+            sectionStates.set(body, state);
+          },
+          onDestroy: ({ body }) => {
+            const state = sectionStates.get(body);
+            if (state?.notifierID) {
+              try {
+                Zotero.Notifier.unregisterObserver(state.notifierID);
+              } catch (error) {
+                Zotero.logError?.('[MindFlow] Item pane observer cleanup failed: ' + error);
+              }
+            }
+            sectionStates.delete(body);
+          },
+          onItemChange: ({ body, item, setEnabled }) => {
+            const target = regularLiteratureItems([item])[0];
+            const state = sectionStates.get(body);
+            if (state) state.itemID = target?.id || null;
+            setEnabled(Boolean(target));
+          },
+          onRender: ({ doc, body, item, setSectionSummary }) => {
+            if (!body) return;
+            body.replaceChildren();
+            const target = regularLiteratureItems([item])[0];
+            if (!target) return;
+
+            const html = 'http://www.w3.org/1999/xhtml';
+            const wrapper = doc.createElementNS(html, 'div');
+            wrapper.setAttribute('style', 'display:flex;flex-direction:column;gap:8px;padding:8px 4px;');
+            const maps = this.getMindflowAttachments(target);
+            setSectionSummary?.(maps.length ? `${maps.length}` : '');
+            const summary = doc.createElementNS(html, 'div');
+            summary.textContent = maps.length ? `已有 ${maps.length} 份 MindFlow 导图` : '这篇文献还没有 MindFlow 导图';
+            doc.l10n?.setAttributes(summary, 'mindflow-item-pane-count', { count: maps.length });
+            wrapper.appendChild(summary);
+
+            for (const attachment of maps) {
+              const button = doc.createElementNS(html, 'button');
+              button.setAttribute('type', 'button');
+              button.setAttribute('style', 'width:100%;text-align:left;padding:6px 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;');
+              const title = attachment.getField?.('title') || attachment.attachmentFilename || attachment.key || '导图';
+              button.textContent = title;
+              button.title = `打开导图：${title}`;
+              doc.l10n?.setAttributes(button, 'mindflow-item-pane-open', { title });
+              button.addEventListener('click', () => {
+                void this.openMindflowAttachment(attachment, Zotero.getMainWindow?.());
+              });
+              wrapper.appendChild(button);
+            }
+
+            const create = doc.createElementNS(html, 'button');
+            create.setAttribute('type', 'button');
+            create.setAttribute('style', 'align-self:flex-start;padding:6px 10px;');
+            const library = Zotero.Libraries?.get?.(target.libraryID);
+            const readonly = library?.editable === false || library?.filesEditable === false;
+            const createLabel = readonly
+              ? '创建本地导图（文献库只读）'
+              : maps.length ? '新建另一份导图' : '从文献创建导图';
+            create.textContent = createLabel;
+            doc.l10n?.setAttributes(create, readonly
+              ? 'mindflow-item-pane-create-local'
+              : maps.length ? 'mindflow-item-pane-create-another' : 'mindflow-item-pane-create');
+            create.addEventListener('click', () => {
+              this.openMindFlow({ mode: 'create_from_selection', items: [target] }, Zotero.getMainWindow?.());
+            });
+            wrapper.appendChild(create);
+            body.appendChild(wrapper);
+          },
+        });
+      } catch (error) {
+        Zotero.logError?.('[MindFlow] Could not register Zotero item pane section: ' + error);
+      }
     },
 
     initWindowListener() {
@@ -193,6 +327,7 @@
       if (doc.getElementById('mindflow-tools-menu')) return;
 
       const windowElements = [];
+      this.ensureLocalization(doc);
 
       // 1. Add to "Tools" (工具) Menu
       const toolsPopup = doc.getElementById('menu_ToolsPopup');
@@ -562,13 +697,15 @@
 
         const itemsTree =
           doc.getElementById('zotero-items-tree') ||
-          doc.querySelector('#zotero-items-pane') ||
           doc.querySelector('item-tree');
-        const treeTarget = itemsTree || doc;
-        treeTarget.addEventListener('dblclick', handleTreeDblClick, true);
-        windowElements.push({
-          remove: () => treeTarget.removeEventListener('dblclick', handleTreeDblClick, true),
-        });
+        // Never attach this shortcut to the whole document: a selected map
+        // must not hijack double-clicks in the item pane or other Zotero UI.
+        if (itemsTree) {
+          itemsTree.addEventListener('dblclick', handleTreeDblClick, true);
+          windowElements.push({
+            remove: () => itemsTree.removeEventListener('dblclick', handleTreeDblClick, true),
+          });
+        }
       } catch (treeErr) {
         Zotero.log?.('[MindFlow] Note on items tree dblclick listener: ' + treeErr);
       }
@@ -673,6 +810,7 @@
         }
         injectedElements.delete(window);
       }
+      this.removeLocalization(window.document);
     },
 
     /**
@@ -718,6 +856,9 @@
         if (filePath && await IOUtils.exists(filePath)) {
           const content = await IOUtils.readUTF8(filePath);
           const docData = JSON.parse(content);
+          if (!docData || typeof docData !== 'object' || !docData.root || typeof docData.root !== 'object') {
+            throw new Error('附件不包含有效的 MindFlow 导图结构');
+          }
           if (attItem.parentItemID) {
             const p = Zotero.Items.get(attItem.parentItemID);
             if (p) {
@@ -1185,10 +1326,8 @@
         // Selection is a fallback only for maps without a stored association.
         if (!explicitReference && zoteroPane && typeof zoteroPane.getSelectedItems === 'function') {
           const selected = zoteroPane.getSelectedItems();
-          if (Array.isArray(selected) && selected.length > 0) {
-            const firstRegular = selected.find((item) => (typeof item.isRegularItem === 'function' ? item.isRegularItem() : true));
-            parentItem = firstRegular || selected[0];
-          }
+          const regular = regularLiteratureItems(selected);
+          if (regular.length === 1) parentItem = regular[0];
         }
 
         // Ensure parentItem is a regular item (if attachment, get parent)
@@ -1394,7 +1533,7 @@
           } else {
             msg = explicitReference
               ? '未找到关联的 Zotero 文献条目；未向当前选中的其他文献归档。请检查原条目是否已删除或当前文献库是否可用。'
-              : '未在 Zotero 中选中具体文献条目，且未设置本地备份目录。请先选中目标文献。';
+              : '未确定唯一的 Zotero 文献归档目标，且未设置本地备份目录。请先仅选中一篇目标文献。';
           }
           return { success: false, message: msg, savedPath };
         }
@@ -1456,6 +1595,14 @@
     },
 
     shutdown() {
+      if (this.itemPaneSectionID && typeof Zotero.ItemPaneManager?.unregisterSection === 'function') {
+        try {
+          Zotero.ItemPaneManager.unregisterSection(this.itemPaneSectionID);
+        } catch (error) {
+          Zotero.logError?.('[MindFlow] Could not unregister item pane section: ' + error);
+        }
+        this.itemPaneSectionID = null;
+      }
       if (windowListener) {
         Services.wm.removeListener(windowListener);
         windowListener = null;
@@ -1470,6 +1617,7 @@
         this.removeFromWindow(win);
       }
       injectedElements.clear();
+      for (const doc of this.localizedDocs) this.removeLocalization(doc);
       delete Zotero.MindFlow;
       Zotero.log('[MindFlow] Shutdown and cleaned up successfully');
     },

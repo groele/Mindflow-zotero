@@ -1,18 +1,18 @@
 # MindFlow for Zotero
 
-[![Zotero 插件版本](https://img.shields.io/badge/Zotero%20插件-v1.1.0-2563eb)](https://github.com/groele/Mindflow-zotero/releases/tag/v1.1.0)
+[![Zotero 插件版本](https://img.shields.io/badge/Zotero%20插件-v1.2.0-2563eb)](https://github.com/groele/Mindflow-zotero/releases/tag/v1.2.0)
 [![兼容版本](https://img.shields.io/badge/Zotero-10.0.x-c2410c)](zotero/manifest.json)
 [![许可证](https://img.shields.io/badge/License-MIT-15803d)](LICENSE)
 
 **在 Zotero 10 中把文献、PDF 批注和阅读笔记整理成可编辑思维导图。** MindFlow 在文献列表和 PDF 阅读场景提供入口；导图可归档为文献下的 `.mindflow` 附件，并可写回结构化大纲笔记。
 
-> **版本说明：**本仓库同时保留 Chrome 扩展源码（版本 3.2.0）。本 README 和 GitHub `v1.1.0` 标签针对 **Zotero 插件**；下载 Zotero 安装包时请选择 `mindflow-zotero-1.1.0.xpi`，不要选择 Chrome ZIP。
+> **版本说明：**本仓库同时保留 Chrome 扩展源码（版本 3.2.0）。本 README 和 GitHub `v1.2.0` 标签针对 **Zotero 插件**；下载 Zotero 安装包时请选择 `mindflow-zotero-1.2.0.xpi`，不要选择 Chrome ZIP。
 
 ## 下载与安装
 
-1. 从 [v1.1.0 发布页](https://github.com/groele/Mindflow-zotero/releases/tag/v1.1.0)的 Assets 下载 `mindflow-zotero-1.1.0.xpi`。
+1. 从 [v1.2.0 发布页](https://github.com/groele/Mindflow-zotero/releases/tag/v1.2.0)的 Assets 下载 `mindflow-zotero-1.2.0.xpi`。
 2. 在 **Zotero 10** 打开 **工具 → 插件**，将 XPI 拖入插件窗口并按提示安装。Zotero 的[官方插件安装说明](https://www.zotero.org/support/plugins)也介绍了这一入口。
-3. 如 Zotero 提示重启，请重启。安装后可从工具菜单、主工具栏或文献右键菜单打开 MindFlow。
+3. 如 Zotero 提示重启，请重启。安装后可从工具菜单、主工具栏、文献右键菜单或条目详情侧栏打开 MindFlow。
 4. 在 **编辑 → 设置 → MindFlow** 调整导入规则、窗口模式、编辑默认值和备份配置。
 
 清单声明的兼容范围为 **Zotero 10.0.x**；本项目当前未声明支持 Zotero 7、8、9 或未来的 Zotero 10.1。
@@ -30,9 +30,11 @@
 
 文献右键菜单会列出它已有的 `.mindflow` 附件，供选择打开；也可以为同一文献新建另一份导图。双击已有导图附件时，插件会尝试在 MindFlow 中打开。若 Zotero 已有附件记录、但文件尚未下载到本机，插件会提示先下载附件，避免把打开失败误判为需要新建导图。
 
+插件在 Zotero 条目详情中注册 **MindFlow 导图** 区域：选中文献时可查看它已有的导图并直接打开，或为该文献新建导图。附件变化后会更新列表；该区域使用 Zotero 的条目侧栏扩展接口，停用插件时会注销。
+
 ### 按分类整理专题
 
-在 Zotero 左侧分类上使用 MindFlow 入口，可将分类中的文献生成为专题导图；也可选择多篇文献创建一张主题导图。导入的内容保留与原条目的关联，适合继续整理研究方向和证据链。
+在 Zotero 左侧分类上使用 MindFlow 入口，可将分类中的文献生成为专题导图；也可选择多篇文献创建一张主题导图。导入的内容保留与原条目的关联，适合继续整理研究方向和证据链。**分类和多篇文献导图保存在本机工作区，不会自动挂到第一篇文献下**：Zotero 分类本身不能拥有子附件，专题导图也没有唯一的文献父条目。需要跨设备使用时，请导出工作区备份，或明确且仅选择一篇文献进行手动归档。
 
 ## Zotero 协同能力
 
@@ -104,7 +106,7 @@ npm ci
 npm run build:zotero
 ```
 
-安装文件为 `dist-zip/mindflow-zotero-1.1.0.xpi`；已解压的构建目录在 `dist-zotero/`。这两个目录是生成物，不提交到 Git。Chrome 扩展另用 `npm run build` 构建到 `dist/`，其版本仍为 3.2.0。
+安装文件为 `dist-zip/mindflow-zotero-1.2.0.xpi`；已解压的构建目录在 `dist-zotero/`。这两个目录是生成物，不提交到 Git。Chrome 扩展另用 `npm run build` 构建到 `dist/`，其版本仍为 3.2.0。
 
 | 路径 | 用途 |
 | --- | --- |

@@ -47,6 +47,9 @@ jobs:
     needs: build-and-test
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: windows-latest
+    concurrency:
+      group: zotero-release-${{ github.ref }}
+      cancel-in-progress: false
     permissions:
       contents: write
 
@@ -63,12 +66,37 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
+      - name: Verify Zotero tag and update manifest
+        shell: pwsh
+        run: |
+          $manifest = Get-Content -LiteralPath zotero/manifest.json -Raw | ConvertFrom-Json
+          $updates = Get-Content -LiteralPath zotero/update.json -Raw | ConvertFrom-Json
+          $entry = $updates.addons.PSObject.Properties['mindflow@groele.org'].Value.updates[0]
+          $expectedTag = "v$($manifest.version)"
+          $expectedUrl = "https://github.com/groele/Mindflow-zotero/releases/download/$expectedTag/mindflow-zotero-$($manifest.version).xpi"
+          if ($env:GITHUB_REF_NAME -ne $expectedTag -or $entry.version -ne $manifest.version -or $entry.update_link -ne $expectedUrl) {
+            throw 'Zotero tag, manifest version, and update link must match.'
+          }
+
       - name: Build Zotero XPI
         run: npm run build:zotero
+
+      - name: Locate Zotero release notes
+        id: notes
+        shell: pwsh
+        run: |
+          $notesPath = "docs/releases/zotero-$env:GITHUB_REF_NAME.md"
+          if (-not (Test-Path -LiteralPath $notesPath)) {
+            throw "Missing release notes: $notesPath"
+          }
+          Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "path=$notesPath"
 
       - name: Attach Zotero XPI to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          name: MindFlow for Zotero ${{ github.ref_name }}
+          body_path: ${{ steps.notes.outputs.path }}
           files: dist-zip/*.xpi
+          fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
