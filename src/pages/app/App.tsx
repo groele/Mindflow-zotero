@@ -279,21 +279,52 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       });
     };
 
-    // Check if opened directly with Zotero items via context menu
+    // Check if opened directly with Zotero items or document via context menu
     if (typeof window !== 'undefined' && window.arguments && window.arguments[0]) {
       const args = window.arguments[0];
-      if (args.mode === 'create_from_selection' && Array.isArray(args.items) && args.items.length > 0) {
+      if (args.mode === 'open_document' && args.doc) {
+        setTimeout(async () => {
+          try {
+            const importedDoc = validateMindMapDocument(args.doc, '打开文献导图');
+            const savedDoc = await StorageService.saveDocument(importedDoc, { force: true });
+            await StorageService.setActiveDocumentId(savedDoc.id);
+            cleanDocRef.current = savedDoc;
+            cleanRelationshipsRef.current = savedDoc.relationships || [];
+            setRelationships(cleanRelationshipsRef.current);
+            setDoc(savedDoc);
+            setSelectedId(savedDoc.root.id);
+            setTimeout(() => centerCanvas(), 60);
+          } catch (e) {
+            console.error('[MindFlow] Failed to load initial document from args:', e);
+          }
+        }, 120);
+      } else if (args.mode === 'create_from_selection' && Array.isArray(args.items) && args.items.length > 0) {
         setTimeout(() => importZoteroItems(args.items), 150);
       } else if (args.mode === 'create_from_collection' && Array.isArray(args.items)) {
         setTimeout(() => importZoteroCollection(args.collectionName || args.collection?.name || '文献分类', args.items), 150);
       }
     }
 
-    // Listen for live imports when running inside a persistent Zotero tab
+    // Listen for live imports and document loads when running inside a persistent Zotero tab
     const handleImportMessage = (event: any) => {
       const data = event.data || event.detail;
       if (!data) return;
-      if (data.type === 'MINDFLOW_IMPORT_ZOTERO_ITEMS' || data.mode === 'create_from_selection') {
+      if (data.type === 'MINDFLOW_LOAD_DOCUMENT' && data.doc) {
+        try {
+          const importedDoc = validateMindMapDocument(data.doc, '打开文献导图');
+          StorageService.saveDocument(importedDoc, { force: true }).then(async (savedDoc) => {
+            await StorageService.setActiveDocumentId(savedDoc.id);
+            cleanDocRef.current = savedDoc;
+            cleanRelationshipsRef.current = savedDoc.relationships || [];
+            setRelationships(cleanRelationshipsRef.current);
+            setDoc(savedDoc);
+            setSelectedId(savedDoc.root.id);
+            setTimeout(() => centerCanvas(), 60);
+          });
+        } catch (e) {
+          console.error('[MindFlow] Failed to load document from message:', e);
+        }
+      } else if (data.type === 'MINDFLOW_IMPORT_ZOTERO_ITEMS' || data.mode === 'create_from_selection') {
         const items = data.items || [];
         importZoteroItems(items);
       } else if (data.type === 'MINDFLOW_IMPORT_ZOTERO_COLLECTION' || data.mode === 'create_from_collection') {
@@ -432,6 +463,24 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     }, 600);
     return () => clearTimeout(timeout);
   }, [doc, relationships, settings.webdav, settings.autoSnapshotEnabled, settings.autoSnapshotIntervalMinutes]);
+
+  // Dynamic document and window / tab title synchronization
+  useEffect(() => {
+    if (doc?.title) {
+      document.title = `${doc.title} - MindFlow 思维导图`;
+      if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
+        try {
+          window.parent.postMessage(
+            {
+              type: 'MINDFLOW_SET_TAB_TITLE',
+              title: `MindFlow - ${doc.title.length > 20 ? doc.title.slice(0, 20) + '...' : doc.title}`,
+            },
+            '*'
+          );
+        } catch (_) {}
+      }
+    }
+  }, [doc?.title]);
 
   // Document changes cancel the debounced save. Flush the latest editor state
   // first so switching maps cannot silently discard recent typing.
@@ -1035,6 +1084,29 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       if (editingId) return;
       const activeTag = document.activeElement?.tagName.toLowerCase();
       if (activeTag === 'input' || activeTag === 'textarea') return;
+
+      // Fullscreen: F11
+      if (e.key === 'F11') {
+        e.preventDefault();
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen?.().catch(() => {});
+        } else {
+          document.exitFullscreen?.().catch(() => {});
+        }
+        return;
+      }
+
+      // Quick save & sync to Zotero attachment: Ctrl+S or Cmd+S
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        void flushCurrentDocument().then(async () => {
+          if (doc) {
+            await saveMindMapToZoteroAttachment(doc);
+            setSaveStatus({ state: 'saved', message: '已保存并同步至文献条目附件！' });
+          }
+        });
+        return;
+      }
 
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
         e.preventDefault();

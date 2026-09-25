@@ -134,11 +134,17 @@
               createFromItem.setAttribute('label', '在 MindFlow 中生成文献导图 (未选中文献)');
             } else {
               createFromItem.removeAttribute('disabled');
-              if (selectedItems.length === 1) {
-                const first = selectedItems[0];
-                const rawTitle = (first.getField ? first.getField('title') : first.title) || '文献';
-                const title = rawTitle.length > 20 ? rawTitle.slice(0, 20) + '...' : rawTitle;
-                createFromItem.setAttribute('label', `在 MindFlow 中生成导图: "${title}"`);
+              const first = selectedItems[0];
+              const isAttachment = first && typeof first.isAttachment === 'function' && first.isAttachment();
+              const fname = (isAttachment && first.attachmentFilename) || '';
+              const title = (first.getField ? first.getField('title') : first.title) || '';
+
+              if (selectedItems.length === 1 && isAttachment && (fname.endsWith('.mindflow') || title.includes('.mindflow'))) {
+                createFromItem.setAttribute('label', '在 MindFlow 中打开此思维导图');
+              } else if (selectedItems.length === 1) {
+                const rawTitle = title || '文献';
+                const shortTitle = rawTitle.length > 20 ? rawTitle.slice(0, 20) + '...' : rawTitle;
+                createFromItem.setAttribute('label', `在 MindFlow 中生成导图: "${shortTitle}"`);
               } else {
                 createFromItem.setAttribute('label', `在 MindFlow 中生成文献导图 (${selectedItems.length} 篇)`);
               }
@@ -153,8 +159,37 @@
           remove: () => itemMenu.removeEventListener('popupshowing', updateItemMenuState),
         });
 
-        createFromItem.addEventListener('command', () => {
+        createFromItem.addEventListener('command', async () => {
           const selectedItems = window.ZoteroPane ? window.ZoteroPane.getSelectedItems() : [];
+          if (!selectedItems || selectedItems.length === 0) return;
+
+          const first = selectedItems[0];
+          const isAttachment = first && typeof first.isAttachment === 'function' && first.isAttachment();
+          const fname = (isAttachment && first.attachmentFilename) || '';
+          const title = (first.getField ? first.getField('title') : first.title) || '';
+
+          // If clicking on a .mindflow attachment, open it directly!
+          if (selectedItems.length === 1 && isAttachment && (fname.endsWith('.mindflow') || title.includes('.mindflow'))) {
+            try {
+              const filePath = await first.getFilePathAsync?.();
+              if (filePath) {
+                const content = await IOUtils.readUTF8(filePath);
+                const docData = JSON.parse(content);
+                this.openMindFlow(
+                  {
+                    mode: 'open_document',
+                    doc: docData,
+                    openedAttachmentKey: first.key,
+                  },
+                  window
+                );
+                return;
+              }
+            } catch (err) {
+              Zotero.logError?.('[MindFlow] Failed to load .mindflow attachment: ' + err);
+            }
+          }
+
           this.openMindFlow({ mode: 'create_from_selection', items: selectedItems }, window);
         });
         itemMenu.appendChild(createFromItem);
@@ -489,8 +524,26 @@
               tabs.select(existingTab.id);
               if (win && win.focus) win.focus();
 
-              // If items were passed from context menu, forward them
-              if (
+              // If items or document were passed, forward them
+              if (options.mode === 'open_document' && options.doc) {
+                try {
+                  const iframe =
+                    win.document.getElementById('mindflow-tab-iframe') ||
+                    (existingTab.container && existingTab.container.querySelector('iframe'));
+                  if (iframe && iframe.contentWindow) {
+                    iframe.contentWindow.postMessage(
+                      {
+                        type: 'MINDFLOW_LOAD_DOCUMENT',
+                        doc: options.doc,
+                        openedAttachmentKey: options.openedAttachmentKey,
+                      },
+                      '*'
+                    );
+                  }
+                } catch (e) {
+                  // ignore
+                }
+              } else if (
                 (options.mode === 'create_from_selection' || options.mode === 'create_from_collection') &&
                 Array.isArray(options.items)
               ) {
@@ -562,6 +615,8 @@
                     {
                       Zotero,
                       mode: options.mode || 'open',
+                      doc: options.doc || null,
+                      openedAttachmentKey: options.openedAttachmentKey || null,
                       items: options.items || [],
                       collectionName: options.collectionName || null,
                       collection: options.collection || null,
@@ -601,6 +656,8 @@
         const params = {
           Zotero,
           mode: options.mode || 'open',
+          doc: options.doc || null,
+          openedAttachmentKey: options.openedAttachmentKey || null,
           items: options.items || [],
           collection: options.collection || null,
           collectionName: options.collectionName || null,

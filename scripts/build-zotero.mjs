@@ -101,7 +101,7 @@ async function main() {
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="icons/mindflow.svg" />
-    <title>MindFlow - 现代思维导图</title>
+    <title>MindFlow 思维导图与学术研读工作区</title>
     <style>
       html, body {
         width: 100%;
