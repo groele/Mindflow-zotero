@@ -4,7 +4,7 @@ import {
   Palette, Layout, ListTree, Download, Upload,
   HelpCircle, Maximize2, ZoomIn, ZoomOut,
   Globe, ChevronDown, Check, Inbox, Sparkles, Command, Settings,
-  Presentation, Search as SearchIcon, Scan, Layers, ImagePlus
+  Presentation, Search as SearchIcon, Scan, Layers, ImagePlus, GraduationCap
 } from 'lucide-react';
 import { LayoutType, ThemeColors } from '../../core/model/types';
 import { THEMES } from '../../core/theme/themes';
@@ -56,6 +56,9 @@ interface ToolbarProps {
   onImportFile: (file: File) => void;
   onCaptureCurrentTab?: () => void;
   isSidepanelMode?: boolean;
+  isZoteroMode?: boolean;
+  onImportZoteroItems?: () => void;
+  onSaveToZoteroNote?: () => void;
 }
 
 export const Toolbar: React.FC<ToolbarProps> = ({
@@ -104,6 +107,9 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onImportFile,
   onCaptureCurrentTab,
   isSidepanelMode,
+  isZoteroMode = false,
+  onImportZoteroItems,
+  onSaveToZoteroNote,
 }) => {
   const buttons = toolbarButtons || {
     history: true,
@@ -122,6 +128,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   const [isLayoutMenuOpen, setIsLayoutMenuOpen] = useState(false);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [isLevelMenuOpen, setIsLevelMenuOpen] = useState(false);
+  const [isZoteroMenuOpen, setIsZoteroMenuOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const nodeImageInputRef = useRef<HTMLInputElement>(null);
 
@@ -543,6 +550,14 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                 >
                   📄 矢量 PDF 打印排版 (PDF)
                 </button>
+                {onSaveToZoteroNote && (
+                  <button
+                    onClick={() => { onSaveToZoteroNote(); setIsExportMenuOpen(false); }}
+                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-sky-600 dark:text-sky-400 font-medium"
+                  >
+                    🎓 存为 Zotero 导图笔记
+                  </button>
+                )}
 
                 <div className="h-px bg-slate-200 dark:bg-slate-700 my-1" />
 
@@ -560,6 +575,82 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             )}
           </div>
         )}
+
+        {/* Zotero Academic Hub */}
+        <div className="relative">
+          <button
+            onClick={() => {
+              setIsZoteroMenuOpen(!isZoteroMenuOpen);
+              setIsExportMenuOpen(false);
+              setIsLevelMenuOpen(false);
+              setIsThemeMenuOpen(false);
+              setIsLayoutMenuOpen(false);
+            }}
+            title="Zotero 学术文献联动"
+            className={`flex items-center gap-1 p-1.5 rounded-lg transition-colors ${
+              isZoteroMenuOpen
+                ? 'bg-sky-100 dark:bg-sky-950/50 text-sky-600'
+                : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
+          >
+            <GraduationCap className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+            <span className="hidden xl:inline text-xs font-medium text-sky-600 dark:text-sky-400">Zotero</span>
+            <ChevronDown className="w-3 h-3 opacity-60 text-sky-600 dark:text-sky-400" />
+          </button>
+
+          {isZoteroMenuOpen && (
+            <div className="absolute right-0 mt-1 w-56 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
+              <div className="px-3 py-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                <span>Zotero 伴读联动</span>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded font-normal ${
+                  isZoteroMode
+                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                    : 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
+                }`}>
+                  {isZoteroMode ? '已连接 Zotero 7' : '独立演示模式'}
+                </span>
+              </div>
+
+              <button
+                onClick={() => {
+                  onImportZoteroItems?.();
+                  setIsZoteroMenuOpen(false);
+                }}
+                className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-2"
+              >
+                <span className="text-base">📥</span>
+                <div>
+                  <div className="font-medium text-slate-800 dark:text-slate-200">导入选中文献</div>
+                  <div className="text-[10px] text-slate-400">将选中的论文与批注转为导图分支</div>
+                </div>
+              </button>
+
+              {onSaveToZoteroNote && (
+                <button
+                  onClick={() => {
+                    onSaveToZoteroNote();
+                    setIsZoteroMenuOpen(false);
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-2"
+                >
+                  <span className="text-base">📝</span>
+                  <div>
+                    <div className="font-medium text-slate-800 dark:text-slate-200">存为 Zotero 笔记</div>
+                    <div className="text-[10px] text-slate-400">生成富文本大纲存入文献库</div>
+                  </div>
+                </button>
+              )}
+
+              <div className="h-px bg-slate-200 dark:bg-slate-700 my-1" />
+
+              <div className="px-3 py-1 text-[10px] text-slate-400 leading-relaxed">
+                {isZoteroMode
+                  ? '在 Zotero 文献库中选中条目后，点击上方即可一键导入'
+                  : '提示：安装 MindFlow Zotero 插件（.xpi）后可直接与本地文献库实时双向联动'}
+              </div>
+            </div>
+          )}
+        </div>
 
         <input
           ref={fileInputRef}

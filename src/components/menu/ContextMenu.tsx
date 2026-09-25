@@ -1,7 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import {
   CornerDownRight, Plus, Trash2, CheckSquare,
-  Copy, FolderPlus, FolderMinus, Eye, FileText
+  Copy, FolderPlus, FolderMinus, Eye, FileText,
+  MapPin, BookOpen
 } from 'lucide-react';
 import { MindMapNode } from '../../core/model/types';
 
@@ -21,6 +22,8 @@ export interface ContextMenuProps {
   onDuplicateNode?: (id: string) => void;
   onPasteSubtree?: (id: string) => void;
   hasClipboardContent?: boolean;
+  onLocateZoteroItem?: (uri: string) => void;
+  onOpenZoteroPdf?: (uri: string) => void;
 }
 
 export const ContextMenu: React.FC<ContextMenuProps> = ({
@@ -39,6 +42,8 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   onDuplicateNode,
   onPasteSubtree,
   hasClipboardContent = false,
+  onLocateZoteroItem,
+  onOpenZoteroPdf,
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -251,6 +256,39 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
           <span>复制主题纯文本</span>
         </div>
       </button>
+
+      {node.link && node.link.startsWith('zotero://') && (
+        <>
+          <div className="my-1 border-t border-slate-100 dark:border-slate-800/80" />
+          <div className="px-3 py-0.5 text-[10px] font-semibold text-sky-600 dark:text-sky-400 uppercase tracking-wider">
+            Zotero 伴读联动
+          </div>
+          {onLocateZoteroItem && (
+            <button
+              onClick={() => {
+                onLocateZoteroItem(node.link!);
+                onClose();
+              }}
+              className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-sky-50 dark:hover:bg-sky-950/40 text-sky-700 dark:text-sky-300 transition-colors text-left"
+            >
+              <MapPin className="w-3.5 h-3.5 text-sky-500" />
+              <span>在 Zotero 文库中定位</span>
+            </button>
+          )}
+          {onOpenZoteroPdf && (
+            <button
+              onClick={() => {
+                onOpenZoteroPdf(node.link!);
+                onClose();
+              }}
+              className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-sky-50 dark:hover:bg-sky-950/40 text-sky-700 dark:text-sky-300 transition-colors text-left"
+            >
+              <BookOpen className="w-3.5 h-3.5 text-sky-500" />
+              <span>打开 PDF 阅读器</span>
+            </button>
+          )}
+        </>
+      )}
 
       <div className="my-1 border-t border-slate-100 dark:border-slate-800/80" />
 

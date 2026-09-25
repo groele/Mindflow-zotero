@@ -5,8 +5,10 @@ import { imageDisplayHeight, isSafeNodeImage } from '../../core/model/nodeImage'
 import { DocumentSummary, StorageService } from '../../services/storage/storageService';
 import {
   X, Tag, Link, FileText, Palette, Shapes,
-  Star, Flag, CheckCircle2, HelpCircle, Plus, ListTodo, Link2, ImagePlus, Trash2
+  Star, Flag, CheckCircle2, HelpCircle, Plus, ListTodo, Link2, ImagePlus, Trash2,
+  MapPin, BookOpen, GraduationCap
 } from 'lucide-react';
+import { locateItemInZotero, openItemPdfInZotero } from '../../services/zotero/zoteroBridge';
 
 interface PropertySidebarProps {
   selectedNode: MindMapNode | null;
@@ -114,7 +116,7 @@ export const PropertySidebar: React.FC<PropertySidebarProps> = ({
   const handleLinkBlur = () => {
     const trimmed = linkText.trim();
     if (trimmed && !safeExternalUrl(trimmed)) {
-      setLinkError('仅支持 HTTPS、HTTP 或 mailto 链接');
+      setLinkError('仅支持 HTTPS、HTTP、mailto 或 zotero 链接');
       return;
     }
     setLinkError('');
@@ -406,6 +408,34 @@ export const PropertySidebar: React.FC<PropertySidebarProps> = ({
           />
           {linkError && <p role="alert" className="mt-1 text-[11px] text-red-600">{linkError}</p>}
         </div>
+
+        {/* Zotero Item Link Action Box */}
+        {selectedNode.link && selectedNode.link.startsWith('zotero://') && (
+          <div className="p-2.5 rounded-xl border border-sky-200 dark:border-sky-900 bg-sky-50/60 dark:bg-sky-950/20 space-y-2">
+            <div className="flex items-center gap-1.5 font-medium text-xs text-sky-700 dark:text-sky-300">
+              <GraduationCap className="w-4 h-4 text-sky-600" />
+              <span>Zotero 文献伴读联动</span>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => locateItemInZotero(selectedNode.link!)}
+                className="flex-1 py-1.5 px-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-colors shadow-sm"
+              >
+                <MapPin className="w-3.5 h-3.5" />
+                <span>文库定位</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => openItemPdfInZotero(selectedNode.link!)}
+                className="flex-1 py-1.5 px-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-colors shadow-sm"
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>阅读 PDF</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Link to another document or a specific topic */}
         <div className="space-y-2 p-2.5 rounded-xl border border-violet-200 dark:border-violet-900 bg-violet-50/50 dark:bg-violet-950/20">

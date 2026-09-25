@@ -49,6 +49,12 @@ export interface AppSettings {
 
   // 4. WebDAV 云同步配置
   webdav: WebDAVConfig;
+
+  // 5. Zotero 伴读与协同配置
+  zoteroWindowMode: 'tab' | 'window';          // 导图展示模式：内嵌选项卡 (tab) vs. 独立窗口 (window)
+  zoteroIncludeAbstract: boolean;              // 导入文献时是否自动包含摘要
+  zoteroIncludeAnnotations: boolean;           // 导入文献时是否自动包含 PDF 高亮批注与笔记
+  zoteroIncludeTags: boolean;                  // 导入文献时是否自动提取标签
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -89,4 +95,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
     password: '',
     autoSyncOnSave: false,
   },
+
+  zoteroWindowMode: 'tab',
+  zoteroIncludeAbstract: true,
+  zoteroIncludeAnnotations: true,
+  zoteroIncludeTags: true,
 };

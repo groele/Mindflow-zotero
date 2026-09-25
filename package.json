@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:zotero": "node scripts/build-zotero.mjs",
     "preview": "vite preview",
     "test": "vite-node scripts/test-core.js"
   },

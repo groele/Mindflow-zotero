@@ -19,6 +19,11 @@ import {
   exportToPNG, exportToSVG, exportToMarkdown, exportToJSON, importFromMarkdown,
   exportToOPML, importFromOPML, exportToInteractiveHTML, printToPDF
 } from '../../services/io/exporter';
+import {
+  isZoteroEnvironment, getSelectedZoteroItems, convertZoteroItemToNode,
+  saveMindMapToZoteroNote, getSampleAcademicItems, extractZoteroItemData,
+  locateItemInZotero, openItemPdfInZotero, ZoteroItemData
+} from '../../services/zotero/zoteroBridge';
 import { playAddNode, playTaskComplete, playDeleteNode } from '../../services/audio/soundService';
 import { Canvas } from '../../components/canvas/Canvas';
 import { CanvasErrorBoundary } from '../../components/canvas/CanvasErrorBoundary';
@@ -37,6 +42,7 @@ import { AppSettings, DEFAULT_SETTINGS } from '../../core/model/settingsTypes';
 import { SettingsService } from '../../services/storage/settingsService';
 import { BackupService, MAX_BACKUP_BYTES, validateMindMapDocument } from '../../services/storage/backupService';
 import { WebDAVService } from '../../services/sync/webdavService';
+import { safeStorage } from '../../services/storage/safeStorage';
 import { Minimize2 } from 'lucide-react';
 
 interface AppProps {
@@ -48,6 +54,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isZoteroMode] = useState<boolean>(() => isZoteroEnvironment());
   const [viewport, setViewport] = useState<ViewportTransform>({ x: 0, y: 0, scale: 1 });
   const clipboardSubtreeRef = useRef<MindMapNode | null>(null);
   const clipboardNodeTokenRef = useRef<string | null>(null);
@@ -58,7 +65,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   const [isWorkbenchOpen, setIsWorkbenchOpen] = useState(false);
   const [workbenchTab, setWorkbenchTab] = useState<WorkbenchTab>('docs');
   const [dockPosition, setDockPosition] = useState<'left' | 'right'>(() => {
-    return (localStorage.getItem('mindflow_dock_pos') as 'left' | 'right') || 'left';
+    return (safeStorage.getItem('mindflow_dock_pos') as 'left' | 'right') || 'left';
   });
 
   const [isPropertySidebarOpen, setIsPropertySidebarOpen] = useState(false);
@@ -97,6 +104,20 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   latestDocRef.current = doc;
   latestRelationshipsRef.current = relationships;
   useEffect(() => () => window.clearTimeout(autoSyncTimerRef.current), []);
+
+  // Synchronize document title with host Zotero Tab header
+  useEffect(() => {
+    if (doc?.title && typeof window !== 'undefined' && window.parent && window.parent !== window) {
+      try {
+        window.parent.postMessage({
+          type: 'MINDFLOW_SET_TAB_TITLE',
+          title: `${doc.title} - MindFlow`,
+        }, '*');
+      } catch {
+        // ignore
+      }
+    }
+  }, [doc?.title]);
 
   // Load Settings on mount
   useEffect(() => {
@@ -176,6 +197,97 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   useEffect(() => {
     reloadWorkspace();
 
+    // Import helper for Zotero items
+    const importZoteroItems = (items: any[]) => {
+      if (!Array.isArray(items) || items.length === 0) return;
+      setDoc((prev) => {
+        if (!prev) return prev;
+        let currentRoot = prev.root;
+        for (const rawItem of items) {
+          const itemData = extractZoteroItemData(rawItem);
+          if (itemData) {
+            const itemNode = convertZoteroItemToNode(itemData);
+            const { newRoot, newNodeId } = addChildNode(currentRoot, prev.root.id, itemNode.text);
+            currentRoot = updateNode(newRoot, newNodeId, {
+              note: itemNode.note,
+              link: itemNode.link,
+              tags: itemNode.tags,
+              color: itemNode.color,
+              children: itemNode.children,
+            });
+          }
+        }
+        return {
+          ...prev,
+          title: `Zotero 文献导图 (${items.length} 篇)`,
+          root: currentRoot,
+          updatedAt: Date.now(),
+        };
+      });
+    };
+
+    // Import helper for an entire Zotero collection
+    const importZoteroCollection = (collectionName: string, items: any[]) => {
+      const parsedItems: ZoteroItemData[] = [];
+      for (const raw of items) {
+        const d = extractZoteroItemData(raw);
+        if (d) parsedItems.push(d);
+      }
+
+      const rootNode: MindMapNode = {
+        id: generateId(),
+        text: `📁 ${collectionName || '专题文献分类'}`,
+        color: '#0284c7',
+        isExpanded: true,
+        children: parsedItems.map((item) => convertZoteroItemToNode(item)),
+      };
+
+      const newDoc: MindMapDocument = {
+        id: 'doc_' + generateId(),
+        title: `${collectionName || '文献分类'} 知识脉络导图`,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        root: rootNode,
+        themeId: 'academic',
+        layoutType: 'mindmap',
+      };
+
+      StorageService.saveDocument(newDoc).then(async (saved) => {
+        await StorageService.setActiveDocumentId(saved.id);
+        cleanDocRef.current = saved;
+        cleanRelationshipsRef.current = [];
+        setRelationships([]);
+        setDoc(saved);
+        setSelectedId(saved.root.id);
+        setTimeout(() => centerCanvas(), 60);
+      });
+    };
+
+    // Check if opened directly with Zotero items via context menu
+    if (typeof window !== 'undefined' && window.arguments && window.arguments[0]) {
+      const args = window.arguments[0];
+      if (args.mode === 'create_from_selection' && Array.isArray(args.items) && args.items.length > 0) {
+        setTimeout(() => importZoteroItems(args.items), 150);
+      } else if (args.mode === 'create_from_collection' && Array.isArray(args.items)) {
+        setTimeout(() => importZoteroCollection(args.collectionName || args.collection?.name || '文献分类', args.items), 150);
+      }
+    }
+
+    // Listen for live imports when running inside a persistent Zotero tab
+    const handleImportMessage = (event: any) => {
+      const data = event.data || event.detail;
+      if (!data) return;
+      if (data.type === 'MINDFLOW_IMPORT_ZOTERO_ITEMS' || data.mode === 'create_from_selection') {
+        const items = data.items || [];
+        importZoteroItems(items);
+      } else if (data.type === 'MINDFLOW_IMPORT_ZOTERO_COLLECTION' || data.mode === 'create_from_collection') {
+        const items = data.items || [];
+        importZoteroCollection(data.collectionName || '文献分类', items);
+      }
+    };
+    window.addEventListener('message', handleImportMessage);
+    window.addEventListener('mindflow-import-items', handleImportMessage);
+
     const handleResize = () => {
       if (containerRef.current) {
         setContainerSize({
@@ -196,10 +308,16 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       return () => {
         chrome.runtime.onMessage.removeListener(listener);
         window.removeEventListener('resize', handleResize);
+        window.removeEventListener('message', handleImportMessage);
+        window.removeEventListener('mindflow-import-items', handleImportMessage);
       };
     }
 
-    return () => window.removeEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('message', handleImportMessage);
+      window.removeEventListener('mindflow-import-items', handleImportMessage);
+    };
   }, [reloadWorkspace]);
 
   // Auto-save locally, create interval-based recovery snapshots, then report
@@ -1008,6 +1126,57 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     }
   };
 
+  // Zotero Literature Handlers
+  const handleImportZoteroItems = useCallback(() => {
+    if (!doc) return;
+    const parentId = selectedId || doc.root.id;
+
+    if (isZoteroMode) {
+      const items = getSelectedZoteroItems();
+      if (!items || items.length === 0) {
+        alert('请先在 Zotero 文献列表中选中 1 篇或多篇文献，然后再点击导入。');
+        return;
+      }
+      let currentRoot = doc.root;
+      for (const itemData of items) {
+        const itemNode = convertZoteroItemToNode(itemData);
+        const { newRoot, newNodeId } = addChildNode(currentRoot, parentId, itemNode.text);
+        currentRoot = updateNode(newRoot, newNodeId, {
+          note: itemNode.note,
+          link: itemNode.link,
+          tags: itemNode.tags,
+          color: itemNode.color,
+          children: itemNode.children,
+        });
+      }
+      commitRootChange(currentRoot);
+      setSaveStatus({ state: 'saved', message: `已成功导入 ${items.length} 篇 Zotero 文献！` });
+    } else {
+      // Browser preview demo items
+      const sampleItems = getSampleAcademicItems();
+      let currentRoot = doc.root;
+      for (const itemData of sampleItems) {
+        const itemNode = convertZoteroItemToNode(itemData);
+        const { newRoot, newNodeId } = addChildNode(currentRoot, parentId, itemNode.text);
+        currentRoot = updateNode(newRoot, newNodeId, {
+          note: itemNode.note,
+          link: itemNode.link,
+          tags: itemNode.tags,
+          color: itemNode.color,
+          children: itemNode.children,
+        });
+      }
+      commitRootChange(currentRoot);
+      setSaveStatus({ state: 'saved', message: '已载入 Zotero 学术文献示例（在 Zotero 7 中将直接读取选中文献）' });
+    }
+  }, [doc, selectedId, isZoteroMode, commitRootChange]);
+
+  const handleSaveToZoteroNote = useCallback(async () => {
+    if (!doc) return;
+    const res = await saveMindMapToZoteroNote(doc);
+    alert(res.message);
+  }, [doc]);
+
   // Import file handler
   const handleImportFile = async (file: File) => {
     if (!(await flushCurrentDocument())) return;
@@ -1159,6 +1328,9 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
           onImportFile={handleImportFile}
           onCaptureCurrentTab={handleCaptureCurrentTab}
           isSidepanelMode={isSidepanelMode}
+          isZoteroMode={isZoteroMode}
+          onImportZoteroItems={handleImportZoteroItems}
+          onSaveToZoteroNote={handleSaveToZoteroNote}
         />
       )}
 
@@ -1378,6 +1550,8 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
           onToggleCollapse={handleToggleCollapse}
           onStartEdit={(id) => setEditingId(id)}
           onFocusSubtree={(id) => handleSelectAndCenterNode(id)}
+          onLocateZoteroItem={(uri) => locateItemInZotero(uri)}
+          onOpenZoteroPdf={(uri) => openItemPdfInZotero(uri)}
         />
       )}
 

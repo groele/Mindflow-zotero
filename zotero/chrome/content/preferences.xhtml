@@ -1,0 +1,81 @@
+<vbox xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+      xmlns:html="http://www.w3.org/1999/xhtml"
+      id="mindflow-preferences-pane"
+      class="mindflow-prefs-container"
+      onload="MindFlow_Preferences.init(window)">
+
+  <!-- Group 1: 窗口展示与交互模式 -->
+  <groupbox class="mindflow-pref-group">
+    <label class="mindflow-group-title"><html:h2>🖥️ 窗口与展示模式</html:h2></label>
+    <vbox class="mindflow-pref-content">
+      <html:p class="mindflow-pref-desc">
+        选择在 Zotero 中启动 MindFlow 时的界面呈现方式：
+      </html:p>
+      <radiogroup id="mindflow-pref-windowMode" preference="extensions.mindflow.windowMode">
+        <radio value="tab" label="主窗口内嵌选项卡（Native Tab，推荐）" />
+        <html:div class="mindflow-radio-desc">
+          直接在 Zotero 主界面顶部标签栏中开辟导图标签页，与文献库、PDF 阅读器无缝并列协同。
+        </html:div>
+        <radio value="window" label="独立桌面窗口（Standalone Window）" />
+        <html:div class="mindflow-radio-desc">
+          开辟独立的桌面级大窗口，适合双屏/多显示器或需要超大独立画布研读的场景。
+        </html:div>
+      </radiogroup>
+    </vbox>
+  </groupbox>
+
+  <!-- Group 2: 文献导入与导图生成偏好 -->
+  <groupbox class="mindflow-pref-group">
+    <label class="mindflow-group-title"><html:h2>📚 文献导入与解析规则</html:h2></label>
+    <vbox class="mindflow-pref-content">
+      <checkbox id="mindflow-pref-includeAbstract"
+                preference="extensions.mindflow.includeAbstract"
+                label="自动提取文献核心摘要（生成独立二级摘要子分支）" />
+      <checkbox id="mindflow-pref-includeAnnotations"
+                preference="extensions.mindflow.includeAnnotations"
+                label="自动提取 PDF 阅读高亮批注与笔记（转为研读批注分支）" />
+      <checkbox id="mindflow-pref-includeTags"
+                preference="extensions.mindflow.includeTags"
+                label="自动提取文献关键词为节点标签徽标" />
+      <checkbox id="mindflow-pref-autoOpenAfterExport"
+                preference="extensions.mindflow.autoOpenAfterExport"
+                label="保存为 Zotero 笔记后自动在文献库中高亮定位" />
+    </vbox>
+  </groupbox>
+
+  <!-- Group 3: 默认布局与主题风格 -->
+  <groupbox class="mindflow-pref-group">
+    <label class="mindflow-group-title"><html:h2>🎨 默认视觉风格与布局结构</html:h2></label>
+    <vbox class="mindflow-pref-content">
+      <hbox align="center" class="mindflow-field-row">
+        <label value="默认导图布局：" class="mindflow-field-label" />
+        <html:select id="mindflow-pref-defaultLayout" preference="extensions.mindflow.defaultLayout" class="mindflow-select">
+          <html:option value="mindmap">经典思维导图（左右平衡扩展）</html:option>
+          <html:option value="logic-right">向右单向逻辑图（文献树结构推荐）</html:option>
+          <html:option value="org-down">组织结构图（自顶向下展开）</html:option>
+        </html:select>
+      </hbox>
+      <hbox align="center" class="mindflow-field-row">
+        <label value="默认主题风格：" class="mindflow-field-label" />
+        <html:select id="mindflow-pref-theme" preference="extensions.mindflow.theme" class="mindflow-select">
+          <html:option value="academic">学术纸感（米白护眼底色 + 墨水蓝）</html:option>
+          <html:option value="classic-blue">现代明亮（经典科技蓝）</html:option>
+          <html:option value="dark-night">暗色极客（深邃暗夜黑）</html:option>
+          <html:option value="morandi">莫兰迪（柔和低饱和）</html:option>
+        </html:select>
+      </hbox>
+    </vbox>
+  </groupbox>
+
+  <!-- Group 4: 快捷操作与穿梭说明 -->
+  <groupbox class="mindflow-pref-group">
+    <label class="mindflow-group-title"><html:h2>⚡ 快捷协同与穿梭</html:h2></label>
+    <vbox class="mindflow-pref-content">
+      <html:div class="mindflow-pref-tip">
+        <html:p><html:strong>全局唤出热键：</html:strong><html:code>Ctrl + Alt + M</html:code>（macOS 下为 <html:code>Cmd + Alt + M</html:code>），随时快速打开或激活导图。</html:p>
+        <html:p><html:strong>双向穿梭：</html:strong>在导图中右键文献节点可选择“在文库中定位”或“打开 PDF 阅读器”直达 Zotero 7 内置阅读器。</html:p>
+      </html:div>
+    </vbox>
+  </groupbox>
+
+</vbox>

@@ -1,4 +1,5 @@
 import { AppSettings, DEFAULT_SETTINGS } from '../../core/model/settingsTypes';
+import { safeStorage } from './safeStorage';
 
 const SETTINGS_STORAGE_KEY = 'mindflow_app_settings';
 
@@ -57,7 +58,7 @@ export class SettingsService {
         });
       });
     } else {
-      const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
+      const raw = safeStorage.getItem(SETTINGS_STORAGE_KEY);
       if (raw) {
         try {
           loadedSettings = JSON.parse(raw);
@@ -91,13 +92,13 @@ export class SettingsService {
         });
       });
     } else {
-      localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(updated));
+      safeStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(updated));
     }
     this.cachedSettings = updated;
 
-    // Also synchronize workbenchDockPosition to localStorage key for compatibility
+    // Also synchronize workbenchDockPosition to safeStorage key for compatibility
     if (partial.workbenchDockPosition) {
-      localStorage.setItem('mindflow_dock_pos', partial.workbenchDockPosition);
+      safeStorage.setItem('mindflow_dock_pos', partial.workbenchDockPosition);
     }
 
     return { ...updated };
@@ -119,11 +120,11 @@ export class SettingsService {
         });
       });
     } else {
-      localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(DEFAULT_SETTINGS));
+      safeStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(DEFAULT_SETTINGS));
     }
 
     this.cachedSettings = { ...DEFAULT_SETTINGS };
-    localStorage.setItem('mindflow_dock_pos', DEFAULT_SETTINGS.workbenchDockPosition);
+    safeStorage.setItem('mindflow_dock_pos', DEFAULT_SETTINGS.workbenchDockPosition);
     return { ...DEFAULT_SETTINGS };
   }
 }

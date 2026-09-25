@@ -8,6 +8,8 @@ const STORAGE_KEYS = {
   ACTIVE_DOC_ID: 'mindflow_active_doc_id',
 };
 
+import { safeStorage } from './safeStorage';
+
 // Check if chrome.storage is available
 function isChromeStorage(): boolean {
   return typeof chrome !== 'undefined' && !!chrome.storage && !!chrome.storage.local;
@@ -27,7 +29,7 @@ async function getItem(key: string): Promise<string | null> {
       });
     });
   }
-  return Promise.resolve(localStorage.getItem(key));
+  return Promise.resolve(safeStorage.getItem(key));
 }
 
 async function setItem(key: string, value: string): Promise<void> {
@@ -48,7 +50,7 @@ async function setItems(items: Record<string, unknown>): Promise<void> {
     });
   }
   for (const [key, value] of Object.entries(items)) {
-    localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value));
+    safeStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value));
   }
 }
 
@@ -65,7 +67,7 @@ async function removeItem(key: string): Promise<void> {
       });
     });
   }
-  localStorage.removeItem(key);
+  safeStorage.removeItem(key);
 }
 
 async function getAllItems(): Promise<Record<string, unknown>> {
@@ -82,12 +84,7 @@ async function getAllItems(): Promise<Record<string, unknown>> {
     });
   }
 
-  const items: Record<string, unknown> = {};
-  for (let i = 0; i < localStorage.length; i += 1) {
-    const key = localStorage.key(i);
-    if (key) items[key] = localStorage.getItem(key);
-  }
-  return items;
+  return safeStorage.getAll();
 }
 
 function isDocumentSummary(value: unknown): value is DocumentSummary {

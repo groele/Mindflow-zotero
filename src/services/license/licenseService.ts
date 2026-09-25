@@ -25,6 +25,8 @@ export interface FeatureMatrix {
   customBranding: boolean;
 }
 
+import { safeStorage } from '../storage/safeStorage';
+
 const STORAGE_KEY = 'mindflow_license_info';
 
 export class LicenseService {
@@ -43,8 +45,8 @@ export class LicenseService {
             isLifetime: true,
           };
         }
-      } else if (typeof localStorage !== 'undefined') {
-        const stored = localStorage.getItem(STORAGE_KEY);
+      } else {
+        const stored = safeStorage.getItem(STORAGE_KEY);
         if (stored) {
           return {
             ...JSON.parse(stored),
@@ -158,8 +160,8 @@ export class LicenseService {
     try {
       if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
         await chrome.storage.local.set({ [STORAGE_KEY]: licenseInfo });
-      } else if (typeof localStorage !== 'undefined') {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(licenseInfo));
+      } else {
+        safeStorage.setItem(STORAGE_KEY, JSON.stringify(licenseInfo));
       }
       return { success: true };
     } catch (e: any) {
@@ -178,8 +180,8 @@ export class LicenseService {
     };
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
       await chrome.storage.local.set({ [STORAGE_KEY]: defaultLicense });
-    } else if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultLicense));
+    } else {
+      safeStorage.setItem(STORAGE_KEY, JSON.stringify(defaultLicense));
     }
   }
 

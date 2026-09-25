@@ -1,5 +1,6 @@
 import { InboxItem } from '../../core/model/types';
 import { generateId } from '../../core/model/treeOps';
+import { safeStorage } from './safeStorage';
 
 const INBOX_STORAGE_KEY = 'mindflow_inbox_items';
 
@@ -30,7 +31,7 @@ export class InboxService {
       });
     }
 
-    const raw = localStorage.getItem(INBOX_STORAGE_KEY);
+    const raw = safeStorage.getItem(INBOX_STORAGE_KEY);
     if (!raw) return [];
     try {
       const parsed = JSON.parse(raw);
@@ -93,6 +94,6 @@ export class InboxService {
         });
       });
     }
-    localStorage.setItem(INBOX_STORAGE_KEY, serialized);
+    safeStorage.setItem(INBOX_STORAGE_KEY, serialized);
   }
 }

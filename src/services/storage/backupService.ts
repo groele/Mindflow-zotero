@@ -4,6 +4,7 @@ import { InboxService } from './inboxService';
 import { generateId } from '../../core/model/treeOps';
 import { SettingsService } from './settingsService';
 import { isSafeNodeImage } from '../../core/model/nodeImage';
+import { safeStorage } from './safeStorage';
 
 export interface DocSnapshot {
   id: string;
@@ -257,7 +258,7 @@ export class BackupService {
       });
     }
 
-    const raw = localStorage.getItem(key);
+    const raw = safeStorage.getItem(key);
     if (!raw) return [];
     try {
       const parsed = JSON.parse(raw);
@@ -377,7 +378,7 @@ export class BackupService {
           });
         });
       } else {
-        localStorage.setItem('mindflow_inbox_items', serialized);
+        safeStorage.setItem('mindflow_inbox_items', serialized);
       }
     }
 
@@ -427,13 +428,11 @@ export class BackupService {
       });
     }
 
-    // Fallback for localStorage estimation
+    // Fallback for safeStorage estimation
+    const all = safeStorage.getAll();
     let totalLength = 0;
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key) {
-        totalLength += key.length + (localStorage.getItem(key)?.length || 0);
-      }
+    for (const [k, v] of Object.entries(all)) {
+      totalLength += k.length + (v?.length || 0);
     }
     const usedBytes = totalLength * 2; // UTF-16 characters are 2 bytes
     const maxBytes = 5 * 1024 * 1024; // 5MB standard for localStorage
@@ -459,6 +458,6 @@ export class BackupService {
         });
       });
     }
-    localStorage.setItem(key, serialized);
+    safeStorage.setItem(key, serialized);
   }
 }

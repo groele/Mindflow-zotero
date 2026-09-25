@@ -4,6 +4,7 @@ node_modules/
 # Production build output
 dist/
 dist-zip/
+dist-zotero/
 
 # Logs
 logs

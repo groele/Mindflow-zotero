@@ -1,184 +1,154 @@
-# 🚀 MindFlow - 现代 Chrome 浏览器思维导图与伴读笔记
+# MindFlow
 
-[![GitHub release](https://img.shields.io/badge/release-v3.2.0-blue.svg)](https://github.com/groele/mindflow/releases/tag/v3.2.0)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org/)
-[![React](https://img.shields.io/badge/React-19-61dafb.svg)](https://react.dev/)
-[![Chrome MV3](https://img.shields.io/badge/Chrome%20Extension-Manifest%20V3-success.svg)](https://developer.chrome.com/docs/extensions/mv3/intro/)
-[![Free & Open Source](https://img.shields.io/badge/Status-100%25%20Free%20%26%20Open%20Source-brightgreen.svg)](https://github.com/groele/mindflow)
+[![版本](https://img.shields.io/badge/版本-1.0.0-blue.svg)](https://github.com/groele/Mindflow-zotero/releases/latest)
+[![许可证](https://img.shields.io/badge/许可证-MIT-green.svg)](LICENSE)
+[![Zotero 7+ 插件](https://img.shields.io/badge/Zotero-7%2B%20Addon-red.svg)](docs/ZOTERO_GUIDE.md)
+[![Chrome 扩展](https://img.shields.io/badge/Chrome-Manifest%20V3-brightgreen.svg)](https://developer.chrome.com/docs/extensions/mv3/intro/)
 
-> 借鉴主流标杆（XMind、MindNode、ProcessOn），深度融合 Chrome 浏览器生态打造的轻量级、极速、高颜值思维导图扩展程序。100% 全功能永久免费开放、节点悬浮气泡微工具栏、跨分支自由关联线、全局查找与替换、分支多层级收折、矢量 PDF 纯净打印。
+MindFlow 是一款面向 **Zotero 7+ 客户端** 与 Chrome 浏览器的现代思维导图与科研伴读笔记插件。它把文献研读、学术脑图、大纲结构、高亮批注与笔记存回放在同一个工作区，默认将数据安全保存在本地；所有功能永久免费，无需注册或激活。
 
----
+[下载 Zotero 插件 (.xpi)](https://github.com/groele/Mindflow-zotero/releases/latest) · [Zotero 插件开发与使用指南](docs/ZOTERO_GUIDE.md) · [查看变更记录](CHANGELOG.md) · [报告问题](https://github.com/groele/Mindflow-zotero/issues)
 
-## 3.2.0 图片与文字节点
+## 功能概览
 
-- 3.2.0：选中节点后可粘贴截图；也可将单张图片从文件管理器拖入目标节点。原有的分支复制粘贴和节点拖拽移动继续可用。
-- 3.1.1：选中节点后，可直接点击节点上方悬浮工具栏中的图片图标导入或替换图片。
-- 工具栏点击“图片节点”可在当前主题下导入图片；选中任意节点后，也可在属性面板为其添加或替换图片。
-- 图片可与节点文字同时显示。纯图片节点可留空文字，随后在属性面板中添加说明。
-- 在属性面板拖动“显示宽度”调整图片大小，画布和布局随之更新。
-- 图片会压缩后保存在导图中；JSON、工作区备份、SVG、PNG 和交互 HTML 保留图片。Markdown 与 OPML 是文字结构格式，导出前会提示图片无法保留。
-- 支持 PNG、JPEG、WebP，单张原始文件上限 15 MB；本地存储接近配额时会阻止新增图片并给出提示。
+### Zotero 7+ 学术伴读与文献脑图
 
----
+- **原生主窗口选项卡（Native Tab）**：深度融入 Zotero 7 标签栏，与文库、PDF 标签并列协同；支持按 `Ctrl+Alt+M` 快捷唤出。
+- **独立浮窗自由切换**：可在设置中自由选择“内嵌选项卡”或“独立大窗口”，在多屏、大屏科研环境中随心布局。
+- **系统级首选项面板**：在 Zotero 原生“设置 (Preferences)”中注册专属配置面板，全局定制解析规则、默认布局与主题。
+- **一键文献成图**：选中单篇或多篇文献，一键解析题录、年份、作者、刊物、核心摘要及 PDF 划线批注。
+- **分类文件夹生成**：在文库分类文件夹右键一键生成专题领域完整知识树。
+- **双向穿梭与 PDF 直达**：导图节点专属 🎓 徽标直达文库条目；右键可秒开 Zotero 7 原生 PDF 阅读器。
+- **一键回存笔记**：导图大纲富文本一键回存为 Zotero 本地文献库笔记。
 
-## 3.0.0 新功能
+### 导图编辑
 
-- **标签聚焦**：在左侧标签工作台按标签筛选主题，并一键定位匹配节点。聚焦只影响显示，不改变导图数据。
-- **跨导图主题链接**：在主题属性中选择目标导图和主题；点击节点上的关联按钮即可跳转。若目标主题已删除，会回到目标导图的中心主题。
-- **任务分支进度**：大纲显示各分支的任务完成数；任务属性可设置高、中、低优先级。
-- **备份恢复预览**：导入本地或 WebDAV 工作区前显示新增、覆盖的导图数量，以及收集箱和快照数量。
-- **编辑保护**：切换导图、创建导图、导入与备份操作前保存当前编辑；后台顺序处理保存与删除，旧窗口无法将已删除导图写回。
+- 三种布局：左右平衡思维导图、向右逻辑图、自上而下组织架构图。
+- 10 款配色主题（含学术纸感、莫兰迪、赛博朋克等）；可调整画布纹理、分支连线样式和工具栏布局。
+- 节点支持标签、颜色、形状、图标、任务、超链接、跨导图链接和纯文本备注。
+- 节点可折叠、重排、批量选择和批量设置；支持跨分支关联线。
+- 图片可与文字同处一个节点，也可作为纯图片节点。支持导入、替换、删除和调整显示宽度。
+- 可使用大纲、搜索与替换、标签聚焦、任务总览、模板、专注模式和演示模式整理或展示内容。
 
-现有导图文件可继续打开；跨导图主题链接是可选字段。完整变更见 [CHANGELOG.md](CHANGELOG.md)。
+### 图片操作
 
----
+为节点添加图片，可以：
 
-## ✨ 核心特性
+1. 选中节点，点击节点上方浮动工具栏的图片图标；
+2. 打开节点属性面板，选择“导入图片”；
+3. 将单张图片拖到画布上的目标节点；
+4. 复制截图后选中目标节点，按 Ctrl/Cmd+V。
 
-### 1. 深度对标主流思维导图体验
-- **全键盘盲操与丝滑导航**：
-  - `Tab`：插入子主题
-  - `Enter`：插入同级主题
-  - `Shift + Enter`：在前方插入同级主题
-  - `Delete / Backspace`：删除当前选中的主题分支
-  - `Space 空格 / 双击`：就地内联文字编辑，完美兼容中文 IME 输入法
-  - `↑ ↓ ← →`：在节点之间自由穿梭导航焦点
-  - `Ctrl + Z / Ctrl + Y`：无限历史撤销与重做
-  - `/`：快速折叠与展开分支
-  - `Ctrl + K`：呼出全局命令面板（Command Palette），瞬时检索与跳转
-  - `Ctrl + ,`：秒级唤起全局系统设置中心
-- **三大经典布局引擎**：
-  - **思维导图**：左右智能平衡自适应分布（对标 XMind / MindNode）
-  - **逻辑图**：向右单向展开（适合清晰阅读流程与读书笔记）
-  - **组织架构图**：自顶向下层级展开（适合汇报与系统拆解）
-- **10 大精心调校的专业级主题**：
-  - 经典商务蓝、极夜星云（OLED 深色模式）、马卡龙糖果粉、森林秘境（柔和护眼绿）、极简水墨黑白、暖阳琥珀、赛博朋克霓虹、北欧冰霜蓝、学术纸感（论文框架）、薰衣草梦境
-- **多维节点属性与 Task 任务流转**：
-  - 一键将节点转为 Todo / Doing / Done 任务，原生勾选打勾动画与划线动效
-  - 节点形状自适应（圆角矩形、胶囊、纯矩形、下划线）
-  - 优先级与图标徽章（P1/P2/P3/P4、⭐、🚩、✅、❓）
-  - 标签系统（Tags）、超链接跳转、富文本长备注
-  - 工作台任务总览：完成比例、进行中与逾期数量，支持状态和文本筛选并定位节点
+支持 PNG、JPEG 和 WebP。导入时会在本机压缩后嵌入导图；单个原始文件不超过 15 MB，解码像素数不超过 2400 万。图片宽度可在节点属性面板调整。
 
----
+### Chrome 浏览器集成
 
-### 2. 🎛️ 系统设置中心与界面深度自定义 (v2.2.0)
-- **工具栏位置定制**：支持工具栏 **置顶 (Top)** 与 **置底 (Bottom)** 自由切换。
-- **左右工作台互换停靠**：宏观工作台支持自由停靠在画布左侧或右侧，适配 Chrome 侧边栏（Side Panel）在右侧的交互动线。
-- **工具栏按钮个性化显隐**：支持对 10 个功能按钮（撤销重做、加子节点、加同级节点、删除节点、布局、主题、导出、收集箱、专注模式、缩放控件）按需显隐，打造极致专注界面。
-- **画布背景纹理切换**：支持 **点阵 (Dots)**、**工程网格 (Grid)** 与 **极简纯白 (Blank)** 自由切换。
-- **编辑偏好设置**：可配置新建导图的默认主题、默认布局、折叠分支添加子节点时自动展开父级、默认 Task 优先级等。
+- 在全屏标签页中编辑，也可打开 Chrome 侧边栏边读网页边做笔记。
+- 从当前网页创建链接卡片；通过网页右键菜单收集页面或所选文字。
+- 可将选中文字直接添加到当前导图，或先放入收集箱稍后整理。
 
----
+## 快速开始
 
-### 3. ☁️ WebDAV 云备份与异地恢复
-- **主流网盘一键预设**：内置坚果云（Jianguoyun）、Nextcloud / ownCloud、群晖 Synology NAS 及自定义 WebDAV 模板。
-- **连通性即时检测**：基于 `PROPFIND` / `OPTIONS` 协议头验证网络与账号密码有效性，给出精准排错建议。
-- **版本化云备份**：手动上传或在编辑暂停后自动上传全量工作区；每次保留独立历史文件，并提供“最新备份”入口和历史版本选择恢复。
-- **本地优先**：导图先保存到本地，再备份至您配置的 HTTPS WebDAV 服务器。凭据保存在此浏览器扩展本地存储中，Chrome 不提供应用层加密；请使用服务器提供的应用专属密码。
+### 从 GitHub Releases 下载安装（推荐）
 
----
+1. 前往 [GitHub Releases 最新发布页](https://github.com/groele/Mindflow-zotero/releases/latest)；
+2. 下载 `mindflow-zotero-1.0.0.xpi`；
+3. 在 Zotero 7 中，点击顶部菜单 **“工具 (Tools)” → “附加组件 (Add-ons)”**；
+4. 点击附加组件窗口右上角的 ⚙️ 齿轮图标，选择 **“Install Add-on From File...”**；
+5. 选择下载的 `.xpi` 文件并确认安装，重启 Zotero 即可！
 
-### 4. 🛡️ 数据安全与版本快照历史
-- **滚动版本快照 (Snapshots)**：单文档自动/手动生成历史快照（最多保留 50 份），支持随时一键无损回滚。
-- **全量工作区离线备份/还原**：一键将所有导图文件、收集箱碎片及版本快照打包导出为 `.mindflow-workspace-backup.json`。
-- **本地存储配额监控 (Storage Quota)**：动态计算 `chrome.storage.local` 已用空间与配额百分比。
-- **多窗口写入保护**：文档按版本顺序保存；同时编辑发生冲突时保留冲突副本，避免静默覆盖。
+### 从源码构建
 
----
+需要安装 Node.js 和 npm。
 
-### 5. 🌐 Chrome 浏览器特权与伴读模式
-- **Side Panel 侧边栏伴读模式**：
-  - 完美接入 Chrome `sidePanel` API。在浏览网页、阅读文献、观看网课视频时，导图停靠在浏览器侧边，边读边记。
-- **一键提取网页卡片**：
-  - 一键将当前 Tab 的标题与 URL 转化为导图节点。
-- **划词右键收藏**：
-  - 在任意网页选中文本，右键点击「📌 摘录到思维导图」，后台 Service Worker 自动将摘录内容注入灵感收集箱。
-
----
-
-### 6. 多格式导入与导出
-- **高清 PNG 导出**：支持高 DPI 视网膜清晰度导出。
-- **矢量 SVG 导出**：无损放大，可直接用于设计工具与打印。
-- **Markdown 互通**：导出为结构化 Markdown，亦可将 Markdown 大纲直接导入为导图。
-- **JSON 工程备份**：完整的工程文件导入导出，方便多设备迁移。
-
----
-
-## 🛠️ 项目架构与模块化设计
-
-```
-Mindmapext/
-├── dist/                          # 构建产物（直接加载至 Chrome）
-├── public/                        # 静态资源与 Manifest V3 扩展配置
-│   ├── manifest.json              # Chrome MV3 清单文件
-│   └── icons/                     # 扩展多尺寸图标
-├── src/
-│   ├── core/                      # [核心引擎 - 纯 TypeScript，与 UI 解耦]
-│   │   ├── model/                 # 节点数据模型、树增删改移、系统设置模型
-│   │   ├── layout/                # 布局算法（左右平衡、逻辑图、组织结构）
-│   │   ├── history/               # Undo / Redo 命令模式历史记录栈
-│   │   ├── theme/                 # 10 款专业主题调色板
-│   │   └── sampleData.ts          # 默认引导导图数据
-│   ├── components/                # [UI 组件模块]
-│   │   ├── canvas/                # 无限视口平移、平滑缩放、贝塞尔曲线连接、背景网格
-│   │   ├── node/                  # 节点渲染、Task 复选框、内联输入法编辑、折叠微件
-│   │   ├── toolbar/               # 可定制顶部/底部工具栏
-│   │   ├── sidebar/               # 左侧宏观工作台 + 右侧微观节点检视器
-│   │   ├── minimap/               # 雷达小地图导航
-│   │   ├── outline/               # 交互式大纲视图（支持行内直接修改）
-│   │   ├── command/               # Ctrl+K 全局命令面板
-│   │   └── modal/                 # 全局系统设置中心、模板库、全键盘快捷键指南
-│   ├── services/                  # [服务模块]
-│   │   ├── storage/               # Chrome Storage、快照管理、设置持久化
-│   │   ├── sync/                  # WebDAV 云端备份与同步服务
-│   │   └── io/                    # PNG、SVG、Markdown、JSON 导入导出器
-│   ├── extension/                 # [Chrome 扩展后台]
-│   │   └── background/            # Manifest V3 Service Worker、右键菜单、扩展通信
-│   ├── pages/                     # [页面入口]
-│   │   ├── app/                   # 全屏沉浸创作页面
-│   │   └── popup/                 # 插件栏图标弹出层
-│   ├── index.html                 # 全屏 Tab 独立入口
-│   ├── sidepanel.html             # Chrome 侧边栏入口
-│   ├── popup.html                 # 扩展弹出层入口
-│   └── styles/                    # Tailwind CSS 全局样式
-```
-
----
-
-## 📦 如何在 Chrome 浏览器中加载与体验
-
-1. 打开 Google Chrome 浏览器。
-2. 在地址栏输入 `chrome://extensions/` 并回车。
-3. 开启右上角的 **「开发者模式」（Developer mode）**。
-4. 点击左上角的 **「加载已解压的扩展程序」（Load unpacked）**。
-5. 选择本项目下的 **`dist`** 文件夹。
-6. 加载成功后：
-   - 点击浏览器右上角拼图图标，将 **MindFlow** 固定在工具栏；
-   - 点击插件图标即可呼出快捷弹窗、进入全屏沉浸创作或开启侧边伴读模式！
-
----
-
-## 💻 本地开发与指令
-
-```bash
-# 1. 安装依赖
+~~~bash
+git clone https://github.com/groele/Mindflow-zotero.git
+cd Mindflow-zotero
 npm install
 
-# 2. 运行自动化单元测试 (16/16 全部通过)
-npm test
+# 构建 Zotero 7+ 插件安装包 (产物输出到 dist-zip/mindflow-zotero-1.0.0.xpi)
+npm run build:zotero
 
-# 3. 启动本地热更新服务器
-npm run dev
-
-# 4. 打包构建生产环境 Chrome 扩展程序（产物输出至 dist/）
+# 构建 Chrome 浏览器扩展 (产物输出到 dist/)
 npm run build
-```
+~~~
 
----
+- **Chrome 扩展安装**：构建完成后，在 `chrome://extensions/` 中开启“开发者模式”，点击“加载已解压的扩展程序”，选择 `dist/` 文件夹。
+- **Zotero 插件安装**：构建完成后，在 Zotero 7 中点击“工具 → 附加组件 → Install Add-on From File”，选择 `dist-zip/mindflow-zotero-1.0.0.xpi` 安装。详见 [Zotero 插件指南](docs/ZOTERO_GUIDE.md)。
 
-## 📄 开源许可证
+本地开发可运行 `npm run dev`。本地开发服务器主要用于界面开发；侧边栏、网页右键菜单与 Zotero 原生菜单等能力应在对应平台中加载后使用。
 
-本项目基于 [MIT License](LICENSE) 开源发布。
+## 常用快捷键
+
+快捷键在画布处于操作状态时生效；正在输入文字时，输入框优先处理按键。Mac 用户可将 Ctrl 理解为 Command。
+
+| 快捷键 | 操作 |
+| --- | --- |
+| Tab | 添加子节点 |
+| Enter / Shift+Enter | 添加同级节点 / 在前方添加同级节点 |
+| Space 或双击节点 | 编辑节点文字 |
+| Delete / Backspace | 删除选中节点或分支 |
+| 方向键 | 在节点间移动选择 |
+| Ctrl/Cmd+C、Ctrl/Cmd+V | 复制并粘贴节点分支；也可粘贴剪贴板中的图片 |
+| Ctrl/Cmd+D | 创建选中节点的副本 |
+| Ctrl/Cmd+Z、Ctrl/Cmd+Y | 撤销、重做；历史栈最多保留 50 步 |
+| Ctrl/Cmd+Shift+Z | 重做 |
+| Ctrl/Cmd+F | 搜索导图 |
+| Ctrl/Cmd+H | 在搜索面板中切换到替换 |
+| Ctrl/Cmd+K | 打开命令面板 |
+| Ctrl/Cmd+, | 打开设置 |
+| Ctrl/Cmd+1 / Ctrl/Cmd+0 | 适应画布 / 恢复 100% 缩放 |
+| F5 或 Alt/Cmd+P | 打开演示模式 |
+| ? | 查看快捷键 |
+
+其他操作：按住 Shift 拖动鼠标可框选节点；拖动节点可调整其父子关系；将图片拖到节点可为节点添加图片。可从节点菜单、工具栏和快捷键帮助查看具体操作。
+
+## 导入与导出
+
+| 格式 | 导入 | 导出 | 说明 |
+| --- | :---: | :---: | --- |
+| JSON 导图 | ✓ | ✓ | 保存单篇导图的完整结构和可编辑属性；含节点图片 |
+| Markdown | ✓ | ✓ | 适合文字大纲交换；不包含节点图片 |
+| OPML | ✓ | ✓ | 适合大纲工具之间交换；不包含节点图片 |
+| PNG | — | ✓ | 位图图片，节点图片会一并绘制 |
+| SVG | — | ✓ | 矢量图形，适合放大与排版 |
+| HTML | — | ✓ | 可离线打开的交互式导图，包含节点图片 |
+| PDF | — | ✓ | 调用浏览器打印对话框，可另存为 PDF |
+| 工作区备份 JSON | ✓ | ✓ | 在“设置 → 备份”中导入或导出所有导图、收集箱和快照 |
+
+Markdown 与 OPML 是文字大纲格式，导出含图片的导图时会提示图片不会写入该格式。若需完整迁移，请使用单篇 JSON 或工作区备份。工作区备份可能包含多篇导图和历史数据，请妥善保管。
+
+## 保存、备份与隐私
+
+- 编辑内容会自动保存到当前浏览器的扩展本地存储。卸载扩展、清理浏览器数据或设备故障可能导致本地数据丢失，建议定期导出工作区备份。
+- 自动快照默认开启，默认间隔为 10 分钟；每篇导图默认保留 20 份，可在设置中调整为 10–50 份。
+- 本地工作区备份包含导图、收集箱内容和快照。恢复前会显示导入预览；覆盖导图前会尝试创建恢复快照。
+- WebDAV 是可选的备份目的地。用户配置后，MindFlow 通过 HTTPS 直接向指定服务器上传或下载备份；自动备份默认关闭。它不提供多人实时协同编辑。
+- 导图默认不上传到 MindFlow 的服务器。WebDAV 地址、用户名和密码保存在 Chrome 扩展存储中；Chrome 不提供应用层加密，请使用 HTTPS 和服务商的应用专用密码。凭据不会写入导出备份。
+- 扩展不包含遥测或广告跟踪代码。详细说明见[隐私政策](PRIVACY.md)。
+
+本地 Chrome 存储有配额限制，可在“设置 → 备份”查看使用量。大量图片和快照会占用更多空间。
+
+## 开发与项目文档
+
+~~~bash
+npm install       # 安装依赖
+npm run dev       # 启动本地开发服务器
+npm run build     # 类型检查并生成 Chrome 扩展到 dist/
+npm test          # 运行核心逻辑测试
+node scripts/package-extension.js  # 将 dist/ 打包为商店 ZIP
+~~~
+
+项目结构、数据模型与设计决策见：
+
+- [产品说明](docs/PRODUCT.md)
+- [技术架构](docs/ARCHITECTURE.md)
+- [数据模型](docs/DATA_MODEL.md)
+- [设计决策](docs/DECISIONS.md)
+- [优化路线图](docs/IMPROVEMENT-ROADMAP.md)
+- [Chrome Web Store 上架资料](docs/STORE_LISTING.md)
+- [变更记录](CHANGELOG.md)
+
+## 许可证与支持
+
+MindFlow 基于 [MIT License](LICENSE) 发布。欢迎通过 [GitHub Issues](https://github.com/groele/mindflow/issues) 报告问题或提出建议。

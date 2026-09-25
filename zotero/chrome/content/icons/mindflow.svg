@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <defs>
+    <linearGradient id="mf-pink-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff4b72" />
+      <stop offset="50%" stop-color="#ff6b8b" />
+      <stop offset="100%" stop-color="#ff8fab" />
+    </linearGradient>
+    <filter id="mf-glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="1" stdDeviation="1.2" flood-color="#ff3366" flood-opacity="0.3" />
+    </filter>
+  </defs>
+  
+  <!-- Coral Pink Circle Badge (matching Zotero screenshot style) -->
+  <circle cx="12" cy="12" r="10.5" fill="url(#mf-pink-grad)" filter="url(#mf-glow)" />
+
+  <!-- MindFlow Central Star / Mind Map Nexus (Pure White) -->
+  <path d="M12 4.2 C12.2 7.8 13.8 9.4 17.5 9.8 C13.8 10.2 12.2 11.8 12 15.4 C11.8 11.8 10.2 10.2 6.5 9.8 C10.2 9.4 11.8 7.8 12 4.2 Z" fill="#ffffff" />
+  
+  <!-- Secondary Sparkle Node (Upper Right) -->
+  <path d="M17 14.5 C17.1 16.2 17.8 16.9 19.5 17.1 C17.8 17.3 17.1 18.0 17 19.7 C16.9 18.0 16.2 17.3 14.5 17.1 C16.2 16.9 16.9 16.2 17 14.5 Z" fill="#ffffff" opacity="0.95" />
+  
+  <!-- Tertiary Micro Node (Lower Left) -->
+  <circle cx="7.2" cy="16.2" r="1.3" fill="#ffffff" opacity="0.9" />
+  <line x1="8.2" y1="15.2" x2="10.5" y2="13.2" stroke="#ffffff" stroke-width="0.9" stroke-linecap="round" opacity="0.6" />
+</svg>

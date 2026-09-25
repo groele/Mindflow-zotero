@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { LayoutNode } from '../../core/model/types';
 import { safeExternalUrl } from '../../core/model/links';
 import { imageDisplayHeight, isSafeNodeImage } from '../../core/model/nodeImage';
-import { ExternalLink, FileText, ChevronRight, Tag, Star, Flag, CheckCircle2, HelpCircle, Link2 } from 'lucide-react';
+import { ExternalLink, FileText, ChevronRight, Tag, Star, Flag, CheckCircle2, HelpCircle, Link2, GraduationCap } from 'lucide-react';
+import { locateItemInZotero } from '../../services/zotero/zoteroBridge';
 
 interface NodeCardProps {
   layoutNode: LayoutNode;
@@ -305,16 +306,31 @@ export const NodeCard: React.FC<NodeCardProps> = ({
           </button>
         )}
         {externalUrl && (
-          <a
-            href={externalUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            title={externalUrl}
-            onClick={(e) => e.stopPropagation()}
-            className="flex-shrink-0 text-blue-500 hover:text-blue-700 p-0.5 rounded hover:bg-blue-50 transition-colors"
-          >
-            <ExternalLink className="w-3.5 h-3.5" />
-          </a>
+          externalUrl.startsWith('zotero://') ? (
+            <button
+              type="button"
+              title="在 Zotero 文库中定位该文献（右键可选择阅读 PDF）"
+              aria-label="在 Zotero 文库中定位该文献"
+              onClick={(e) => {
+                e.stopPropagation();
+                locateItemInZotero(externalUrl);
+              }}
+              className="flex-shrink-0 text-sky-600 hover:text-sky-800 p-0.5 rounded hover:bg-sky-100 dark:hover:bg-sky-950 transition-colors flex items-center"
+            >
+              <GraduationCap className="w-3.5 h-3.5" />
+            </button>
+          ) : (
+            <a
+              href={externalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={externalUrl}
+              onClick={(e) => e.stopPropagation()}
+              className="flex-shrink-0 text-blue-500 hover:text-blue-700 p-0.5 rounded hover:bg-blue-50 transition-colors"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          )
         )}
       </div>
 
