@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StorageService, DocumentSummary } from '../../services/storage/storageService';
+import { DocumentConflictError, StorageService, DocumentSummary } from '../../services/storage/storageService';
 import { addChildNode, updateNode } from '../../core/model/treeOps';
 import {
   Maximize2, Sidebar, Plus, Globe, FileText,
@@ -12,6 +12,7 @@ export const Popup: React.FC = () => {
   const [quickInput, setQuickInput] = useState('');
   const [currentTabInfo, setCurrentTabInfo] = useState<{ title?: string; url?: string }>({});
   const [isSavedNotice, setIsSavedNotice] = useState(false);
+  const [quickAddError, setQuickAddError] = useState('');
 
   useEffect(() => {
     StorageService.getDocumentList().then(setDocList);
@@ -52,16 +53,26 @@ export const Popup: React.FC = () => {
   const handleQuickAdd = async (text: string, link?: string) => {
     const trimmed = text.trim();
     if (!trimmed) return;
-
-    const doc = await StorageService.getActiveDocument();
-    const { newRoot, newNodeId } = addChildNode(doc.root, doc.root.id, trimmed);
-    const finalRoot = link ? updateNode(newRoot, newNodeId, { link }) : newRoot;
-    doc.root = finalRoot;
-    await StorageService.saveDocument(doc);
-
-    setQuickInput('');
-    setIsSavedNotice(true);
-    setTimeout(() => setIsSavedNotice(false), 2000);
+    setQuickAddError('');
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        const doc = await StorageService.getActiveDocument();
+        const { newRoot, newNodeId } = addChildNode(doc.root, doc.root.id, trimmed);
+        doc.root = link ? updateNode(newRoot, newNodeId, { link }) : newRoot;
+        await StorageService.saveDocument(doc);
+        setQuickInput('');
+        setIsSavedNotice(true);
+        setTimeout(() => setIsSavedNotice(false), 2000);
+        if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+          chrome.runtime.sendMessage({ type: 'DOC_UPDATED', docId: doc.id }).catch(() => {});
+        }
+        return;
+      } catch (error) {
+        if (error instanceof DocumentConflictError && attempt < 2) continue;
+        setQuickAddError((error as Error).message || '添加失败，请稍后重试');
+        return;
+      }
+    }
   };
 
   return (
@@ -117,6 +128,8 @@ export const Popup: React.FC = () => {
             </span>
           )}
         </div>
+
+        {quickAddError && <p role="alert" className="text-[11px] text-red-600">{quickAddError}</p>}
 
         <div className="flex gap-1.5">
           <input

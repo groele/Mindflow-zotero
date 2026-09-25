@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MindMapDocument } from '../../core/model/types';
 import { BackupService, DocSnapshot, StorageQuotaInfo } from '../../services/storage/backupService';
+import { SettingsService } from '../../services/storage/settingsService';
 import {
   ShieldCheck, Download, Upload, History, Plus,
   RotateCcw, Trash2, HardDrive, AlertCircle, X, Check
@@ -23,12 +24,15 @@ export const BackupDrawer: React.FC<BackupDrawerProps> = ({
 }) => {
   const [snapshots, setSnapshots] = useState<DocSnapshot[]>([]);
   const [quota, setQuota] = useState<StorageQuotaInfo | null>(null);
+  const [maxSnapshots, setMaxSnapshots] = useState(20);
   const [notice, setNotice] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadData = async () => {
     const snaps = await BackupService.getSnapshots(currentDoc.id);
     setSnapshots(snaps);
+    const settings = await SettingsService.getSettings();
+    setMaxSnapshots(settings.maxSnapshotsPerDoc);
     const q = await BackupService.getStorageQuota();
     setQuota(q);
   };
@@ -47,9 +51,13 @@ export const BackupDrawer: React.FC<BackupDrawerProps> = ({
   };
 
   const handleCreateSnapshot = async () => {
-    await BackupService.createSnapshot(currentDoc);
-    await loadData();
-    showNotice('已为当前导图生成新快照！');
+    try {
+      await BackupService.createSnapshot(currentDoc);
+      await loadData();
+      showNotice('已为当前导图生成新快照！');
+    } catch (error: any) {
+      showNotice(`快照生成失败：${error?.message || '本地存储不可用'}`);
+    }
   };
 
   const handleRestore = async (snapId: string) => {
@@ -69,8 +77,12 @@ export const BackupDrawer: React.FC<BackupDrawerProps> = ({
   };
 
   const handleExportWorkspace = async () => {
-    await BackupService.exportFullWorkspaceBackup();
-    showNotice('全量工作区备份导出成功！');
+    try {
+      await BackupService.exportFullWorkspaceBackup();
+      showNotice('工作区备份已导出！');
+    } catch (error: any) {
+      showNotice(`备份导出失败：${error?.message || '读取本地数据失败'}`);
+    }
   };
 
   const handleImportWorkspace = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -146,7 +158,7 @@ export const BackupDrawer: React.FC<BackupDrawerProps> = ({
               />
             </div>
             <p className="text-[10px] text-slate-400">
-              数据 100% 离线存放在本地设备中，随时可导出归档。
+              数据默认保存在此设备。启用 WebDAV 后，备份会上传到您配置的服务器。
             </p>
           </div>
         )}
@@ -157,7 +169,7 @@ export const BackupDrawer: React.FC<BackupDrawerProps> = ({
             <Download className="w-3.5 h-3.5 text-blue-600" /> 全量工作区备份
           </label>
           <p className="text-[11px] text-slate-400 leading-relaxed">
-            将全部思维导图、灵感收集箱与设置打包导出为一个 JSON 文件，随时可在任何设备无损还原。
+            将全部思维导图、灵感收集箱与版本快照导出为 JSON 文件。WebDAV 密码等连接凭据不会写入备份。
           </p>
           <div className="grid grid-cols-2 gap-2 pt-1">
             <button
@@ -201,7 +213,7 @@ export const BackupDrawer: React.FC<BackupDrawerProps> = ({
           </div>
 
           <p className="text-[11px] text-slate-400">
-            最多保存最近 20 个时间戳版本，随时可一键回溯：
+            自动按设置间隔保存；最多保留最近 {maxSnapshots} 个版本，也可手动创建快照：
           </p>
 
           <div className="space-y-1.5 max-h-72 overflow-y-auto pt-1">
@@ -209,7 +221,7 @@ export const BackupDrawer: React.FC<BackupDrawerProps> = ({
               <div className="text-center py-8 text-slate-400 space-y-1">
                 <AlertCircle className="w-5 h-5 mx-auto opacity-40" />
                 <p>暂无快照记录</p>
-                <p className="text-[10px]">点击右上角「生成快照」保留当前版本</p>
+                <p className="text-[10px]">编辑会按设置间隔自动保存，也可点击「生成快照」立即保留</p>
               </div>
             ) : (
               snapshots.map((snap) => (

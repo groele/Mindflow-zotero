@@ -1,6 +1,6 @@
 # 🚀 MindFlow - 现代 Chrome 浏览器思维导图与伴读笔记
 
-[![GitHub release](https://img.shields.io/badge/release-v2.5.0-blue.svg)](https://github.com/groele/mindflow)
+[![GitHub release](https://img.shields.io/badge/release-v2.6.0-blue.svg)](https://github.com/groele/mindflow/releases/tag/v2.6.0)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-19-61dafb.svg)](https://react.dev/)
@@ -36,6 +36,7 @@
   - 节点形状自适应（圆角矩形、胶囊、纯矩形、下划线）
   - 优先级与图标徽章（P1/P2/P3/P4、⭐、🚩、✅、❓）
   - 标签系统（Tags）、超链接跳转、富文本长备注
+  - 工作台任务总览：完成比例、进行中与逾期数量，支持状态和文本筛选并定位节点
 
 ---
 
@@ -48,11 +49,11 @@
 
 ---
 
-### 3. ☁️ 现代 WebDAV 云同步与异地容灾 (v2.2.0)
+### 3. ☁️ WebDAV 云备份与异地恢复
 - **主流网盘一键预设**：内置坚果云（Jianguoyun）、Nextcloud / ownCloud、群晖 Synology NAS 及自定义 WebDAV 模板。
 - **连通性即时检测**：基于 `PROPFIND` / `OPTIONS` 协议头验证网络与账号密码有效性，给出精准排错建议。
-- **多端数据漫游**：支持手动或自动上传全量备份至 WebDAV，在其他设备上一键从云端拉取恢复，打破本地隔离。
-- **安全与隐私保障**：100% 离线优先，凭证加密存放于用户本机，不经过任何第三方服务器中转。
+- **版本化云备份**：手动上传或在编辑暂停后自动上传全量工作区；每次保留独立历史文件，并提供“最新备份”入口和历史版本选择恢复。
+- **本地优先**：导图先保存到本地，再备份至您配置的 HTTPS WebDAV 服务器。凭据保存在此浏览器扩展本地存储中，Chrome 不提供应用层加密；请使用服务器提供的应用专属密码。
 
 ---
 
@@ -60,6 +61,7 @@
 - **滚动版本快照 (Snapshots)**：单文档自动/手动生成历史快照（最多保留 50 份），支持随时一键无损回滚。
 - **全量工作区离线备份/还原**：一键将所有导图文件、收集箱碎片及版本快照打包导出为 `.mindflow-workspace-backup.json`。
 - **本地存储配额监控 (Storage Quota)**：动态计算 `chrome.storage.local` 已用空间与配额百分比。
+- **多窗口写入保护**：文档按版本顺序保存；同时编辑发生冲突时保留冲突副本，避免静默覆盖。
 
 ---
 

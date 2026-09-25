@@ -23,7 +23,11 @@ if (!fs.existsSync(manifestPath)) {
 }
 
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-const version = manifest.version || '2.3.0';
+const version = manifest.version;
+if (!version || !/^\d+\.\d+\.\d+$/.test(version)) {
+  console.error('❌ 错误: manifest.json 缺少有效的版本号');
+  process.exit(1);
+}
 console.log(`✓ 检测到构建产物版本: v${version}`);
 console.log(`✓ 扩展名称: ${manifest.name}`);
 console.log(`✓ 默认语言: ${manifest.default_locale}`);

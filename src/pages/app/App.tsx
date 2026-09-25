@@ -13,7 +13,7 @@ import { computeLayout } from '../../core/layout/layoutEngine';
 import { getTheme } from '../../core/theme/themes';
 import { TemplateDefinition } from '../../core/model/templates';
 import { HistoryManager } from '../../core/history/historyManager';
-import { StorageService } from '../../services/storage/storageService';
+import { DocumentConflictError, StorageService } from '../../services/storage/storageService';
 import {
   exportToPNG, exportToSVG, exportToMarkdown, exportToJSON, importFromMarkdown,
   exportToOPML, importFromOPML, exportToInteractiveHTML, printToPDF
@@ -34,7 +34,7 @@ import { ContextMenu } from '../../components/menu/ContextMenu';
 import { PresentationMode } from '../../components/presentation/PresentationMode';
 import { AppSettings, DEFAULT_SETTINGS } from '../../core/model/settingsTypes';
 import { SettingsService } from '../../services/storage/settingsService';
-import { BackupService } from '../../services/storage/backupService';
+import { BackupService, MAX_BACKUP_BYTES, validateMindMapDocument } from '../../services/storage/backupService';
 import { WebDAVService } from '../../services/sync/webdavService';
 import { Minimize2 } from 'lucide-react';
 
@@ -73,6 +73,22 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
 
   // Settings State
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  const [saveStatus, setSaveStatus] = useState<{
+    state: 'saving' | 'saved' | 'warning' | 'error';
+    message: string;
+  }>({ state: 'saved', message: '已保存到本地' });
+  const cleanDocRef = useRef<MindMapDocument | null>(null);
+  const cleanRelationshipsRef = useRef<RelationshipLink[]>([]);
+  const latestDocRef = useRef<MindMapDocument | null>(null);
+  const latestRelationshipsRef = useRef<RelationshipLink[]>([]);
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const autoSyncTimerRef = useRef<number | undefined>(undefined);
+  const saveGenerationRef = useRef(0);
+  const currentDocIdRef = useRef<string | null>(null);
+  currentDocIdRef.current = doc?.id || null;
+  latestDocRef.current = doc;
+  latestRelationshipsRef.current = relationships;
+  useEffect(() => () => window.clearTimeout(autoSyncTimerRef.current), []);
 
   // Load Settings on mount
   useEffect(() => {
@@ -136,8 +152,11 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   // Reload current workspace (e.g. after full backup restore)
   const reloadWorkspace = useCallback(() => {
     StorageService.getActiveDocument().then((loadedDoc) => {
+      const loadedRelationships = loadedDoc.relationships || [];
       setDoc(loadedDoc);
-      setRelationships(loadedDoc.relationships || []);
+      setRelationships(loadedRelationships);
+      cleanDocRef.current = loadedDoc;
+      cleanRelationshipsRef.current = loadedRelationships;
       setSelectedId(loadedDoc.root.id);
       historyRef.current.clear();
       syncHistoryState();
@@ -162,10 +181,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
       const listener = (msg: any) => {
         if (msg.type === 'DOC_UPDATED') {
-          StorageService.getActiveDocument().then((updated) => {
-            setDoc(updated);
-            setRelationships(updated.relationships || []);
-          });
+          setSaveStatus({ state: 'warning', message: '其他窗口更新了导图；本窗口若有编辑，将另存为冲突副本。' });
         }
       };
       chrome.runtime.onMessage.addListener(listener);
@@ -178,23 +194,99 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     return () => window.removeEventListener('resize', handleResize);
   }, [reloadWorkspace]);
 
-  // Auto-save debounced with WebDAV auto-sync
-  const saveTimeoutRef = useRef<any>(null);
+  // Auto-save locally, create interval-based recovery snapshots, then report
+  // local/cloud outcomes separately so failures are visible to the user.
   useEffect(() => {
     if (!doc) return;
-    clearTimeout(saveTimeoutRef.current);
-    saveTimeoutRef.current = setTimeout(async () => {
-      await StorageService.saveDocument({ ...doc, relationships });
-      if (settings.webdav.enabled && settings.webdav.autoSyncOnSave) {
+    if (cleanDocRef.current === doc && cleanRelationshipsRef.current === relationships) return;
+    setSaveStatus({ state: 'saving', message: '保存中…' });
+    const timeout = setTimeout(() => {
+      const runSave = async () => {
+      if (currentDocIdRef.current !== doc.id) return;
+      const documentToSave = { ...doc, relationships };
+      try {
+        await StorageService.saveDocument(documentToSave);
+      } catch (error: any) {
+        if (error instanceof DocumentConflictError) {
+          if (currentDocIdRef.current !== doc.id) return;
+          try {
+            const latestLocal = latestDocRef.current?.id === doc.id ? latestDocRef.current : documentToSave;
+            const latestRelationships = latestRelationshipsRef.current;
+            const copy = await StorageService.saveDocument({
+              ...latestLocal,
+              relationships: latestRelationships,
+              id: 'doc_' + generateId(),
+              title: `${latestLocal.title}（冲突副本）`,
+              revision: 0,
+              createdAt: Date.now(),
+            });
+            if (currentDocIdRef.current !== doc.id) return;
+            cleanDocRef.current = copy;
+            cleanRelationshipsRef.current = latestRelationships;
+            await StorageService.setActiveDocumentId(copy.id);
+            const afterCopy = latestDocRef.current;
+            setDoc(afterCopy?.id === doc.id && afterCopy !== latestLocal
+              ? { ...afterCopy, id: copy.id, title: copy.title, revision: copy.revision, createdAt: copy.createdAt }
+              : copy);
+            setSaveStatus({ state: 'warning', message: '其他窗口已修改原导图；本窗口内容已保存为冲突副本，请检查并合并。' });
+          } catch (copyError: any) {
+            setSaveStatus({ state: 'error', message: `原导图发生冲突，副本保存失败：${copyError?.message || '未知错误'}` });
+          }
+          return;
+        }
+        console.error('MindFlow local save failed', error);
+        setSaveStatus({ state: 'error', message: `本地保存失败：${error?.message || '存储空间可能已满'}` });
+        return;
+      }
+      if (currentDocIdRef.current === doc.id) {
+        cleanDocRef.current = doc;
+        cleanRelationshipsRef.current = relationships;
+      }
+      const saveGeneration = ++saveGenerationRef.current;
+
+      let warning = '';
+      if (settings.autoSnapshotEnabled) {
         try {
-          const backupData = await BackupService.getFullWorkspaceData();
-          await WebDAVService.uploadBackup(settings.webdav, backupData);
-        } catch {
-          // silently handle background sync error
+          await BackupService.createAutoSnapshotIfDue(documentToSave, settings.autoSnapshotIntervalMinutes);
+        } catch (error: any) {
+          console.error('MindFlow recovery snapshot failed', error);
+          warning = '本地导图已保存，但自动版本快照失败。';
         }
       }
+
+      setSaveStatus(warning
+        ? { state: 'warning', message: warning }
+        : {
+          state: 'saved',
+          message: settings.webdav.enabled && settings.webdav.autoSyncOnSave
+            ? '已保存到本地；云端备份将在编辑暂停后运行'
+            : '已保存到本地',
+        });
+      window.clearTimeout(autoSyncTimerRef.current);
+      if (settings.webdav.enabled && settings.webdav.autoSyncOnSave) {
+        autoSyncTimerRef.current = window.setTimeout(async () => {
+          try {
+            if (!(await WebDAVService.hasServerPermission(settings.webdav.serverUrl))) {
+              throw new Error('请在设置中授权当前 WebDAV 服务器');
+            }
+            const backupData = await BackupService.getFullWorkspaceData();
+            const result = await WebDAVService.uploadBackup(settings.webdav, backupData);
+            if (saveGenerationRef.current !== saveGeneration) return;
+            setSaveStatus(result.success
+              ? { state: 'saved', message: '已保存到本地并完成 WebDAV 备份' }
+              : { state: 'warning', message: `本地已保存；云端备份失败：${result.message}` });
+          } catch (error: any) {
+            if (saveGenerationRef.current === saveGeneration) {
+              setSaveStatus({ state: 'warning', message: `本地已保存；云端备份失败：${error?.message || '网络错误'}` });
+            }
+          }
+        }, 15000);
+      }
+      };
+      saveQueueRef.current = saveQueueRef.current.then(runSave, runSave);
     }, 600);
-  }, [doc, relationships, settings.webdav]);
+    return () => clearTimeout(timeout);
+  }, [doc, relationships, settings.webdav, settings.autoSnapshotEnabled, settings.autoSnapshotIntervalMinutes]);
 
   // Theme
   const theme = useMemo(() => {
@@ -466,7 +558,6 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     setRelationships(nextRels);
     const updated = { ...doc, relationships: nextRels, updatedAt: Date.now() };
     setDoc(updated);
-    StorageService.saveDocument(updated);
   }, [doc, relationships]);
 
   const handleDeleteRelationship = useCallback((id: string) => {
@@ -475,7 +566,6 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     setRelationships(nextRels);
     const updated = { ...doc, relationships: nextRels, updatedAt: Date.now() };
     setDoc(updated);
-    StorageService.saveDocument(updated);
   }, [doc, relationships]);
 
   const handleEditRelationshipLabel = useCallback((id: string, label: string) => {
@@ -484,7 +574,6 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     setRelationships(nextRels);
     const updated = { ...doc, relationships: nextRels, updatedAt: Date.now() };
     setDoc(updated);
-    StorageService.saveDocument(updated);
   }, [doc, relationships]);
 
   // Search & Replace Handlers
@@ -556,9 +645,12 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       updatedAt: Date.now(),
       root: tpl.createRoot(),
     };
-    await StorageService.saveDocument(newDoc);
-    await StorageService.setActiveDocumentId(newDoc.id);
-    setDoc(newDoc);
+    const savedDoc = await StorageService.saveDocument(newDoc);
+    await StorageService.setActiveDocumentId(savedDoc.id);
+    cleanDocRef.current = savedDoc;
+    cleanRelationshipsRef.current = [];
+    setRelationships(cleanRelationshipsRef.current);
+    setDoc(savedDoc);
     setSelectedId(newDoc.root.id);
     historyRef.current.clear();
     syncHistoryState();
@@ -751,16 +843,23 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
 
       if (file.name.endsWith('.json')) {
         try {
-          const importedDoc = JSON.parse(content) as MindMapDocument;
+          if (new TextEncoder().encode(content).byteLength > MAX_BACKUP_BYTES) {
+            throw new Error('JSON 文件超过 20 MB 安全导入上限');
+          }
+          const importedDoc = validateMindMapDocument(JSON.parse(content), '导入文件');
           importedDoc.id = 'doc_' + generateId();
           importedDoc.updatedAt = Date.now();
-          StorageService.saveDocument(importedDoc).then(() => {
-            setDoc(importedDoc);
+          StorageService.saveDocument(importedDoc).then(async (savedDoc) => {
+            await StorageService.setActiveDocumentId(savedDoc.id);
+            cleanDocRef.current = savedDoc;
+            cleanRelationshipsRef.current = savedDoc.relationships || [];
+            setRelationships(cleanRelationshipsRef.current);
+            setDoc(savedDoc);
             setSelectedId(importedDoc.root.id);
             setTimeout(() => centerCanvas(), 50);
-          });
-        } catch {
-          alert('JSON 文件格式无效，无法解析。');
+          }).catch((error) => alert(`导入失败：${error?.message || '无法保存导图'}`));
+        } catch (error: any) {
+          alert(`JSON 导入失败：${error?.message || '文件格式无效'}`);
         }
       } else if (file.name.endsWith('.md') || file.name.endsWith('.markdown')) {
         const importedRoot = importFromMarkdown(content);
@@ -773,12 +872,16 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
           updatedAt: Date.now(),
           root: importedRoot,
         };
-        StorageService.saveDocument(newDoc).then(() => {
-          setDoc(newDoc);
+        StorageService.saveDocument(newDoc).then(async (savedDoc) => {
+          await StorageService.setActiveDocumentId(savedDoc.id);
+          cleanDocRef.current = savedDoc;
+          cleanRelationshipsRef.current = [];
+          setRelationships(cleanRelationshipsRef.current);
+          setDoc(savedDoc);
           setSelectedId(newDoc.root.id);
           setSelectedIds([]);
           setTimeout(() => centerCanvas(), 50);
-        });
+        }).catch((error) => alert(`Markdown 导入失败：${error?.message || '无法保存导图'}`));
       } else if (file.name.endsWith('.opml')) {
         const importedRoot = importFromOPML(content);
         const newDoc: MindMapDocument = {
@@ -790,12 +893,16 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
           updatedAt: Date.now(),
           root: importedRoot,
         };
-        StorageService.saveDocument(newDoc).then(() => {
-          setDoc(newDoc);
+        StorageService.saveDocument(newDoc).then(async (savedDoc) => {
+          await StorageService.setActiveDocumentId(savedDoc.id);
+          cleanDocRef.current = savedDoc;
+          cleanRelationshipsRef.current = [];
+          setRelationships(cleanRelationshipsRef.current);
+          setDoc(savedDoc);
           setSelectedId(newDoc.root.id);
           setSelectedIds([]);
           setTimeout(() => centerCanvas(), 50);
-        });
+        }).catch((error) => alert(`OPML 导入失败：${error?.message || '无法保存导图'}`));
       }
     };
     reader.readAsText(file);
@@ -818,6 +925,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       {!isZenMode && (
         <Toolbar
           title={doc.title}
+          saveStatus={saveStatus}
           onTitleChange={(t) => setDoc(prev => prev ? { ...prev, title: t } : null)}
           canUndo={canUndo}
           canRedo={canRedo}
@@ -906,8 +1014,10 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
               const selectedDoc = await StorageService.getDocument(id);
               if (selectedDoc) {
                 await StorageService.setActiveDocumentId(id);
+                cleanDocRef.current = selectedDoc;
+                cleanRelationshipsRef.current = selectedDoc.relationships || [];
                 setDoc(selectedDoc);
-                setRelationships(selectedDoc.relationships || []);
+                setRelationships(cleanRelationshipsRef.current);
                 setSelectedId(selectedDoc.root.id);
                 historyRef.current.clear();
                 syncHistoryState();

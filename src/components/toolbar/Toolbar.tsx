@@ -12,6 +12,7 @@ import { ToolbarButtonsConfig } from '../../core/model/settingsTypes';
 
 interface ToolbarProps {
   title: string;
+  saveStatus?: { state: 'saving' | 'saved' | 'warning' | 'error'; message: string };
   onTitleChange: (newTitle: string) => void;
   canUndo: boolean;
   canRedo: boolean;
@@ -58,6 +59,7 @@ interface ToolbarProps {
 
 export const Toolbar: React.FC<ToolbarProps> = ({
   title,
+  saveStatus,
   onTitleChange,
   canUndo,
   canRedo,
@@ -153,6 +155,24 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           className="bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 focus:bg-white dark:focus:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100 px-2 py-1 rounded-md border border-transparent focus:border-blue-400 outline-none transition-colors truncate max-w-[140px] sm:max-w-[240px]"
           title="点击修改思维导图标题"
         />
+        {saveStatus && (
+          <span
+            role="status"
+            aria-live="polite"
+            title={saveStatus.message}
+            className={`hidden sm:inline text-[10px] whitespace-nowrap ${
+              saveStatus.state === 'error'
+                ? 'text-red-600 dark:text-red-400'
+                : saveStatus.state === 'warning'
+                ? 'text-amber-600 dark:text-amber-400'
+                : saveStatus.state === 'saving'
+                ? 'text-slate-400'
+                : 'text-emerald-600 dark:text-emerald-400'
+            }`}
+          >
+            {saveStatus.state === 'saving' ? '保存中…' : saveStatus.state === 'error' ? '保存失败' : saveStatus.state === 'warning' ? '备份有问题' : '已保存'}
+          </span>
+        )}
       </div>
 
       {/* Center: Core Action Buttons */}

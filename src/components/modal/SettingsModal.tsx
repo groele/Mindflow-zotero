@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { AppSettings, WebDAVConfig } from '../../core/model/settingsTypes';
 import { SettingsService } from '../../services/storage/settingsService';
-import { WebDAVService, WebDAVSyncResult } from '../../services/sync/webdavService';
+import { WebDAVService, WebDAVSyncResult, RemoteBackupVersion } from '../../services/sync/webdavService';
 import { BackupService, StorageQuotaInfo } from '../../services/storage/backupService';
 import { THEMES } from '../../core/theme/themes';
 
@@ -37,6 +37,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [testResult, setTestResult] = useState<WebDAVSyncResult | null>(null);
   const [syncingWebDAV, setSyncingWebDAV] = useState(false);
   const [syncNotice, setSyncNotice] = useState<{ success: boolean; message: string } | null>(null);
+  const [remoteVersions, setRemoteVersions] = useState<RemoteBackupVersion[]>([]);
+  const [listingVersions, setListingVersions] = useState(false);
+  const [selectedVersion, setSelectedVersion] = useState('');
 
   // Backup states
   const [quota, setQuota] = useState<StorageQuotaInfo | null>(null);
@@ -52,6 +55,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       BackupService.getStorageQuota().then(setQuota);
       setTestResult(null);
       setSyncNotice(null);
+      setRemoteVersions([]);
+      setSelectedVersion('');
       setBackupNotice(null);
     }
   }, [isOpen]);
@@ -70,6 +75,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       [field]: value,
     };
     handleSaveSettings({ webdav: newWebDAV });
+  };
+
+  const handleAutoSyncChange = async (enabled: boolean) => {
+    if (enabled) {
+      try {
+        const granted = await WebDAVService.requestServerPermission(currentSettings.webdav.serverUrl);
+        if (!granted) {
+          setSyncNotice({ success: false, message: '未获得该 WebDAV 服务器的访问权限，自动备份尚未开启。' });
+          return;
+        }
+      } catch (error: any) {
+        setSyncNotice({ success: false, message: error.message || 'WebDAV 地址无效，自动备份尚未开启。' });
+        return;
+      }
+    }
+    handleWebDAVFieldChange('autoSyncOnSave', enabled);
   };
 
   const handleApplyPreset = (preset: 'jianguoyun' | 'nextcloud' | 'synology') => {
@@ -107,6 +128,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setTestingWebDAV(true);
     setTestResult(null);
     try {
+      const granted = await WebDAVService.requestServerPermission(currentSettings.webdav.serverUrl);
+      if (!granted) {
+        setTestResult({ success: false, message: '未获得该 WebDAV 服务器的访问权限，未发送任何数据。' });
+        return;
+      }
       const res = await WebDAVService.testConnection(currentSettings.webdav);
       setTestResult(res);
     } catch (err: any) {
@@ -120,6 +146,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setSyncingWebDAV(true);
     setSyncNotice(null);
     try {
+      const granted = await WebDAVService.requestServerPermission(currentSettings.webdav.serverUrl);
+      if (!granted) {
+        setSyncNotice({ success: false, message: '未获得该 WebDAV 服务器的访问权限，未上传数据。' });
+        return;
+      }
       const backupData = await BackupService.getFullWorkspaceData();
       const res = await WebDAVService.uploadBackup(currentSettings.webdav, backupData);
       setSyncNotice({ success: res.success, message: res.message });
@@ -135,14 +166,36 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }
   };
 
+  const handleListRemoteVersions = async () => {
+    setListingVersions(true);
+    setSyncNotice(null);
+    try {
+      const granted = await WebDAVService.requestServerPermission(currentSettings.webdav.serverUrl);
+      if (!granted) throw new Error('未获得该 WebDAV 服务器的访问权限');
+      const versions = await WebDAVService.listBackupVersions(currentSettings.webdav);
+      setRemoteVersions(versions);
+      setSyncNotice({ success: true, message: versions.length ? `找到 ${versions.length} 个历史版本。` : '未找到历史版本；仍可尝试恢复最新备份。' });
+    } catch (error: any) {
+      setSyncNotice({ success: false, message: error.message || '无法读取历史版本' });
+    } finally {
+      setListingVersions(false);
+    }
+  };
+
   const handleDownloadFromWebDAV = async () => {
-    if (!window.confirm('从云端拉取备份将导入远端所有导图。是否确认拉取？')) {
+    const versionLabel = selectedVersion || '最新备份';
+    if (!window.confirm(`将从云端「${versionLabel}」导入所有导图，并为被覆盖的本地导图创建恢复快照。是否继续？`)) {
       return;
     }
     setSyncingWebDAV(true);
     setSyncNotice(null);
     try {
-      const res = await WebDAVService.downloadBackup(currentSettings.webdav);
+      const granted = await WebDAVService.requestServerPermission(currentSettings.webdav.serverUrl);
+      if (!granted) {
+        setSyncNotice({ success: false, message: '未获得该 WebDAV 服务器的访问权限，未下载或导入数据。' });
+        return;
+      }
+      const res = await WebDAVService.downloadBackup(currentSettings.webdav, selectedVersion || undefined);
       if (res.success && res.data) {
         await BackupService.importFullWorkspaceData(res.data);
         setSyncNotice({ success: true, message: res.message });
@@ -167,8 +220,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     if (!file) return;
     try {
       const text = await file.text();
-      const parsed = JSON.parse(text);
-      await BackupService.importFullWorkspaceData(parsed);
+      await BackupService.importFullWorkspaceBackup(text);
       setBackupNotice('工作区数据恢复成功！');
       if (onReloadWorkspace) onReloadWorkspace();
     } catch {
@@ -559,16 +611,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                       </button>
                     </div>
+                    <p className="mt-1.5 text-[10px] leading-relaxed text-amber-700 dark:text-amber-300">
+                      连接凭据保存在此浏览器的扩展存储中；Chrome 不提供应用层加密。MindFlow 仅允许 HTTPS，且不会把凭据写进导出备份。
+                    </p>
                   </div>
 
                   <label className="flex items-center gap-2 cursor-pointer pt-1">
                     <input
                       type="checkbox"
                       checked={currentSettings.webdav.autoSyncOnSave}
-                      onChange={(e) => handleWebDAVFieldChange('autoSyncOnSave', e.target.checked)}
+                      onChange={(e) => handleAutoSyncChange(e.target.checked)}
                       className="rounded text-blue-600 focus:ring-blue-500 w-3.5 h-3.5"
                     />
-                    <span className="text-[11px]">文档编辑保存时自动上传备份至云端 (Auto-Sync)</span>
+                    <span className="text-[11px]">文档编辑保存后自动备份至云端。首次启用时仅申请当前 HTTPS 服务器权限。</span>
                   </label>
                 </div>
 
@@ -626,8 +681,31 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-50"
                   >
                     <Download className="w-3.5 h-3.5" />
-                    <span>从云端恢复导图</span>
+                    <span>恢复所选备份</span>
                   </button>
+                </div>
+                <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                  <button
+                    onClick={handleListRemoteVersions}
+                    disabled={listingVersions || syncingWebDAV || !currentSettings.webdav.serverUrl}
+                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 rounded-lg text-xs font-semibold disabled:opacity-50"
+                  >
+                    {listingVersions ? '读取中…' : '查看云端历史版本'}
+                  </button>
+                  <select
+                    aria-label="选择云端备份版本"
+                    value={selectedVersion}
+                    onChange={(event) => setSelectedVersion(event.target.value)}
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs"
+                  >
+                    <option value="">最新备份</option>
+                    {remoteVersions.map((version) => (
+                      <option key={version.fileName} value={version.fileName}>
+                        {new Date(version.createdAt).toLocaleString('zh-CN')} · {version.fileName}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[10px] text-slate-500">每次上传先生成独立历史文件，再更新“最新备份”；云端历史文件需由您在服务器管理空间。</p>
                 </div>
               </div>
             )}
@@ -968,7 +1046,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-slate-900 dark:text-white">MindFlow 思维导图与伴读笔记</h3>
-                    <p className="text-[11px] text-blue-600 dark:text-blue-400 font-medium">版本 2.5.0 (Manifest V3 规范 • 100% 全功能免费版)</p>
+                    <p className="text-[11px] text-blue-600 dark:text-blue-400 font-medium">版本 2.6.0 (Manifest V3 规范 • 100% 全功能免费版)</p>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
                       基于 Chrome 浏览器的模块化、离线优先、全键盘盲操思维导图引擎。
                     </p>
@@ -978,7 +1056,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <div className="space-y-2">
                   <h4 className="font-semibold text-slate-800 dark:text-slate-200">🛡️ 本地优先与隐私原则</h4>
                   <ul className="list-disc pl-4 space-y-1 text-[11px] text-slate-500 dark:text-slate-400">
-                    <li>所有思维导图、大纲、收集箱与版本快照严格保存在您个人的浏览器本地存储中。</li>
+                    <li>思维导图、收集箱与版本快照默认保存在本地；启用 WebDAV 后，工作区备份会发送到您配置的 HTTPS 服务器。</li>
                     <li>无任何追踪脚本、无第三方数据收集。WebDAV 授权密码仅存于本机，直接与您的网盘建立点对点通信。</li>
                     <li>在离线状态下全部功能（包括作图、排版、导出图片与 Markdown）完美运行。</li>
                   </ul>

@@ -1,4 +1,15 @@
 /// <reference types="chrome"/>
+import { generateId } from '../../core/model/treeOps';
+import { DocumentConflictError, StorageService } from '../../services/storage/storageService';
+import { MindMapDocument } from '../../core/model/types';
+
+// MindFlow has no content scripts. Keep maps, inbox records, and WebDAV
+// credentials unavailable to untrusted extension contexts by default.
+if (chrome.storage.local.setAccessLevel) {
+  chrome.storage.local.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' }).catch((error) => {
+    console.error('Failed to restrict extension storage access', error);
+  });
+}
 
 // Initialize Context Menus on install
 chrome.runtime.onInstalled.addListener(() => {
@@ -46,8 +57,8 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   }
 
   if (info.menuItemId === 'mindflow_add_selection_doc' && info.selectionText) {
-    await appendTextToActiveDoc(info.selectionText.trim(), tab?.url);
-    notifyBadge('✓');
+    const saved = await appendTextToActiveDoc(info.selectionText.trim(), tab?.url);
+    notifyBadge(saved ? '✓' : '!');
   }
 
   if (info.menuItemId === 'mindflow_add_page_inbox' && tab) {
@@ -63,7 +74,7 @@ async function addToInbox(text: string, title?: string, url?: string, favIconUrl
     const raw = res.mindflow_inbox_items as string | undefined;
     const items = raw ? JSON.parse(raw) : [];
     items.unshift({
-      id: 'inbox_' + Math.random().toString(36).substring(2, 9),
+      id: 'inbox_' + generateId(),
       text: text.substring(0, 300),
       title: title?.trim(),
       url: url?.trim(),
@@ -79,43 +90,40 @@ async function addToInbox(text: string, title?: string, url?: string, favIconUrl
 }
 
 // Append quick item to active document in chrome.storage.local
-async function appendTextToActiveDoc(text: string, link?: string) {
+async function appendTextToActiveDoc(text: string, link?: string): Promise<boolean> {
   try {
     const res = await chrome.storage.local.get(['mindflow_active_doc_id']);
     const activeId = res.mindflow_active_doc_id as string | undefined;
-    if (!activeId) return;
-
-    const docKey = 'mindflow_doc_' + activeId;
-    const docRes = await chrome.storage.local.get([docKey]);
-    const rawDoc = docRes[docKey] as string | undefined;
-    if (!rawDoc) return;
-
-    const doc = JSON.parse(rawDoc);
-    const newNode = {
-      id: 'node_' + Math.random().toString(36).substring(2, 9),
-      text: text.substring(0, 120),
-      note: text.length > 120 ? text : undefined,
-      link: link,
-      isExpanded: true,
-      children: []
-    };
-
-    if (!doc.root.children) doc.root.children = [];
-    doc.root.children.push(newNode);
-    doc.updatedAt = Date.now();
-
-    await chrome.storage.local.set({ [docKey]: JSON.stringify(doc) });
-
-    // Notify open sidepanels or tabs
-    chrome.runtime.sendMessage({ type: 'DOC_UPDATED', docId: activeId }).catch(() => {});
+    if (!activeId) return false;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const doc = await StorageService.getDocument(activeId);
+      if (!doc) return false;
+      doc.root.children.push({
+        id: generateId(),
+        text: text.substring(0, 120),
+        note: text.length > 120 ? text : undefined,
+        link,
+        isExpanded: true,
+        children: [],
+      });
+      try {
+        await StorageService.saveDocument(doc);
+        chrome.runtime.sendMessage({ type: 'DOC_UPDATED', docId: activeId }).catch(() => {});
+        return true;
+      } catch (error) {
+        if (!(error instanceof DocumentConflictError) || attempt === 2) throw error;
+      }
+    }
+    return false;
   } catch (err) {
     console.error('Failed to append to active doc', err);
+    return false;
   }
 }
 
 function notifyBadge(text = '✓') {
   chrome.action.setBadgeText({ text });
-  chrome.action.setBadgeBackgroundColor({ color: '#10b981' });
+  chrome.action.setBadgeBackgroundColor({ color: text === '!' ? '#dc2626' : '#10b981' });
   setTimeout(() => {
     chrome.action.setBadgeText({ text: '' });
   }, 2000);
@@ -123,7 +131,12 @@ function notifyBadge(text = '✓') {
 
 // Handle messages from UI components
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'OPEN_FULLSCREEN') {
+  if (message.type === 'SAVE_DOCUMENT') {
+    StorageService.saveDocumentDirect(message.doc as MindMapDocument, message.expectedRevision as number, message.force === true)
+      .then((doc) => sendResponse({ success: true, doc }))
+      .catch((error) => sendResponse({ success: false, conflict: error instanceof DocumentConflictError, error: error.message }));
+    return true;
+  } else if (message.type === 'OPEN_FULLSCREEN') {
     chrome.tabs.create({ url: chrome.runtime.getURL('index.html') });
     sendResponse({ success: true });
   } else if (message.type === 'OPEN_SIDEPANEL') {

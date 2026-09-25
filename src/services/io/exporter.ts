@@ -338,29 +338,29 @@ export function exportToSVG(
   svg += `<style>
     .node-text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', sans-serif; }
   </style>\n`;
-  svg += `<rect width="100%" height="100%" fill="${theme.background}" />\n`;
+  svg += `<rect width="100%" height="100%" fill="${escapeXml(safeColor(theme.background, '#ffffff'))}" />\n`;
 
   // Draw curves
   svg += `<g transform="translate(${offsetX}, ${offsetY})">\n`;
   for (const conn of connections) {
-    svg += `  <path d="${conn.path}" fill="none" stroke="${conn.color}" stroke-width="${conn.strokeWidth}" stroke-linecap="round" />\n`;
+    svg += `  <path d="${escapeXml(conn.path)}" fill="none" stroke="${escapeXml(safeColor(conn.color, '#64748b'))}" stroke-width="${conn.strokeWidth}" stroke-linecap="round" />\n`;
   }
 
   // Draw nodes
   for (const n of nodes) {
     const rx = n.level === 0 ? 12 : (n.shape === 'pill' ? 16 : 8);
-    const stroke = n.level === 0 ? 'none' : n.borderColor;
-    const fill = n.level === 0 ? n.bgColor : theme.surface;
+    const stroke = n.level === 0 ? 'none' : safeColor(n.borderColor, '#cbd5e1');
+    const fill = n.level === 0 ? safeColor(n.bgColor, '#ffffff') : safeColor(theme.surface, '#ffffff');
 
     svg += `  <g transform="translate(${n.x}, ${n.y})">\n`;
-    svg += `    <rect width="${n.width}" height="${n.height}" rx="${rx}" fill="${fill}" stroke="${stroke}" stroke-width="1.5" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.06))" />\n`;
+    svg += `    <rect width="${n.width}" height="${n.height}" rx="${rx}" fill="${escapeXml(fill)}" stroke="${escapeXml(stroke)}" stroke-width="1.5" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.06))" />\n`;
 
     const fontSize = n.level === 0 ? 16 : (n.level === 1 ? 14 : 12);
     const fontWeight = n.level === 0 ? 'bold' : (n.level === 1 ? '600' : 'normal');
-    const textColor = n.level === 0 ? n.textColor : theme.nodeText;
+    const textColor = n.level === 0 ? safeColor(n.textColor, '#0f172a') : safeColor(theme.nodeText, '#0f172a');
     const textY = n.height / 2 + (fontSize / 3);
 
-    svg += `    <text x="${n.width / 2}" y="${textY}" text-anchor="middle" font-size="${fontSize}" font-weight="${fontWeight}" fill="${textColor}" class="node-text">${escapeXml(n.node.text)}</text>\n`;
+    svg += `    <text x="${n.width / 2}" y="${textY}" text-anchor="middle" font-size="${fontSize}" font-weight="${fontWeight}" fill="${escapeXml(textColor)}" class="node-text">${escapeXml(n.node.text)}</text>\n`;
     svg += `  </g>\n`;
   }
 
@@ -492,23 +492,23 @@ export function exportToInteractiveHTML(
 
   let curvesSvg = '';
   for (const conn of connections) {
-    curvesSvg += `<path d="${conn.path}" fill="none" stroke="${conn.color}" stroke-width="${conn.strokeWidth}" stroke-linecap="round" />\n`;
+    curvesSvg += `<path d="${escapeXml(conn.path)}" fill="none" stroke="${escapeXml(safeColor(conn.color, '#64748b'))}" stroke-width="${conn.strokeWidth}" stroke-linecap="round" />\n`;
   }
 
   let nodesSvg = '';
   for (const n of nodes) {
     const rx = n.level === 0 ? 12 : (n.shape === 'pill' ? 16 : 8);
-    const stroke = n.level === 0 ? 'none' : n.borderColor;
-    const fill = n.level === 0 ? n.bgColor : theme.surface;
+    const stroke = n.level === 0 ? 'none' : safeColor(n.borderColor, '#cbd5e1');
+    const fill = n.level === 0 ? safeColor(n.bgColor, '#ffffff') : safeColor(theme.surface, '#ffffff');
     const fontSize = n.level === 0 ? 16 : (n.level === 1 ? 14 : 12);
     const fontWeight = n.level === 0 ? 'bold' : (n.level === 1 ? '600' : 'normal');
-    const textColor = n.level === 0 ? n.textColor : theme.nodeText;
+    const textColor = n.level === 0 ? safeColor(n.textColor, '#0f172a') : safeColor(theme.nodeText, '#0f172a');
     const textY = n.height / 2 + (fontSize / 3);
 
     nodesSvg += `
     <g class="mind-node" transform="translate(${n.x}, ${n.y})">
-      <rect width="${n.width}" height="${n.height}" rx="${rx}" fill="${fill}" stroke="${stroke}" stroke-width="1.5" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.08))" />
-      <text x="${n.width / 2}" y="${textY}" text-anchor="middle" font-size="${fontSize}" font-weight="${fontWeight}" fill="${textColor}">${escapeXml(n.node.text)}</text>
+      <rect width="${n.width}" height="${n.height}" rx="${rx}" fill="${escapeXml(fill)}" stroke="${escapeXml(stroke)}" stroke-width="1.5" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.08))" />
+      <text x="${n.width / 2}" y="${textY}" text-anchor="middle" font-size="${fontSize}" font-weight="${fontWeight}" fill="${escapeXml(textColor)}">${escapeXml(n.node.text)}</text>
     </g>`;
   }
 
@@ -520,20 +520,20 @@ export function exportToInteractiveHTML(
   <title>${escapeXml(title)} - MindFlow 交互导图</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body, html { width: 100%; height: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: ${theme.background}; color: ${theme.text}; }
+    body, html { width: 100%; height: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: ${safeColor(theme.background, '#ffffff')}; color: ${safeColor(theme.text, '#0f172a')}; }
     #header {
       position: absolute; top: 16px; left: 16px; right: 16px; z-index: 10;
       display: flex; justify-content: space-between; align-items: center; pointer-events: none;
     }
     .header-card {
-      background: ${theme.surface}; padding: 8px 16px; border-radius: 12px;
+      background: ${safeColor(theme.surface, '#ffffff')}; padding: 8px 16px; border-radius: 12px;
       box-shadow: 0 4px 16px rgba(0,0,0,0.1); pointer-events: auto; display: flex; align-items: center; gap: 12px;
     }
     .title { font-weight: 700; font-size: 16px; }
     .badge { font-size: 11px; background: rgba(59, 130, 246, 0.15); color: #3b82f6; padding: 2px 8px; border-radius: 9999px; font-weight: 600; }
     .controls { display: flex; gap: 8px; pointer-events: auto; }
     .btn {
-      background: ${theme.surface}; border: 1px solid rgba(125,125,125,0.2); color: ${theme.text};
+      background: ${safeColor(theme.surface, '#ffffff')}; border: 1px solid rgba(125,125,125,0.2); color: ${safeColor(theme.text, '#0f172a')};
       padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500;
       box-shadow: 0 2px 8px rgba(0,0,0,0.06); transition: all 0.15s;
     }
@@ -656,6 +656,14 @@ function escapeXml(unsafe: string): string {
   });
 }
 
+function safeColor(value: string, fallback: string): string {
+  const color = String(value || '').trim();
+  const isHex = /^#[\da-f]{3,8}$/i.test(color);
+  const isNamed = /^(transparent|none|black|white|red|green|blue|gray|grey|orange|purple)$/i.test(color);
+  const isFunctional = /^(?:rgba?|hsla?)\([\d.,%\s/+-]+\)$/i.test(color);
+  return isHex || isNamed || isFunctional ? color : fallback;
+}
+
 function unescapeXml(str: string): string {
   return (str || '')
     .replace(/&lt;/g, '<')
@@ -673,7 +681,7 @@ function downloadBlob(blob: Blob, filename: string) {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 /**
@@ -718,4 +726,3 @@ export function printToPDF(): void {
 
   window.print();
 }
-

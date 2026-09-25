@@ -10,14 +10,21 @@ function isChromeStorage(): boolean {
 export class InboxService {
   public static async getItems(): Promise<InboxItem[]> {
     if (isChromeStorage()) {
-      return new Promise((resolve) => {
+      return new Promise((resolve, reject) => {
         chrome.storage.local.get([INBOX_STORAGE_KEY], (res) => {
+          const error = chrome.runtime?.lastError;
+          if (error) {
+            reject(new Error(error.message || '读取收集箱失败'));
+            return;
+          }
           const raw = res[INBOX_STORAGE_KEY];
           if (!raw) return resolve([]);
           try {
-            resolve(JSON.parse(raw as string));
-          } catch {
-            resolve([]);
+            const parsed = JSON.parse(raw as string);
+            if (!Array.isArray(parsed)) throw new Error('收集箱数据不是列表');
+            resolve(parsed);
+          } catch (error) {
+            reject(new Error(`收集箱数据损坏：${(error as Error).message}`));
           }
         });
       });
@@ -26,9 +33,11 @@ export class InboxService {
     const raw = localStorage.getItem(INBOX_STORAGE_KEY);
     if (!raw) return [];
     try {
-      return JSON.parse(raw);
-    } catch {
-      return [];
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) throw new Error('收集箱数据不是列表');
+      return parsed;
+    } catch (error) {
+      throw new Error(`收集箱数据损坏：${(error as Error).message}`);
     }
   }
 
@@ -73,8 +82,13 @@ export class InboxService {
   private static async saveItems(items: InboxItem[]): Promise<void> {
     const serialized = JSON.stringify(items);
     if (isChromeStorage()) {
-      return new Promise((resolve) => {
+      return new Promise((resolve, reject) => {
         chrome.storage.local.set({ [INBOX_STORAGE_KEY]: serialized }, () => {
+          const error = chrome.runtime?.lastError;
+          if (error) {
+            reject(new Error(error.message || '保存收集箱失败'));
+            return;
+          }
           resolve();
         });
       });

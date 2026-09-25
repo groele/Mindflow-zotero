@@ -50,6 +50,8 @@ export interface RelationshipLink {
 
 export interface MindMapDocument {
   id: string;
+  /** Monotonic local save version. Missing on documents created before versioned saves. */
+  revision?: number;
   title: string;
   root: MindMapNode;
   relationships?: RelationshipLink[];

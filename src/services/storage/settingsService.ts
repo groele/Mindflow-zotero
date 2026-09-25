@@ -40,8 +40,13 @@ export class SettingsService {
     let loadedSettings: Partial<AppSettings> | null = null;
 
     if (isChromeStorage()) {
-      loadedSettings = await new Promise((resolve) => {
+      loadedSettings = await new Promise((resolve, reject) => {
         chrome.storage.local.get([SETTINGS_STORAGE_KEY], (res) => {
+          const error = chrome.runtime?.lastError;
+          if (error) {
+            reject(new Error(error.message || '读取设置失败'));
+            return;
+          }
           const raw = res[SETTINGS_STORAGE_KEY];
           if (!raw) return resolve(null);
           try {
@@ -73,15 +78,22 @@ export class SettingsService {
   public static async updateSettings(partial: Partial<AppSettings>): Promise<AppSettings> {
     const current = await this.getSettings();
     const updated = deepMerge(current, partial);
-    this.cachedSettings = updated;
 
     if (isChromeStorage()) {
-      await new Promise<void>((resolve) => {
-        chrome.storage.local.set({ [SETTINGS_STORAGE_KEY]: updated }, () => resolve());
+      await new Promise<void>((resolve, reject) => {
+        chrome.storage.local.set({ [SETTINGS_STORAGE_KEY]: updated }, () => {
+          const error = chrome.runtime?.lastError;
+          if (error) {
+            reject(new Error(error.message || '保存设置失败'));
+            return;
+          }
+          resolve();
+        });
       });
     } else {
       localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(updated));
     }
+    this.cachedSettings = updated;
 
     // Also synchronize workbenchDockPosition to localStorage key for compatibility
     if (partial.workbenchDockPosition) {
@@ -95,16 +107,22 @@ export class SettingsService {
    * Reset settings to default values
    */
   public static async resetSettings(): Promise<AppSettings> {
-    this.cachedSettings = { ...DEFAULT_SETTINGS };
-
     if (isChromeStorage()) {
-      await new Promise<void>((resolve) => {
-        chrome.storage.local.set({ [SETTINGS_STORAGE_KEY]: DEFAULT_SETTINGS }, () => resolve());
+      await new Promise<void>((resolve, reject) => {
+        chrome.storage.local.set({ [SETTINGS_STORAGE_KEY]: DEFAULT_SETTINGS }, () => {
+          const error = chrome.runtime?.lastError;
+          if (error) {
+            reject(new Error(error.message || '重置设置失败'));
+            return;
+          }
+          resolve();
+        });
       });
     } else {
       localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(DEFAULT_SETTINGS));
     }
 
+    this.cachedSettings = { ...DEFAULT_SETTINGS };
     localStorage.setItem('mindflow_dock_pos', DEFAULT_SETTINGS.workbenchDockPosition);
     return { ...DEFAULT_SETTINGS };
   }
