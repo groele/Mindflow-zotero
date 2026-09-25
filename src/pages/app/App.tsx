@@ -50,6 +50,9 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [viewport, setViewport] = useState<ViewportTransform>({ x: 0, y: 0, scale: 1 });
   const clipboardSubtreeRef = useRef<MindMapNode | null>(null);
+  const clipboardNodeTokenRef = useRef<string | null>(null);
+  const clipboardNodeTextRef = useRef<string | null>(null);
+  const imageImportBusyRef = useRef(false);
 
   // Workbench & Sidebar Layout (Ergonomic left-right docking)
   const [isWorkbenchOpen, setIsWorkbenchOpen] = useState(false);
@@ -422,15 +425,35 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     playAddNode(settings.soundEffects);
   }, [doc, selectedId, settings.soundEffects, commitRootChange]);
 
-  const handleCopyNode = useCallback((idToCopy?: string) => {
+  const handleCopyNode = useCallback((idToCopy?: string, writeSystemClipboard = false) => {
     if (!doc) return;
     const targetId = idToCopy || selectedId;
     if (!targetId) return;
     const target = findNode(doc.root, targetId);
     if (target) {
       clipboardSubtreeRef.current = JSON.parse(JSON.stringify(target));
+      clipboardNodeTokenRef.current = crypto.randomUUID();
+      clipboardNodeTextRef.current = target.text;
+      if (writeSystemClipboard) {
+        void navigator.clipboard.writeText(target.text).catch(error => {
+          console.warn('MindFlow clipboard write failed', error);
+        });
+      }
     }
   }, [doc, selectedId]);
+
+  useEffect(() => {
+    const handleCopy = (event: ClipboardEvent) => {
+      if (!doc || !selectedId || !clipboardSubtreeRef.current || !clipboardNodeTokenRef.current || editingId) return;
+      if (event.target instanceof Element && event.target.closest('input, textarea, [contenteditable]:not([contenteditable="false"])')) return;
+      if (!event.clipboardData) return;
+      event.clipboardData.setData('text/plain', clipboardNodeTextRef.current || '');
+      event.clipboardData.setData('application/x-mindflow-node', clipboardNodeTokenRef.current);
+      event.preventDefault();
+    };
+    window.addEventListener('copy', handleCopy);
+    return () => window.removeEventListener('copy', handleCopy);
+  }, [doc, selectedId, editingId]);
 
   const handlePasteNode = useCallback((targetParentId?: string) => {
     if (!doc || !clipboardSubtreeRef.current) return;
@@ -504,35 +527,70 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   }, [doc, commitRootChange]);
 
   const handleImportNodeImage = useCallback(async (file: File, targetId?: string, createChild = false): Promise<void> => {
-    const sourceDocId = doc?.id;
-    if (!sourceDocId) throw new Error('请先打开导图');
-    const image = await prepareNodeImage(file);
-    const quota = await BackupService.getStorageQuota();
-    const latest = latestDocRef.current;
-    if (!latest || latest.id !== sourceDocId) throw new Error('导图已切换，请重新选择图片');
-    const parentId = targetId || selectedId || latest.root.id;
-    const target = findNode(latest.root, parentId);
-    if (!target) throw new Error('目标节点已删除，请重新选择');
-    const previousBytes = createChild ? 0 : (target.image?.dataUrl.length || 0);
-    if (quota.usedBytes + image.dataUrl.length - previousBytes + 100_000 > quota.maxBytes) {
-      throw new Error('本地存储空间不足。请先导出完整备份并清理旧快照，或选择更小的图片');
+    if (imageImportBusyRef.current) throw new Error('另一张图片正在处理中，请稍后再试');
+    imageImportBusyRef.current = true;
+    try {
+      const sourceDocId = doc?.id;
+      if (!sourceDocId) throw new Error('请先打开导图');
+      const image = await prepareNodeImage(file);
+      const quota = await BackupService.getStorageQuota();
+      const latest = latestDocRef.current;
+      if (!latest || latest.id !== sourceDocId) throw new Error('导图已切换，请重新选择图片');
+      const parentId = targetId || selectedId || latest.root.id;
+      const target = findNode(latest.root, parentId);
+      if (!target) throw new Error('目标节点已删除，请重新选择');
+      const previousBytes = createChild ? 0 : (target.image?.dataUrl.length || 0);
+      if (quota.usedBytes + image.dataUrl.length - previousBytes + 100_000 > quota.maxBytes) {
+        throw new Error('本地存储空间不足。请先导出完整备份并清理旧快照，或选择更小的图片');
+      }
+      let newRoot: MindMapNode;
+      let nextSelectedId = parentId;
+      if (createChild) {
+        const added = addChildNode(latest.root, parentId, '');
+        nextSelectedId = added.newNodeId;
+        newRoot = updateNode(added.newRoot, nextSelectedId, { type: 'image', image });
+      } else {
+        newRoot = updateNode(latest.root, parentId, { image });
+      }
+      historyRef.current.push(latest.root);
+      syncHistoryState();
+      setDoc({ ...latest, root: newRoot, updatedAt: Date.now() });
+      setSelectedId(nextSelectedId);
+      setSelectedIds([]);
+      setIsPropertySidebarOpen(true);
+    } finally {
+      imageImportBusyRef.current = false;
     }
-    let newRoot: MindMapNode;
-    let nextSelectedId = parentId;
-    if (createChild) {
-      const added = addChildNode(latest.root, parentId, '');
-      nextSelectedId = added.newNodeId;
-      newRoot = updateNode(added.newRoot, nextSelectedId, { type: 'image', image });
-    } else {
-      newRoot = updateNode(latest.root, parentId, { image });
-    }
-    historyRef.current.push(latest.root);
-    syncHistoryState();
-    setDoc({ ...latest, root: newRoot, updatedAt: Date.now() });
-    setSelectedId(nextSelectedId);
-    setSelectedIds([]);
-    setIsPropertySidebarOpen(true);
   }, [doc?.id, selectedId, syncHistoryState]);
+
+  useEffect(() => {
+    const handlePaste = (event: ClipboardEvent) => {
+      if (!doc || editingId || isSettingsOpen || isShortcutsOpen || isCommandPaletteOpen || isTemplateModalOpen || isSearchOpen || isPresentationOpen) return;
+      if (event.target instanceof Element && event.target.closest('input, textarea, [contenteditable]:not([contenteditable="false"])')) return;
+
+      const imageItem = Array.from(event.clipboardData?.items || []).find(item => item.kind === 'file' && item.type.startsWith('image/'));
+      const copiedToken = event.clipboardData?.getData('application/x-mindflow-node');
+      const copiedText = event.clipboardData?.getData('text/plain');
+      const isInternalNode = !!clipboardSubtreeRef.current && (
+        (!!copiedToken && copiedToken === clipboardNodeTokenRef.current) ||
+        (!copiedToken && !imageItem && copiedText !== undefined && copiedText === clipboardNodeTextRef.current)
+      );
+      if (isInternalNode) {
+        event.preventDefault();
+        handlePasteNode();
+      } else if (imageItem) {
+        const file = imageItem.getAsFile();
+        if (!file) return;
+        event.preventDefault();
+        const targetId = selectedId || doc.root.id;
+        void handleImportNodeImage(file, targetId).catch(error => {
+          window.alert(`图片粘贴失败：${error?.message || '未知错误'}`);
+        });
+      }
+    };
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [doc, editingId, selectedId, isSettingsOpen, isShortcutsOpen, isCommandPaletteOpen, isTemplateModalOpen, isSearchOpen, isPresentationOpen, handleImportNodeImage, handlePasteNode]);
 
   // Toggle Task Status (todo -> doing -> done -> todo)
   const handleToggleTaskStatus = useCallback((id: string) => {
@@ -865,15 +923,10 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
         return;
       }
 
-      // Clipboard shortcuts: Ctrl+C (Copy), Ctrl+V (Paste), Ctrl+D (Duplicate)
+      // Clipboard shortcuts: Ctrl+C (Copy), Ctrl+D (Duplicate). Paste is handled
+      // by the native paste event so image data remains available.
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
         handleCopyNode();
-        return;
-      }
-
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
-        e.preventDefault();
-        handlePasteNode();
         return;
       }
 
@@ -937,7 +990,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   }, [
     editingId, selectedId, layout.nodes, isZenMode,
     handleAddChild, handleAddSibling, handleDeleteNode, handleUndo, handleRedo,
-    handleCopyNode, handlePasteNode, handleDuplicateNode
+    handleCopyNode, handleDuplicateNode
   ]);
 
   // One-click capture current Chrome tab info
@@ -1317,7 +1370,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
           }}
           onAddSibling={() => handleAddSibling(false)}
           onDelete={(id) => handleDeleteNode(id)}
-          onCopyNode={(id) => handleCopyNode(id)}
+          onCopyNode={(id) => handleCopyNode(id, true)}
           onDuplicateNode={(id) => handleDuplicateNode(id)}
           onPasteSubtree={(id) => handlePasteNode(id)}
           hasClipboardContent={!!clipboardSubtreeRef.current}

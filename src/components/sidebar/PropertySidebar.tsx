@@ -181,7 +181,7 @@ export const PropertySidebar: React.FC<PropertySidebarProps> = ({
 
         <div className="space-y-2 p-2.5 rounded-xl border border-violet-200 dark:border-violet-900 bg-violet-50/40 dark:bg-violet-950/20">
           <label className="flex items-center gap-1.5 font-medium text-violet-700 dark:text-violet-300"><ImagePlus className="w-3.5 h-3.5" /> 节点图片</label>
-          <p className="text-[10px] text-slate-500">支持 PNG、JPEG、WebP；导入时自动压缩并保存到导图。</p>
+          <p className="text-[10px] text-slate-500">支持 PNG、JPEG、WebP；可将图片拖到画布节点，或选中节点后粘贴截图。导入时自动压缩并保存。</p>
           <input ref={imageInputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" aria-label="选择节点图片"
             onChange={async event => {
               const file = event.target.files?.[0];

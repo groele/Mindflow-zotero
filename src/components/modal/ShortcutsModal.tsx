@@ -17,7 +17,7 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose 
         { keys: ['Enter'], desc: '插入同级主题（Sibling Node）' },
         { keys: ['Shift', 'Enter'], desc: '在上方/前方插入同级主题' },
         { keys: ['Ctrl / Cmd', 'C'], desc: '复制选中主题分支' },
-        { keys: ['Ctrl / Cmd', 'V'], desc: '粘贴分支到当前节点下' },
+        { keys: ['Ctrl / Cmd', 'V'], desc: '粘贴内部复制的分支，或为当前节点粘贴截图' },
         { keys: ['Ctrl / Cmd', 'D'], desc: '一键创建副本 (Duplicate)' },
         { keys: ['Delete / Backspace'], desc: '删除当前选中主题（支持批量）' },
         { keys: ['Space 空格 / 双击'], desc: '就地进入内联文字编辑模式' },
@@ -35,6 +35,7 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose 
         { keys: ['空格 + 拖拽'], desc: '按住空格键并拖动画布平移' },
         { keys: ['鼠标中键拖拽'], desc: '任意平移无限画布' },
         { keys: ['拖拽节点卡片'], desc: '重新挂载重排节点归属' },
+        { keys: ['拖入图片'], desc: '把单张图片放到目标节点上' },
       ],
     },
     {

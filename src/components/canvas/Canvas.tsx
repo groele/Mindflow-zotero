@@ -242,22 +242,35 @@ export const Canvas: React.FC<CanvasProps> = ({
   const handleNodeDragStart = (id: string, e: React.DragEvent) => {
     e.stopPropagation();
     setDraggedNodeId(id);
-    e.dataTransfer.setData('text/plain', id);
+    e.dataTransfer.setData('application/x-mindflow-node', id);
     e.dataTransfer.effectAllowed = 'move';
   };
 
   const handleNodeDragOver = (id: string, e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (draggedNodeId && draggedNodeId !== id) {
+    if (e.dataTransfer.types.includes('Files')) {
+      e.dataTransfer.dropEffect = 'copy';
+    } else if (draggedNodeId && draggedNodeId !== id) {
       e.dataTransfer.dropEffect = 'move';
+    } else {
+      e.dataTransfer.dropEffect = 'none';
     }
   };
 
   const handleNodeDrop = (targetId: string, e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (draggedNodeId && draggedNodeId !== targetId) {
+    if (e.dataTransfer.files.length > 0) {
+      const files = Array.from(e.dataTransfer.files);
+      if (files.length !== 1 || !files[0].type.startsWith('image/')) {
+        window.alert('请一次拖入一张 PNG、JPEG 或 WebP 图片');
+      } else if (onImportNodeImage) {
+        void onImportNodeImage(targetId, files[0]).catch(error => {
+          window.alert(`图片导入失败：${error?.message || '未知错误'}`);
+        });
+      }
+    } else if (draggedNodeId && draggedNodeId !== targetId && e.dataTransfer.types.includes('application/x-mindflow-node')) {
       onMoveNode(draggedNodeId, targetId);
     }
     setDraggedNodeId(null);
@@ -488,6 +501,7 @@ export const Canvas: React.FC<CanvasProps> = ({
               onToggleTaskStatus={onToggleTaskStatus}
               onOpenInternalLink={onOpenInternalLink}
               onDragStart={handleNodeDragStart}
+              onDragEnd={() => setDraggedNodeId(null)}
               onDragOver={handleNodeDragOver}
               onDrop={handleNodeDrop}
             />

@@ -20,6 +20,7 @@ interface NodeCardProps {
   onToggleTaskStatus?: (id: string) => void;
   onOpenInternalLink?: (documentId: string, nodeId?: string) => void;
   onDragStart?: (id: string, e: React.DragEvent) => void;
+  onDragEnd?: () => void;
   onDragOver?: (id: string, e: React.DragEvent) => void;
   onDrop?: (targetId: string, e: React.DragEvent) => void;
 }
@@ -40,6 +41,7 @@ export const NodeCard: React.FC<NodeCardProps> = ({
   onToggleTaskStatus,
   onOpenInternalLink,
   onDragStart,
+  onDragEnd,
   onDragOver,
   onDrop,
 }) => {
@@ -136,6 +138,7 @@ export const NodeCard: React.FC<NodeCardProps> = ({
       style={nodeStyle}
       draggable={!isEditing && !isRoot}
       onDragStart={(e) => onDragStart && onDragStart(node.id, e)}
+      onDragEnd={() => { setIsDragOverTarget(false); onDragEnd?.(); }}
       onDragEnter={(e) => {
         e.preventDefault();
         setIsDragOverTarget(true);
