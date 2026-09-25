@@ -1,16 +1,16 @@
 # MindFlow for Zotero
 
-[![Zotero 插件版本](https://img.shields.io/badge/Zotero%20插件-v1.2.0-2563eb)](https://github.com/groele/Mindflow-zotero/releases/tag/v1.2.0)
+[![Zotero 插件版本](https://img.shields.io/badge/Zotero%20插件-v1.2.1-2563eb)](https://github.com/groele/Mindflow-zotero/releases/tag/v1.2.1)
 [![兼容版本](https://img.shields.io/badge/Zotero-10.0.x-c2410c)](zotero/manifest.json)
 [![许可证](https://img.shields.io/badge/License-MIT-15803d)](LICENSE)
 
 **在 Zotero 10 中把文献、PDF 批注和阅读笔记整理成可编辑思维导图。** MindFlow 在文献列表和 PDF 阅读场景提供入口；导图可归档为文献下的 `.mindflow` 附件，并可写回结构化大纲笔记。
 
-> **版本说明：**本仓库同时保留 Chrome 扩展源码（版本 3.2.0）。本 README 和 GitHub `v1.2.0` 标签针对 **Zotero 插件**；下载 Zotero 安装包时请选择 `mindflow-zotero-1.2.0.xpi`，不要选择 Chrome ZIP。
+> **版本说明：**本仓库同时保留 Chrome 扩展源码（版本 3.2.0）。本 README 和 GitHub `v1.2.1` 标签针对 **Zotero 插件**；下载 Zotero 安装包时请选择 `mindflow-zotero-1.2.1.xpi`，不要选择 Chrome ZIP。
 
 ## 下载与安装
 
-1. 从 [v1.2.0 发布页](https://github.com/groele/Mindflow-zotero/releases/tag/v1.2.0)的 Assets 下载 `mindflow-zotero-1.2.0.xpi`。
+1. 从 [v1.2.1 发布页](https://github.com/groele/Mindflow-zotero/releases/tag/v1.2.1)的 Assets 下载 `mindflow-zotero-1.2.1.xpi`。
 2. 在 **Zotero 10** 打开 **工具 → 插件**，将 XPI 拖入插件窗口并按提示安装。Zotero 的[官方插件安装说明](https://www.zotero.org/support/plugins)也介绍了这一入口。
 3. 如 Zotero 提示重启，请重启。安装后可从工具菜单、主工具栏、文献右键菜单或条目详情侧栏打开 MindFlow；`Ctrl/Cmd+Alt+M` 也可调用入口。
 4. 在 **编辑 → 设置 → MindFlow** 调整导入规则、窗口模式、编辑默认值和备份配置。
@@ -129,7 +129,7 @@ npm ci
 npm run build:zotero
 ```
 
-安装文件为 `dist-zip/mindflow-zotero-1.2.0.xpi`；已解压的构建目录在 `dist-zotero/`。这两个目录是生成物，不提交到 Git。Chrome 扩展另用 `npm run build` 构建到 `dist/`，其版本仍为 3.2.0。
+安装文件为 `dist-zip/mindflow-zotero-1.2.1.xpi`；已解压的构建目录在 `dist-zotero/`。这两个目录是生成物，不提交到 Git。Chrome 扩展另用 `npm run build` 构建到 `dist/`，其版本仍为 3.2.0。
 
 | 路径 | 用途 |
 | --- | --- |

@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Zotero v1.2.1] - 2026-09-25
+
+### 文档与版本
+- 扩充 README：说明 Zotero 入口选择、多份导图、升级备份、跨设备恢复及常见故障排查。
+- 同步 Zotero 插件清单、更新链接、工作台版本显示和工作区备份版本号；本版不改变导图功能或数据格式。
+
+### 验证范围
+- 本版仅更新文档与版本信息；Zotero 10 图形界面安装和完整交互仍需实机核验。
+
 ## [Zotero v1.2.0] - 2026-09-25
 
 ### Zotero 原生协同
