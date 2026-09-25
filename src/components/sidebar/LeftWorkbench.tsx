@@ -494,11 +494,24 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
                       <div className="flex items-center gap-2 min-w-0 flex-1">
                         <FileText className={`w-3.5 h-3.5 ${d.id === currentDoc.id ? 'text-blue-600' : 'text-slate-400'}`} />
                         <div className="min-w-0 flex-1">
-                          <div className={`text-xs font-medium truncate ${d.id === currentDoc.id ? 'text-blue-700 dark:text-blue-300 font-semibold' : 'text-slate-800 dark:text-slate-200'}`}>
-                            {d.title}
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className={`text-xs truncate ${d.id === currentDoc.id ? 'text-blue-700 dark:text-blue-300 font-semibold' : 'text-slate-800 dark:text-slate-200 font-medium'}`}>
+                              {d.title}
+                            </span>
+                            {d.zoteroItemKey && (
+                              <span
+                                className="shrink-0 text-[9px] px-1.5 py-0.5 rounded-full bg-sky-100 dark:bg-sky-900/60 text-sky-700 dark:text-sky-300 font-medium leading-none"
+                                title={d.zoteroItemTitle ? `已关联 Zotero 文献: ${d.zoteroItemTitle}` : '已关联 Zotero 文献'}
+                              >
+                                🎓 Zotero
+                              </span>
+                            )}
                           </div>
-                          <div className="text-[10px] text-slate-400">
-                            {formatDate(d.updatedAt)}
+                          <div className="text-[10px] text-slate-400 flex items-center gap-2 mt-0.5">
+                            <span>{formatDate(d.updatedAt)}</span>
+                            {d.id === currentDoc.id && (
+                              <span className="text-blue-600 dark:text-blue-400 font-semibold">● 当前</span>
+                            )}
                           </div>
                         </div>
                       </div>

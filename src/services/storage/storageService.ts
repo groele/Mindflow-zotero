@@ -115,6 +115,8 @@ export interface DocumentSummary {
   title: string;
   updatedAt: number;
   nodeCount?: number;
+  zoteroItemKey?: string;
+  zoteroItemTitle?: string;
 }
 
 export class StorageService {
@@ -210,6 +212,8 @@ export class StorageService {
       id: savedDoc.id,
       title: savedDoc.title,
       updatedAt: savedDoc.updatedAt,
+      zoteroItemKey: savedDoc.metadata?.zoteroItemKey,
+      zoteroItemTitle: savedDoc.metadata?.zoteroItemTitle,
     };
 
     if (existingIdx >= 0) {
@@ -263,6 +267,8 @@ export class StorageService {
           id: parsed.id,
           title: parsed.title,
           updatedAt: Number.isFinite(parsed.updatedAt) ? parsed.updatedAt : 0,
+          zoteroItemKey: parsed.metadata?.zoteroItemKey,
+          zoteroItemTitle: parsed.metadata?.zoteroItemTitle,
         });
       } catch {
         // Ignore only the unreadable record; keep other recoverable documents.

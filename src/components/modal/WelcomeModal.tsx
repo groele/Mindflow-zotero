@@ -4,6 +4,7 @@ import {
   Clock, ArrowRight, X
 } from 'lucide-react';
 import { DocumentSummary, StorageService } from '../../services/storage/storageService';
+import { getSelectedZoteroItems, ZoteroItemData } from '../../services/zotero/zoteroBridge';
 
 interface WelcomeModalProps {
   isOpen: boolean;
@@ -31,9 +32,16 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({
   isZoteroMode,
 }) => {
   const [recentDocs, setRecentDocs] = useState<DocumentSummary[]>([]);
+  const [selectedZoteroItems, setSelectedZoteroItems] = useState<ZoteroItemData[]>([]);
 
   useEffect(() => {
     if (!isOpen) return;
+    try {
+      const items = getSelectedZoteroItems();
+      setSelectedZoteroItems(items);
+    } catch (_) {
+      setSelectedZoteroItems([]);
+    }
     StorageService.getDocumentList()
       .then((list) => {
         // Filter out legacy default doc and take top 4
@@ -137,26 +145,39 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({
                   onClose();
                   onImportZotero();
                 }}
-                className="group relative p-4 rounded-xl border border-slate-200 hover:border-indigo-500 dark:border-slate-800 dark:hover:border-indigo-400 bg-slate-50/50 hover:bg-indigo-50/40 dark:bg-slate-800/30 dark:hover:bg-indigo-950/20 text-left transition-all duration-150 flex flex-col justify-between shadow-xs hover:shadow-md cursor-pointer"
+                className={`group relative p-4 rounded-xl border transition-all duration-150 flex flex-col justify-between shadow-xs hover:shadow-md cursor-pointer text-left ${
+                  selectedZoteroItems.length > 0
+                    ? 'border-indigo-500/40 hover:border-indigo-600 bg-indigo-50/40 hover:bg-indigo-50/70 dark:bg-indigo-950/30 dark:hover:bg-indigo-950/50'
+                    : 'border-slate-200 hover:border-indigo-500 dark:border-slate-800 dark:hover:border-indigo-400 bg-slate-50/50 hover:bg-indigo-50/40 dark:bg-slate-800/30 dark:hover:bg-indigo-950/20'
+                }`}
               >
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center shadow-xs">
                       <BookOpen className="w-4 h-4" />
                     </div>
-                    <span className="text-[11px] font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/40 px-2 py-0.5 rounded-md">
-                      文献协同
-                    </span>
+                    {selectedZoteroItems.length > 0 ? (
+                      <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/60 px-2 py-0.5 rounded-md flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        已选 {selectedZoteroItems.length} 篇文献
+                      </span>
+                    ) : (
+                      <span className="text-[11px] font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/40 px-2 py-0.5 rounded-md">
+                        文献协同
+                      </span>
+                    )}
                   </div>
                   <h3 className="font-bold text-slate-900 dark:text-white text-sm group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
                     从选中文献成图
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
-                    一键提取 Zotero 选中的论文题录、摘要与笔记
+                    {selectedZoteroItems.length > 0
+                      ? `已就绪：【${selectedZoteroItems[0].title}】${selectedZoteroItems.length > 1 ? ` 等共 ${selectedZoteroItems.length} 篇` : ''}`
+                      : '一键提取 Zotero 选中的论文题录、摘要与笔记'}
                   </p>
                 </div>
                 <div className="mt-3 flex items-center text-xs font-medium text-indigo-600 dark:text-indigo-400 group-hover:translate-x-0.5 transition-transform">
-                  <span>生成文献脉络</span>
+                  <span>{selectedZoteroItems.length > 0 ? '直接转换并自动归档' : '生成文献脉络'}</span>
                   <ArrowRight className="w-3.5 h-3.5 ml-1" />
                 </div>
               </button>

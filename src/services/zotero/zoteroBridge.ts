@@ -719,10 +719,18 @@ export function openZoteroPreferences(): boolean {
  */
 export async function saveMindMapToZoteroAttachment(
   doc: MindMapDocument,
-  parentItemKey?: string,
+  parentItemKeyOrOptions?: string | { silent?: boolean },
   options?: { silent?: boolean }
 ): Promise<{ success: boolean; message: string; savedPath?: string }> {
-  const targetKey = parentItemKey || doc.metadata?.zoteroItemKey;
+  let targetKey: string | undefined;
+  let opts: { silent?: boolean } | undefined = options;
+
+  if (typeof parentItemKeyOrOptions === 'object' && parentItemKeyOrOptions !== null) {
+    opts = parentItemKeyOrOptions;
+    targetKey = doc.metadata?.zoteroItemKey;
+  } else {
+    targetKey = parentItemKeyOrOptions || doc.metadata?.zoteroItemKey;
+  }
 
   // 1. Post message to host window if inside an iframe
   if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
@@ -732,7 +740,7 @@ export async function saveMindMapToZoteroAttachment(
           type: 'MINDFLOW_SAVE_ATTACHMENT',
           doc,
           parentItemKey: targetKey,
-          silent: options?.silent,
+          silent: opts?.silent,
         },
         '*'
       );
@@ -748,7 +756,7 @@ export async function saveMindMapToZoteroAttachment(
       return await Zotero.MindFlow.saveMindMapToItem({
         doc,
         parentItemKey: targetKey,
-        silent: options?.silent,
+        silent: opts?.silent,
       });
     } catch (e: any) {
       console.warn('[MindFlow] saveMindMapToZoteroAttachment direct call error:', e);
