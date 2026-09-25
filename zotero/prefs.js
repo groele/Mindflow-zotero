@@ -11,6 +11,8 @@ pref("extensions.mindflow.includeAbstract", true);
 pref("extensions.mindflow.includeAnnotations", true);
 pref("extensions.mindflow.includeTags", true);
 pref("extensions.mindflow.autoOpenAfterExport", true);
+pref("extensions.mindflow.autoArchiveToItem", true);
+pref("extensions.mindflow.customSavePath", "");
 
 pref("extensions.mindflow.autoSnapshotEnabled", true);
 pref("extensions.mindflow.autoSnapshotIntervalMinutes", 10);

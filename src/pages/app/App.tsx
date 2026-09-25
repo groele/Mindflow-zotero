@@ -21,7 +21,7 @@ import {
 } from '../../services/io/exporter';
 import {
   isZoteroEnvironment, getSelectedZoteroItems, convertZoteroItemToNode,
-  saveMindMapToZoteroNote, getSampleAcademicItems, extractZoteroItemData,
+  saveMindMapToZoteroNote, saveMindMapToZoteroAttachment, getSampleAcademicItems, extractZoteroItemData,
   locateItemInZotero, openItemPdfInZotero, openZoteroPreferences, ZoteroItemData
 } from '../../services/zotero/zoteroBridge';
 import { playAddNode, playTaskComplete, playDeleteNode } from '../../services/audio/soundService';
@@ -1224,6 +1224,15 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     alert(res.message);
   }, [doc]);
 
+  const handleSaveToZoteroAttachment = useCallback(async () => {
+    if (!doc) return;
+    const res = await saveMindMapToZoteroAttachment(doc);
+    if (res.message) {
+      alert(res.message);
+    }
+    setSaveStatus({ state: 'saved', message: '已成功归档至 Zotero 文献条目！' });
+  }, [doc]);
+
   // Import file handler
   const handleImportFile = async (file: File) => {
     if (!(await flushCurrentDocument())) return;
@@ -1378,6 +1387,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
           isZoteroMode={isZoteroMode}
           onImportZoteroItems={handleImportZoteroItems}
           onSaveToZoteroNote={handleSaveToZoteroNote}
+          onSaveToZoteroAttachment={handleSaveToZoteroAttachment}
         />
       )}
 

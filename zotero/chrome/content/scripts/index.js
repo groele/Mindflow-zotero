@@ -336,6 +336,11 @@
           if (data.type === 'MINDFLOW_OPEN_PREFERENCES') {
             this.openPreferencesPane(window);
           }
+
+          // G. Request saving MindMapDocument directly to Zotero Item Attachment & Note
+          if (data.type === 'MINDFLOW_SAVE_ATTACHMENT' && data.doc) {
+            this.saveMindMapToItem(data, window);
+          }
         } catch (e) {
           Zotero.log?.('[MindFlow] Message processing note: ' + e);
         }
@@ -588,8 +593,9 @@
     openStandaloneWindow(options = {}, targetWindow = null) {
       try {
         const ww = Services.ww;
+        // dialog=no,all,resizable=yes,minimizable=yes ensures standard OS window controls (minimize, maximize/restore, close) on Windows
         const features =
-          'chrome,centerscreen,resizable=yes,width=1440,height=920,menubar=no,toolbar=no';
+          'chrome,dialog=no,all,centerscreen,resizable=yes,minimizable=yes,close=yes,titlebar=yes,width=1440,height=920';
         const url = `${CHROME_ROOT}index.html`;
 
         const params = {
@@ -602,12 +608,221 @@
         };
 
         const win = ww.openWindow(null, url, 'mindflow-window', features, params);
-        if (win && win.focus) {
-          win.focus();
+        if (win) {
+          try {
+            win.addEventListener('load', () => {
+              if (win.document) {
+                win.document.title = 'MindFlow 思维导图与学术研读工作区';
+              }
+            }, { once: true });
+          } catch (_) {}
+          if (win.focus) {
+            win.focus();
+          }
         }
       } catch (err) {
         Zotero.logError?.('[MindFlow] Failed to open standalone window: ' + err);
       }
+    },
+
+    async saveMindMapToItem(data = {}, targetWindow = null) {
+      try {
+        const win =
+          targetWindow ||
+          (typeof window !== 'undefined' ? window : null) ||
+          (Zotero.getMainWindow ? Zotero.getMainWindow() : null);
+
+        const doc = data.doc;
+        if (!doc) return { success: false, message: '导图数据为空' };
+
+        const safeTitle = (doc.title || '思维导图').replace(/[\\/:*?"<>|]/g, '_').trim();
+        const userLibId = Zotero.Libraries?.userLibraryID || 1;
+        let parentItem = null;
+
+        // 1. Try to find parent item by key
+        if (data.parentItemKey) {
+          const key = String(data.parentItemKey).replace(/^.*\/items\//, '').trim();
+          if (/^\d+$/.test(key)) {
+            parentItem = Zotero.Items.get(Number(key));
+          } else if (Zotero.Items.getByLibraryAndKey) {
+            parentItem = Zotero.Items.getByLibraryAndKey(userLibId, key);
+          }
+        }
+
+        // 2. Try to find parent item from currently selected items in Zotero library pane
+        if (!parentItem && win?.ZoteroPane) {
+          const selected = win.ZoteroPane.getSelectedItems();
+          if (Array.isArray(selected) && selected.length > 0) {
+            const firstRegular = selected.find((item) => (typeof item.isRegularItem === 'function' ? item.isRegularItem() : true));
+            parentItem = firstRegular || selected[0];
+          }
+        }
+
+        // 3. Try to locate item referenced in the root node link (e.g. zotero://select/items/...)
+        if (!parentItem && doc.root?.link) {
+          const match = doc.root.link.match(/zotero:\/\/select\/items\/([a-zA-Z0-9_]+)/);
+          if (match && match[1]) {
+            const key = match[1];
+            if (/^\d+$/.test(key)) {
+              parentItem = Zotero.Items.get(Number(key));
+            } else if (Zotero.Items.getByLibraryAndKey) {
+              parentItem = Zotero.Items.getByLibraryAndKey(userLibId, key);
+            }
+          }
+        }
+
+        let savedAttachment = false;
+        let savedPath = '';
+
+        // Save to Custom Local Path if configured
+        let customSavePath = '';
+        try {
+          if (Zotero.Prefs) {
+            customSavePath = Zotero.Prefs.get('extensions.mindflow.customSavePath', true) || '';
+          }
+        } catch (_) {}
+
+        if (customSavePath && typeof customSavePath === 'string') {
+          customSavePath = customSavePath.trim();
+          if (customSavePath) {
+            try {
+              const localFilePath = PathUtils.join(customSavePath, `${safeTitle}.mindflow`);
+              await IOUtils.writeUTF8(localFilePath, JSON.stringify(doc, null, 2));
+              savedPath = localFilePath;
+              Zotero.log?.(`[MindFlow] Successfully saved copy to custom path: ${localFilePath}`);
+            } catch (err) {
+              Zotero.logError?.(`[MindFlow] Failed to write to customSavePath: ${err}`);
+            }
+          }
+        }
+
+        // If parent item found, attach to it!
+        if (parentItem) {
+          const tempPath = PathUtils.join(PathUtils.tempDir, `${safeTitle}.mindflow`);
+          await IOUtils.writeUTF8(tempPath, JSON.stringify(doc, null, 2));
+
+          // Check if an existing mindflow attachment already exists under parentItem
+          let existingAtt = null;
+          if (typeof parentItem.getAttachments === 'function') {
+            const attIds = parentItem.getAttachments();
+            for (const attId of attIds) {
+              const att = Zotero.Items.get(attId);
+              if (att && att.isAttachment && att.isAttachment()) {
+                const fname = att.attachmentFilename || '';
+                const attTitle = (typeof att.getField === 'function' ? att.getField('title') : att.title) || '';
+                if (fname.endsWith('.mindflow') || attTitle.includes('.mindflow') || attTitle.includes('MindFlow')) {
+                  existingAtt = att;
+                  break;
+                }
+              }
+            }
+          }
+
+          if (existingAtt) {
+            try {
+              const currentPath = await existingAtt.getFilePathAsync?.();
+              if (currentPath) {
+                await IOUtils.writeUTF8(currentPath, JSON.stringify(doc, null, 2));
+                savedAttachment = true;
+              } else if (typeof existingAtt.relinkAttachmentFile === 'function') {
+                await existingAtt.relinkAttachmentFile(tempPath);
+                savedAttachment = true;
+              }
+            } catch (updateErr) {
+              Zotero.log?.('[MindFlow] Existing attachment update note, creating new: ' + updateErr);
+            }
+          }
+
+          if (!savedAttachment) {
+            await Zotero.Attachments.importFromFile({
+              file: tempPath,
+              parentItemID: parentItem.id,
+              title: `${safeTitle}.mindflow (MindFlow 导图源文件)`,
+              contentType: 'application/json',
+            });
+            savedAttachment = true;
+          }
+
+          // Clean up temp file
+          try {
+            await IOUtils.remove(tempPath);
+          } catch (_) {}
+
+          // Also create/update child outline note if requested or autoArchiveToItem
+          let shouldCreateNote = true;
+          try {
+            if (Zotero.Prefs) {
+              shouldCreateNote = Zotero.Prefs.get('extensions.mindflow.autoArchiveToItem', true) !== false;
+            }
+          } catch (_) {}
+
+          if (shouldCreateNote) {
+            try {
+              const noteHtml = `
+                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+                  <h3 style="color: #0284c7;">🧠 MindFlow 导图大纲: ${safeTitle}</h3>
+                  <p style="color: #64748b; font-size: 11px;">最后归档: ${new Date().toLocaleString()}</p>
+                  <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 8px 0;" />
+                  <ul>
+                    ${this.renderNodeToHtml(doc.root)}
+                  </ul>
+                  <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 8px 0;" />
+                  <p style="font-size: 11px; color: #94a3b8;">已同步挂载 .mindflow 源文件附件，支持 Zotero 云同步与多端漫游</p>
+                </div>
+              `.trim();
+
+              const noteItem = new Zotero.Item('note');
+              noteItem.parentItemID = parentItem.id;
+              noteItem.setNote(noteHtml);
+              await noteItem.saveTx();
+            } catch (noteErr) {
+              Zotero.logError?.('[MindFlow] Failed to create child note: ' + noteErr);
+            }
+          }
+
+          const itemTitle = (typeof parentItem.getField === 'function' ? parentItem.getField('title') : parentItem.title) || '文献条目';
+          const successMsg = `已成功将思维导图归档至文献【${itemTitle.length > 25 ? itemTitle.slice(0, 25) + '...' : itemTitle}】！\n- 子附件：${safeTitle}.mindflow（支持多端云同步）\n- 子笔记：导图结构化大纲${savedPath ? `\n- 本地备份：${savedPath}` : ''}`;
+
+          if (win?.alert) {
+            win.alert(successMsg);
+          }
+          return { success: true, message: successMsg, parentItemTitle: itemTitle, savedPath };
+        } else {
+          // If no parent item found
+          let msg = '';
+          if (savedPath) {
+            msg = `已成功将导图源文件保存至您配置的本地物理路径：\n${savedPath}\n\n（提示：在 Zotero 文献库中选中某篇论文后再保存，即可直接将导图作为该文献的子附件挂载！）`;
+          } else {
+            msg = `未在 Zotero 中选中具体文献条目，且未设置本地备份目录。\n\n请在 Zotero 文献列表中先选中目标文献，或在首选项中设置本地保存文件夹！`;
+          }
+          if (win?.alert) {
+            win.alert(msg);
+          }
+          return { success: Boolean(savedPath), message: msg, savedPath };
+        }
+      } catch (err) {
+        Zotero.logError?.('[MindFlow] saveMindMapToItem error: ' + err);
+        return { success: false, message: '保存失败: ' + err };
+      }
+    },
+
+    renderNodeToHtml(node, level = 1) {
+      if (!node) return '';
+      const indent = '  '.repeat(level);
+      const escape = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      let html = `${indent}<li><strong>${escape(node.text)}</strong>`;
+      if (node.note) {
+        html += `<br/><small style="color: #64748b;">${escape(node.note)}</small>`;
+      }
+      if (Array.isArray(node.children) && node.children.length > 0) {
+        html += `\n${indent}<ul>\n`;
+        for (const child of node.children) {
+          html += this.renderNodeToHtml(child, level + 1);
+        }
+        html += `${indent}</ul>\n${indent}`;
+      }
+      html += `</li>\n`;
+      return html;
     },
 
     openPreferencesPane(targetWindow) {

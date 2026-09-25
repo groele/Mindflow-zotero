@@ -113,10 +113,32 @@
     </vbox>
   </groupbox>
 
-  <!-- Group 4: 数据安全与快照备份 -->
+  <!-- Group 4: 本地物理存储与文献条目归档 -->
   <groupbox class="mindflow-pref-group">
-    <label class="mindflow-group-title"><html:h2>💾 数据安全与自动快照</html:h2></label>
+    <label class="mindflow-group-title"><html:h2>💾 本地物理存储与文献条目归档（推荐）</html:h2></label>
     <vbox class="mindflow-pref-content">
+      <checkbox id="mindflow-pref-autoArchiveToItem"
+                preference="extensions.mindflow.autoArchiveToItem"
+                label="自动将思维导图归档至对应文献条目（强烈推荐，杜绝数据孤岛）" />
+      <html:div class="mindflow-radio-desc">
+        将思维导图文件（.mindflow）与大纲笔记直接挂载在 Zotero 文献条目下。文件实体保存在 Zotero 本地 storage 目录，且自动享受 Zotero 原生 WebDAV / 云端跨设备多端漫游同步。
+      </html:div>
+
+      <html:div class="mindflow-divider"></html:div>
+
+      <hbox align="center" class="mindflow-field-row">
+        <label value="自定义本地保存路径：" class="mindflow-field-label" />
+        <html:input id="mindflow-pref-customSavePath" preference="extensions.mindflow.customSavePath" class="mindflow-input" placeholder="例如：D:\Research\MindMaps 或留空" style="flex: 1; margin-right: 8px;" />
+        <html:button id="mindflow-btn-choose-save-path" class="mindflow-btn-secondary" style="white-space: nowrap;">
+          📁 浏览选择文件夹...
+        </html:button>
+      </hbox>
+      <html:div class="mindflow-radio-desc">
+        设置后，保存导图时会在您指定的本地物理文件夹中实时同步生成 .mindflow 实体文件，让您的学术构思数据拥有双重本地备份保障。
+      </html:div>
+
+      <html:div class="mindflow-divider"></html:div>
+
       <checkbox id="mindflow-pref-autoSnapshotEnabled"
                 preference="extensions.mindflow.autoSnapshotEnabled"
                 label="启用编辑时自动历史快照备份（防止误删或误改）" />

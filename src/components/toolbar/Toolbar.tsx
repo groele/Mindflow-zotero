@@ -1,8 +1,8 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Plus, CornerDownRight, Trash2, Undo2, Redo2,
   Palette, Layout, ListTree, Download, Upload,
-  HelpCircle, Maximize2, ZoomIn, ZoomOut,
+  HelpCircle, Maximize2, Minimize2, ZoomIn, ZoomOut,
   Globe, ChevronDown, Check, Inbox, Sparkles, Command, Settings,
   Presentation, Search as SearchIcon, Scan, Layers, ImagePlus, GraduationCap
 } from 'lucide-react';
@@ -59,6 +59,7 @@ interface ToolbarProps {
   isZoteroMode?: boolean;
   onImportZoteroItems?: () => void;
   onSaveToZoteroNote?: () => void;
+  onSaveToZoteroAttachment?: () => void;
 }
 
 export const Toolbar: React.FC<ToolbarProps> = ({
@@ -110,6 +111,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   isZoteroMode = false,
   onImportZoteroItems,
   onSaveToZoteroNote,
+  onSaveToZoteroAttachment,
 }) => {
   const buttons = toolbarButtons || {
     history: true,
@@ -129,8 +131,25 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [isLevelMenuOpen, setIsLevelMenuOpen] = useState(false);
   const [isZoteroMenuOpen, setIsZoteroMenuOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const nodeImageInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const handleToggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen?.().catch(() => {});
+    } else {
+      document.exitFullscreen?.().catch(() => {});
+    }
+  };
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -625,6 +644,22 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                 </div>
               </button>
 
+              {onSaveToZoteroAttachment && (
+                <button
+                  onClick={() => {
+                    onSaveToZoteroAttachment();
+                    setIsZoteroMenuOpen(false);
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-2"
+                >
+                  <span className="text-base">📎</span>
+                  <div>
+                    <div className="font-medium text-slate-800 dark:text-slate-200">存为文献条目附件 (.mindflow)</div>
+                    <div className="text-[10px] text-slate-400">作为源文件附件挂载，本地存储 + 云同步</div>
+                  </div>
+                </button>
+              )}
+
               {onSaveToZoteroNote && (
                 <button
                   onClick={() => {
@@ -635,7 +670,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                 >
                   <span className="text-base">📝</span>
                   <div>
-                    <div className="font-medium text-slate-800 dark:text-slate-200">存为 Zotero 笔记</div>
+                    <div className="font-medium text-slate-800 dark:text-slate-200">存为 Zotero 大纲笔记</div>
                     <div className="text-[10px] text-slate-400">生成富文本大纲存入文献库</div>
                   </div>
                 </button>
@@ -679,6 +714,19 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             <Settings className="w-4 h-4 text-slate-500" />
           </button>
         )}
+
+        {/* Fullscreen Toggle */}
+        <button
+          onClick={handleToggleFullscreen}
+          title={isFullscreen ? '退出全屏模式 (F11 / Esc)' : '全屏沉浸研读 (F11)'}
+          className="p-1.5 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+        >
+          {isFullscreen ? (
+            <Minimize2 className="w-4 h-4 text-blue-600" />
+          ) : (
+            <Maximize2 className="w-4 h-4 text-slate-500" />
+          )}
+        </button>
 
         {/* Zoom & Fit controls */}
         {buttons.zoom && (

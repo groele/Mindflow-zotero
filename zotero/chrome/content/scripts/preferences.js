@@ -23,6 +23,7 @@ var MindFlow_Preferences = {
       // 2. All Checkboxes
       const checkboxes = [
         { id: 'mindflow-pref-showWelcomeOnStartup', pref: 'extensions.mindflow.showWelcomeOnStartup', def: true },
+        { id: 'mindflow-pref-autoArchiveToItem', pref: 'extensions.mindflow.autoArchiveToItem', def: true },
         { id: 'mindflow-pref-includeAbstract', pref: 'extensions.mindflow.includeAbstract', def: true },
         { id: 'mindflow-pref-includeAnnotations', pref: 'extensions.mindflow.includeAnnotations', def: true },
         { id: 'mindflow-pref-includeTags', pref: 'extensions.mindflow.includeTags', def: true },
@@ -73,6 +74,7 @@ var MindFlow_Preferences = {
 
       // 4. Text and Password Inputs
       const textInputs = [
+        { id: 'mindflow-pref-customSavePath', pref: 'extensions.mindflow.customSavePath', def: '' },
         { id: 'mindflow-pref-webdavServerUrl', pref: 'extensions.mindflow.webdavServerUrl', def: '' },
         { id: 'mindflow-pref-webdavBasePath', pref: 'extensions.mindflow.webdavBasePath', def: '/MindFlow/' },
         { id: 'mindflow-pref-webdavUsername', pref: 'extensions.mindflow.webdavUsername', def: '' },
@@ -88,6 +90,47 @@ var MindFlow_Preferences = {
             Zotero.Prefs.set(item.pref, el.value.trim(), true);
           });
         }
+      }
+
+      // 4b. Folder picker button for custom save path
+      const btnChooseSavePath = doc.getElementById('mindflow-btn-choose-save-path');
+      if (btnChooseSavePath) {
+        btnChooseSavePath.addEventListener('click', () => {
+          try {
+            const fp = Components.classes['@mozilla.org/filepicker;1'].createInstance(
+              Components.interfaces.nsIFilePicker
+            );
+            fp.init(window, '选择 MindFlow 思维导图本地保存文件夹', Components.interfaces.nsIFilePicker.modeGetFolder);
+            const handlePick = () => {
+              if (fp.file && fp.file.path) {
+                const path = fp.file.path;
+                const input = doc.getElementById('mindflow-pref-customSavePath');
+                if (input) input.value = path;
+                Zotero.Prefs.set('extensions.mindflow.customSavePath', path, true);
+              }
+            };
+            if (typeof fp.open === 'function') {
+              fp.open((result) => {
+                if (
+                  result === Components.interfaces.nsIFilePicker.returnOK ||
+                  result === Components.interfaces.nsIFilePicker.returnReplace
+                ) {
+                  handlePick();
+                }
+              });
+            } else {
+              const res = fp.show();
+              if (
+                res === Components.interfaces.nsIFilePicker.returnOK ||
+                res === Components.interfaces.nsIFilePicker.returnReplace
+              ) {
+                handlePick();
+              }
+            }
+          } catch (e) {
+            Zotero.logError?.('[MindFlow] Folder picker note: ' + e);
+          }
+        });
       }
 
       // 5. Button: Open Workspace
@@ -110,6 +153,8 @@ var MindFlow_Preferences = {
             const defaults = {
               windowMode: 'tab',
               showWelcomeOnStartup: true,
+              autoArchiveToItem: true,
+              customSavePath: '',
               theme: 'academic',
               defaultLayout: 'mindmap',
               canvasBackground: 'dots',

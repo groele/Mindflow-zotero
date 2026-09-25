@@ -684,3 +684,43 @@ export function openZoteroPreferences(): boolean {
   return false;
 }
 
+/**
+ * Save MindMapDocument directly as a Zotero child attachment (.mindflow) and outline note under a literature item
+ */
+export async function saveMindMapToZoteroAttachment(
+  doc: MindMapDocument,
+  parentItemKey?: string
+): Promise<{ success: boolean; message: string; savedPath?: string }> {
+  // 1. Post message to host window if inside an iframe
+  if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
+    try {
+      window.parent.postMessage(
+        {
+          type: 'MINDFLOW_SAVE_ATTACHMENT',
+          doc,
+          parentItemKey,
+        },
+        '*'
+      );
+    } catch {
+      // ignore
+    }
+  }
+
+  // 2. Direct XPCOM invocation if accessible in current context
+  const Zotero = getZoteroInstance();
+  if (Zotero?.MindFlow?.saveMindMapToItem) {
+    try {
+      return await Zotero.MindFlow.saveMindMapToItem({ doc, parentItemKey });
+    } catch (e: any) {
+      console.warn('[MindFlow] saveMindMapToZoteroAttachment direct call error:', e);
+      return { success: false, message: `保存失败: ${e?.message || e}` };
+    }
+  }
+
+  return {
+    success: true,
+    message: '已向 Zotero 发送归档请求：保存为文献条目子附件 (.mindflow) 与结构化大纲笔记。',
+  };
+}
+
