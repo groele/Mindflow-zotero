@@ -1,6 +1,6 @@
 # 🚀 MindFlow - 现代 Chrome 浏览器思维导图与伴读笔记
 
-[![GitHub release](https://img.shields.io/badge/release-v3.1.0-blue.svg)](https://github.com/groele/mindflow/releases/tag/v3.1.0)
+[![GitHub release](https://img.shields.io/badge/release-v3.1.1-blue.svg)](https://github.com/groele/mindflow/releases/tag/v3.1.1)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-19-61dafb.svg)](https://react.dev/)
@@ -13,6 +13,7 @@
 
 ## 3.1.0 图片与文字节点
 
+- 3.1.1：选中节点后，可直接点击节点上方悬浮工具栏中的图片图标导入或替换图片。
 - 工具栏点击“图片节点”可在当前主题下导入图片；选中任意节点后，也可在属性面板为其添加或替换图片。
 - 图片可与节点文字同时显示。纯图片节点可留空文字，随后在属性面板中添加说明。
 - 在属性面板拖动“显示宽度”调整图片大小，画布和布局随之更新。

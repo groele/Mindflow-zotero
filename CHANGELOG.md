@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.1.1] - 2026-09-25
+
+### 改进
+- 在节点悬浮工具栏增加图片图标，直接为当前节点导入或替换图片，并沿用现有的格式、压缩和存储空间检查。
+
 ## [3.1.0] - 2026-09-25
 
 ### 新增

@@ -1196,6 +1196,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
               onContextMenuNode={handleContextMenuNode}
               onAddChildNode={handleAddChild}
               onAddSiblingNode={() => handleAddSibling(false)}
+              onImportNodeImage={(id, file) => handleImportNodeImage(file, id)}
               onDeleteSelectedNode={(id) => handleDeleteNode(id)}
               onQuickColorNode={(id, color) => handleUpdateNodePatch(id, { color })}
               onCreateRelationship={handleCreateRelationship}

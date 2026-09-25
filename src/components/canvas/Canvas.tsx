@@ -5,7 +5,7 @@ import {
 } from '../../core/model/types';
 import { NodeCard } from '../node/NodeCard';
 import {
-  Plus, ArrowDown, Edit3, Link2, Palette, CheckSquare, Trash2, X, Check
+  Plus, ArrowDown, Edit3, ImagePlus, Link2, Palette, CheckSquare, Trash2, X, Check
 } from 'lucide-react';
 
 interface CanvasProps {
@@ -35,6 +35,7 @@ interface CanvasProps {
   // Micro-toolbar & Relationship actions
   onAddChildNode?: (parentId: string) => void;
   onAddSiblingNode?: () => void;
+  onImportNodeImage?: (nodeId: string, file: File) => Promise<void>;
   onDeleteSelectedNode?: (id: string) => void;
   onQuickColorNode?: (id: string, color: string) => void;
   onCreateRelationship?: (fromId: string, toId: string) => void;
@@ -71,6 +72,7 @@ export const Canvas: React.FC<CanvasProps> = ({
   canvasBackground = 'dots',
   onAddChildNode,
   onAddSiblingNode,
+  onImportNodeImage,
   onDeleteSelectedNode,
   onQuickColorNode,
   onCreateRelationship,
@@ -81,6 +83,8 @@ export const Canvas: React.FC<CanvasProps> = ({
   onBatchDelete,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const nodeImageInputRef = useRef<HTMLInputElement>(null);
+  const imageTargetIdRef = useRef<string | null>(null);
   const [isDraggingCanvas, setIsDraggingCanvas] = useState(false);
   const dragStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null);
@@ -289,6 +293,24 @@ export const Canvas: React.FC<CanvasProps> = ({
       `}
       style={{ backgroundColor: theme.background }}
     >
+      <input
+        ref={nodeImageInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        aria-label="选择当前节点图片"
+        className="hidden"
+        onChange={event => {
+          const file = event.target.files?.[0];
+          const targetId = imageTargetIdRef.current;
+          event.target.value = '';
+          imageTargetIdRef.current = null;
+          if (file && targetId && onImportNodeImage) {
+            void onImportNodeImage(targetId, file).catch(error => {
+              window.alert(`图片导入失败：${error?.message || '未知错误'}`);
+            });
+          }
+        }}
+      />
       {/* Connecting Relationship Banner on Top */}
       {connectingFromId && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-purple-600 text-white text-xs font-semibold px-4 py-2 rounded-full shadow-2xl flex items-center gap-2.5 z-50 animate-bounce">
@@ -504,6 +526,18 @@ export const Canvas: React.FC<CanvasProps> = ({
                 className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition-colors"
               >
                 <Edit3 className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  imageTargetIdRef.current = activeMicroNode.id;
+                  nodeImageInputRef.current?.click();
+                }}
+                title={activeMicroNode.node.image ? '替换当前节点图片' : '插入图片到当前节点'}
+                aria-label={activeMicroNode.node.image ? '替换当前节点图片' : '插入图片到当前节点'}
+                className="p-1.5 rounded-lg hover:bg-violet-50 dark:hover:bg-violet-950/40 text-violet-600 transition-colors"
+              >
+                <ImagePlus className="w-3.5 h-3.5" />
               </button>
               <button
                 type="button"
