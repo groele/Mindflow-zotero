@@ -28,3 +28,4 @@ pref("extensions.mindflow.webdavAutoSync", false);
 pref("extensions.mindflow.aiEndpoint", "https://api.openai.com/v1/chat/completions");
 pref("extensions.mindflow.aiModel", "");
 pref("extensions.mindflow.aiApiKey", "");
+pref("extensions.mindflow.aiMaxPdfPages", 120);

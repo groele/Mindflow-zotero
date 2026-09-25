@@ -40,6 +40,7 @@ var MindFlow_Preferences = (() => {
   const NATIVE_DEFAULTS = {
     autoArchiveToItem: true, autoOpenAfterExport: true, customSavePath: '',
     aiEndpoint: 'https://api.openai.com/v1/chat/completions', aiModel: '', aiApiKey: '',
+    aiMaxPdfPages: 120,
   };
   const THEMES = [
     ['classic-blue', '经典商务蓝'], ['dark-nebula', '极夜星云'],
@@ -62,6 +63,7 @@ var MindFlow_Preferences = (() => {
       ['aiEndpoint', '兼容 Chat Completions 的接口地址', 'url', null, true],
       ['aiModel', '模型名称', 'text', null, true],
       ['aiApiKey', 'API 密钥（仅保存在本机 Zotero 设置）', 'password', null, true],
+      ['aiMaxPdfPages', '最多读取 PDF 页数', 'number-select', [['50', '50 页'], ['120', '120 页'], ['200', '200 页']], true],
     ],
     interface: [
       ['toolbarPosition', '工具栏位置', 'select', [['top', '顶部'], ['bottom', '底部']]],
@@ -273,8 +275,24 @@ var MindFlow_Preferences = (() => {
         for (const field of fields) renderField(doc, container, field, settings);
         if (group === 'literature') appendDescription(doc, container,
           '附件和笔记保存在文献所属库；群组库写入取决于权限，跨设备附件同步取决于 Zotero 文件同步设置。');
-        if (group === 'ai') appendDescription(doc, container,
-          '点击“AI 解析论文”后，题录、摘要、笔记、批注及可读取的 PDF 文字节选会发送给您配置的模型服务。不会后台自动发送。扫描版 PDF 若无可提取文字，将仅依据可用资料分析；结果需核对原文。密钥不会写入导图或工作区备份。');
+        if (group === 'ai') {
+          appendDescription(doc, container,
+            '在工作台确认资料范围并点击开始后，题录、摘要、最多 12 条笔记、80 条批注及可读取的 PDF 文字会发送给您配置的模型服务。长 PDF 会跨区间采样；扫描件若无文字需先处理。深入分析会分段发送，调用次数和费用可能增加。草稿由您审阅后再归档。密钥不会写入导图或工作区备份。');
+          const button = element(doc, 'button', 'mindflow-btn-secondary', '测试 AI 连接');
+          button.type = 'button';
+          button.addEventListener('click', async () => {
+            button.disabled = true;
+            status(doc, '正在发送不含论文资料的连接测试请求…');
+            try {
+              const result = await Zotero.MindFlow?.testAIConnection?.();
+              if (!result) throw new Error('MindFlow AI 服务尚未加载');
+              status(doc, result.message, !result.success);
+            } catch (error) {
+              status(doc, '连接测试失败：' + error, true);
+            } finally { button.disabled = false; }
+          });
+          container.appendChild(button);
+        }
         if (group === 'backup') appendDescription(doc, container,
           '额外保存文件夹不代替文献下的 .mindflow 附件。导出、导入与恢复工作区请在导图工作台操作。');
         if (group === 'webdav') appendDescription(doc, container,

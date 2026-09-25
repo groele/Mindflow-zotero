@@ -45,7 +45,9 @@ import { SettingsService } from '../../services/storage/settingsService';
 import { BackupService, MAX_BACKUP_BYTES, validateMindMapDocument } from '../../services/storage/backupService';
 import { WebDAVService } from '../../services/sync/webdavService';
 import { safeStorage } from '../../services/storage/safeStorage';
-import { createResearchDocument, requestResearchAnalysis } from '../../services/zotero/researchAnalysis';
+import { createResearchDocument, prepareResearchAnalysis, requestResearchAnalysis,
+  ResearchInputPreview, ResearchProgress } from '../../services/zotero/researchAnalysis';
+import { AIResearchModal, AIResearchStage } from '../../components/modal/AIResearchModal';
 import { Minimize2 } from 'lucide-react';
 
 interface AppProps {
@@ -61,6 +63,17 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   const [isAiAnalyzing, setIsAiAnalyzing] = useState(false);
   const aiAnalyzingRef = useRef(false);
   const analyzeRequestRef = useRef<(reference?: string) => Promise<void>>(async () => {});
+  const aiAbortRef = useRef<AbortController | null>(null);
+  const aiRequestTokenRef = useRef(0);
+  const [aiWorkflow, setAiWorkflow] = useState<{
+    reference: string;
+    stage: AIResearchStage;
+    preview: ResearchInputPreview | null;
+    progress: ResearchProgress | null;
+    error: string;
+  } | null>(null);
+  const [isArchivingAiDraft, setIsArchivingAiDraft] = useState(false);
+  const aiArchivingRef = useRef(false);
   const [viewport, setViewport] = useState<ViewportTransform>({ x: 0, y: 0, scale: 1 });
   const clipboardSubtreeRef = useRef<MindMapNode | null>(null);
   const clipboardNodeTokenRef = useRef<string | null>(null);
@@ -972,7 +985,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
 
   useEffect(() => {
     const handlePaste = (event: ClipboardEvent) => {
-      if (!doc || editingId || isSettingsOpen || isShortcutsOpen || isCommandPaletteOpen || isTemplateModalOpen || isSearchOpen || isPresentationOpen) return;
+      if (!doc || aiWorkflow || editingId || isSettingsOpen || isShortcutsOpen || isCommandPaletteOpen || isTemplateModalOpen || isSearchOpen || isPresentationOpen) return;
       if (event.target instanceof Element && event.target.closest('input, textarea, [contenteditable]:not([contenteditable="false"])')) return;
 
       const imageItem = Array.from(event.clipboardData?.items || []).find(item => item.kind === 'file' && item.type.startsWith('image/'));
@@ -997,7 +1010,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     };
     window.addEventListener('paste', handlePaste);
     return () => window.removeEventListener('paste', handlePaste);
-  }, [doc, editingId, selectedId, isSettingsOpen, isShortcutsOpen, isCommandPaletteOpen, isTemplateModalOpen, isSearchOpen, isPresentationOpen, handleImportNodeImage, handlePasteNode]);
+  }, [doc, aiWorkflow, editingId, selectedId, isSettingsOpen, isShortcutsOpen, isCommandPaletteOpen, isTemplateModalOpen, isSearchOpen, isPresentationOpen, handleImportNodeImage, handlePasteNode]);
 
   // Toggle Task Status (todo -> doing -> done -> todo)
   const handleToggleTaskStatus = useCallback((id: string) => {
@@ -1317,6 +1330,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   // Global keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (aiWorkflow) return;
       // Escape closes floating search or context menu
       if (e.key === 'Escape') {
         if (contextMenuState) {
@@ -1368,6 +1382,10 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
           const latest = latestDocRef.current;
           if (!latest || !isZoteroMode) {
             setSaveStatus({ state: 'saved', message: '已保存到本地' });
+            return;
+          }
+          if (latest.metadata?.aiDraft) {
+            setSaveStatus({ state: 'saved', message: 'AI 草稿已保存到本机；审阅后点击“归档到 Zotero”。' });
             return;
           }
           await zoteroSyncQueueRef.current;
@@ -1494,7 +1512,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
-    editingId, selectedId, layout.nodes, isZenMode, flushCurrentDocument, isZoteroMode,
+    aiWorkflow, editingId, selectedId, layout.nodes, isZenMode, flushCurrentDocument, isZoteroMode,
     handleAddChild, handleAddSibling, handleDeleteNode, handleUndo, handleRedo,
     handleCopyNode, handleDuplicateNode
   ]);
@@ -1527,14 +1545,67 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       return;
     }
     if (!(await flushCurrentDocument())) return;
+    const token = ++aiRequestTokenRef.current;
+    const controller = new AbortController();
+    aiAbortRef.current = controller;
     aiAnalyzingRef.current = true;
     setIsAiAnalyzing(true);
-    setSaveStatus({ state: 'saving', message: '正在读取 Zotero 论文资料并请求 AI 分析…' });
+    setAiWorkflow({ reference, stage: 'preparing', preview: null, progress: null, error: '' });
+    setSaveStatus({ state: 'saving', message: '正在本机整理 Zotero 论文资料…' });
     try {
-      const analysis = await requestResearchAnalysis(reference);
+      const preview = await prepareResearchAnalysis(reference, controller.signal);
+      if (controller.signal.aborted || token !== aiRequestTokenRef.current) return;
+      setAiWorkflow({ reference, stage: 'ready', preview, progress: null, error: '' });
+      setSaveStatus({ state: 'saved', message: '论文资料已准备；请确认分析范围后开始。' });
+    } catch (error: any) {
+      if (controller.signal.aborted || token !== aiRequestTokenRef.current) return;
+      const message = String(error?.message || error);
+      setAiWorkflow({ reference, stage: 'error', preview: null, progress: null, error: message });
+      setSaveStatus({ state: 'error', message: `论文资料准备失败：${message}` });
+      if (message.includes('MindFlow 设置')) handleOpenSettings();
+    } finally {
+      if (aiAbortRef.current === controller) aiAbortRef.current = null;
+      aiAnalyzingRef.current = false;
+      setIsAiAnalyzing(false);
+    }
+  }, [flushCurrentDocument, handleOpenSettings, isZoteroMode]);
+  analyzeRequestRef.current = handleAnalyzeZoteroPaper;
+
+  const handleCancelAiAnalysis = useCallback(() => {
+    ++aiRequestTokenRef.current;
+    aiAbortRef.current?.abort();
+    aiAbortRef.current = null;
+    aiAnalyzingRef.current = false;
+    setIsAiAnalyzing(false);
+    setAiWorkflow(null);
+    setSaveStatus({ state: 'warning', message: 'AI 分析已取消；未创建或归档导图。' });
+  }, []);
+
+  const handleStartAiAnalysis = useCallback(async (mode: 'quick' | 'deep') => {
+    const workflow = aiWorkflow;
+    if (!workflow?.preview || aiAnalyzingRef.current) return;
+    const token = ++aiRequestTokenRef.current;
+    const controller = new AbortController();
+    aiAbortRef.current = controller;
+    aiAnalyzingRef.current = true;
+    setIsAiAnalyzing(true);
+    setAiWorkflow({ ...workflow, stage: 'running', progress: null, error: '' });
+    setSaveStatus({ state: 'saving', message: '正在分析论文；导图尚未创建。' });
+    try {
+      const analysis = await requestResearchAnalysis(workflow.reference, {
+        preparedId: workflow.preview.preparedId, mode, signal: controller.signal,
+        onProgress: (progress) => {
+          if (token === aiRequestTokenRef.current) {
+            setAiWorkflow((current) => current ? { ...current, progress } : current);
+          }
+        },
+      });
+      if (controller.signal.aborted || token !== aiRequestTokenRef.current) return;
+      setAiWorkflow((current) => current ? { ...current, stage: 'saving' } : current);
       const newDoc = createResearchDocument(analysis, settings.defaultThemeId);
-      if (!(await flushCurrentDocument())) return;
+      if (!(await flushCurrentDocument())) throw new Error('当前导图尚未保存，请稍后重试。');
       const savedDoc = await StorageService.saveDocument(newDoc);
+      if (controller.signal.aborted || token !== aiRequestTokenRef.current) return;
       await StorageService.setActiveDocumentId(savedDoc.id);
       cleanDocRef.current = savedDoc;
       cleanRelationshipsRef.current = [];
@@ -1546,25 +1617,49 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       syncHistoryState();
       setIsWelcomeOpen(false);
       setTimeout(() => centerCanvas(), 60);
-      setSaveStatus({ state: 'saving', message: 'AI 研究导图已保存在本机，正在归档至 Zotero 文献…' });
-      try {
-        const archived = await saveMindMapToZoteroAttachment(savedDoc, reference, { silent: true });
-        setSaveStatus(archived.success
-          ? { state: 'saved', message: 'AI 研究导图已创建并归档。请核对每个结论与原文。' }
-          : { state: 'warning', message: `AI 研究导图已保存到本机，但 Zotero 归档失败：${archived.message}` });
-      } catch (archiveError: any) {
-        setSaveStatus({ state: 'warning', message: `AI 研究导图已保存到本机，但 Zotero 归档失败：${archiveError?.message || archiveError}` });
-      }
+      setAiWorkflow(null);
+      setSaveStatus({ state: 'saved', message: 'AI 研究导图草稿已保存在本机；请审阅并编辑后归档到 Zotero。' });
     } catch (error: any) {
+      if (controller.signal.aborted || token !== aiRequestTokenRef.current) return;
       const message = String(error?.message || error);
+      const previewInvalid = message.includes('预览已过期') || message.includes('配置已变化');
+      setAiWorkflow((current) => current ? {
+        ...current, stage: 'error', preview: previewInvalid ? null : current.preview, error: message,
+      } : current);
       setSaveStatus({ state: 'error', message: `AI 论文分析失败：${message}` });
-      if (message.includes('MindFlow 设置')) handleOpenSettings();
     } finally {
+      if (aiAbortRef.current === controller) aiAbortRef.current = null;
       aiAnalyzingRef.current = false;
       setIsAiAnalyzing(false);
     }
-  }, [centerCanvas, flushCurrentDocument, handleOpenSettings, isZoteroMode, settings.defaultThemeId, syncHistoryState]);
-  analyzeRequestRef.current = handleAnalyzeZoteroPaper;
+  }, [aiWorkflow, centerCanvas, flushCurrentDocument, settings.defaultThemeId, syncHistoryState]);
+
+  const handleArchiveAiDraft = useCallback(async () => {
+    if (aiArchivingRef.current || !doc?.metadata?.aiDraft) return;
+    aiArchivingRef.current = true;
+    setIsArchivingAiDraft(true);
+    try {
+      if (!(await flushCurrentDocument())) return;
+      const current = latestDocRef.current;
+      if (!current?.metadata?.aiDraft || !current.metadata.zoteroItemKey) return;
+      setSaveStatus({ state: 'saving', message: '正在将已审阅草稿归档到 Zotero 文献…' });
+      await zoteroSyncQueueRef.current;
+      const archivedDoc = { ...current, metadata: {
+        ...current.metadata, aiDraft: false, autoSyncToZotero: true,
+      } };
+      const archived = await saveMindMapToZoteroAttachment(archivedDoc, current.metadata.zoteroItemKey, { silent: true });
+      if (!archived.success) throw new Error(archived.message);
+      setDoc((previous) => previous?.id === current.id ? {
+        ...previous, metadata: { ...previous.metadata, aiDraft: false, autoSyncToZotero: true },
+      } : previous);
+      setSaveStatus({ state: 'saved', message: 'AI 研究导图已归档至 Zotero；后续编辑将同步到文献附件。' });
+    } catch (error: any) {
+      setSaveStatus({ state: 'warning', message: `草稿仍保存在本机，Zotero 归档失败：${error?.message || error}` });
+    } finally {
+      aiArchivingRef.current = false;
+      setIsArchivingAiDraft(false);
+    }
+  }, [doc?.metadata?.aiDraft, flushCurrentDocument]);
 
   // Explicitly append selected literature as reference child branches to currently selected node
   const handleAppendZoteroItems = useCallback(() => {
@@ -1627,6 +1722,10 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     if (!(await flushCurrentDocument())) return;
     const current = latestDocRef.current;
     if (!current) return;
+    if (current.metadata?.aiDraft) {
+      await handleArchiveAiDraft();
+      return;
+    }
     let parentKey = current.metadata?.zoteroItemKey;
     if (!parentKey && isZoteroMode) {
       const selected = getSelectedZoteroItems();
@@ -1648,7 +1747,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     } else {
       setSaveStatus({ state: 'warning', message: res?.message || '归档失败，请检查 Zotero 状态后重试。' });
     }
-  }, [flushCurrentDocument, isZoteroMode]);
+  }, [flushCurrentDocument, handleArchiveAiDraft, isZoteroMode]);
 
   // Import file handler
   const handleImportFile = async (file: File) => {
@@ -1808,6 +1907,16 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
           onAnalyzeZoteroPaper={() => { void handleAnalyzeZoteroPaper(); }}
           isAiAnalyzing={isAiAnalyzing}
         />
+      )}
+
+      {isZoteroMode && doc.metadata?.aiDraft && (
+        <div role="status" className="flex flex-wrap items-center justify-between gap-2 border-b border-blue-200 bg-blue-50 px-4 py-2 text-xs text-blue-950 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-100">
+          <span><strong>AI 研究导图草稿</strong> · 已保存到本机。请在画布修改节点、核对原文后归档到关联文献。</span>
+          <button type="button" onClick={() => { void handleArchiveAiDraft(); }} disabled={isArchivingAiDraft}
+            className="rounded-lg bg-blue-600 px-3 py-1.5 font-semibold text-white hover:bg-blue-700 disabled:opacity-60">
+            {isArchivingAiDraft ? '正在归档…' : '归档到 Zotero'}
+          </button>
+        </div>
       )}
 
       {/* Floating Exit Button for Zen Mode */}
@@ -2037,6 +2146,22 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
         }}
         onReloadWorkspace={reloadWorkspace}
         onFlushCurrentDocument={flushCurrentDocument}
+      />
+
+      <AIResearchModal
+        isOpen={Boolean(aiWorkflow)}
+        stage={aiWorkflow?.stage || 'preparing'}
+        preview={aiWorkflow?.preview || null}
+        progress={aiWorkflow?.progress || null}
+        error={aiWorkflow?.error || ''}
+        onStart={(mode) => { void handleStartAiAnalysis(mode); }}
+        onRetry={(mode) => {
+          if (aiWorkflow?.preview) void handleStartAiAnalysis(mode);
+          else if (aiWorkflow?.reference) void handleAnalyzeZoteroPaper(aiWorkflow.reference);
+        }}
+        onCancel={handleCancelAiAnalysis}
+        onClose={() => setAiWorkflow(null)}
+        onSettings={handleOpenSettings}
       />
 
       {/* Node Context Menu (Right Click) */}

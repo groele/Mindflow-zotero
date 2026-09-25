@@ -1,10 +1,10 @@
 # MindFlow for Zotero 10：使用与开发指南
 
-本指南对应 Zotero 插件 v1.3.0。面向用户的完整功能与安装说明先看[项目 README](../README.md)。插件清单目前限定 Zotero 10.0.x。
+本指南对应 Zotero 插件 v1.4.0。面向用户的完整功能与安装说明先看[项目 README](../README.md)。插件清单目前限定 Zotero 10.0.x。
 
 ## 安装和升级
 
-从 [GitHub Releases](https://github.com/groele/Mindflow-zotero/releases/tag/v1.3.0) 下载 mindflow-zotero-1.3.0.xpi。在 Zotero 中打开“工具 → 插件”，将 XPI 拖入插件窗口安装；若提示则重启。升级前建议导出重要导图的工作区备份，并确认文献下的 .mindflow 附件已同步。
+从 [GitHub Releases](https://github.com/groele/Mindflow-zotero/releases/tag/v1.4.0) 下载 mindflow-zotero-1.4.0.xpi。在 Zotero 中打开“工具 → 插件”，将 XPI 拖入插件窗口安装；若提示则重启。升级前建议导出重要导图的工作区备份，并确认文献下的 .mindflow 附件已同步。
 
 插件 ID 为 mindflow@groele.org。版本由 zotero/manifest.json 声明；zotero/update.json 指向同版本的 GitHub Release XPI。
 
@@ -38,9 +38,9 @@ Zotero 的数据同步、附件文件同步与 MindFlow 的工作区 WebDAV 备�
 
 ## AI 论文解析
 
-在单篇文献右键菜单或工作台 Zotero 菜单启动。宿主脚本读取本机可用的题录、摘要、笔记、批注和 PDF 文字节选，再经用户配置的兼容 Chat Completions 接口生成固定的研究分析栏目。PDF 文字使用 Zotero 的 PDFWorker 提取，最多读取前 50 页；无法提取时仍可根据其他可用资料分析，但必须在根节点写明资料范围。模型返回的短引文须在对应输入来源中匹配，才能标为“原文支持”；其余内容标为推断或待核验。
+在单篇文献右键菜单或工作台 Zotero 菜单启动。宿主脚本先在本机准备题录、摘要、笔记、批注和 PDF 文字，并在工作台展示资料范围；只有用户点击“开始分析”后才调用模型。PDF 文字使用 Zotero 的 PDFWorker 提取，页数上限可设为 50、120 或 200 页，默认 120 页。超过约 144,000 字符时从不同位置采样。快速模式一次发送跨区间节选；深入模式分段分析较长 PDF 再整合。模型返回的短引文须在对应输入来源中匹配，才能标为“原文支持”；其余内容标为推断或待核验。
 
-AI 密钥使用单独的本机 Zotero 首选项，不进入工作区备份。向模型发送论文内容只能由用户点击生成入口触发。新导图保存后按既有规则尝试归档为所属文献子附件；这一步失败时保留本机导图。完整使用说明见 [AI 研究导图](AI_RESEARCH_MAP.md)。
+AI 密钥使用单独的本机 Zotero 首选项，不进入工作区备份。连接测试只发送短文本；论文资料须经过范围预览和“开始分析”操作才发送。请求禁用 Zotero 浏览会话 Cookie 和请求体调试输出，支持取消当前 HTTP 请求；默认不对模型失败请求自动重试。生成结果先保存在本机草稿，用户在画布审阅编辑并明确归档后才成为文献子附件；归档失败时保留本机草稿。完整使用说明见 [AI 研究导图](AI_RESEARCH_MAP.md)。
 
 ## 设置面板
 
@@ -55,9 +55,9 @@ zotero/chrome/content/preferences.xhtml 是 Zotero 注册的设置页；对应�
     npm ci
     npm run build:zotero
 
-构建脚本检查 TypeScript，生成 Zotero 用 IIFE 前端资源，检查宿主脚本语法，然后打包 dist-zip/mindflow-zotero-1.3.0.xpi。版本号取自 zotero/manifest.json。dist-zotero 和 dist-zip 是生成目录，不进入源码提交。
+构建脚本检查 TypeScript，生成 Zotero 用 IIFE 前端资源，检查宿主脚本语法，然后打包 dist-zip/mindflow-zotero-1.4.0.xpi。版本号取自 zotero/manifest.json。dist-zotero 和 dist-zip 是生成目录，不进入源码提交。
 
-本仓库另有 Chrome 扩展构建，版本为 3.2.0。Zotero 的 v1.3.0 与 Chrome 的 v3.2.0 属于两条版本线。发布时核对 Zotero 清单、更新清单、XPI 文件名、标签和 Release 资产的版本一致。
+本仓库另有 Chrome 扩展构建，版本为 3.2.0。Zotero 的 v1.4.0 与 Chrome 的 v3.2.0 属于两条版本线。发布时核对 Zotero 清单、更新清单、XPI 文件名、标签和 Release 资产的版本一致。
 
 ## 排查顺序
 
