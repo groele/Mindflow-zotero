@@ -194,6 +194,43 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     }
   }, []);
 
+  // Document changes cancel the debounced save. Flush the latest editor state
+  // first so switching maps cannot silently discard recent typing.
+  const flushCurrentDocument = useCallback(async (): Promise<boolean> => {
+    try {
+      pendingSaveTokenRef.current += 1;
+      await saveQueueRef.current;
+      const latest = latestDocRef.current;
+      const latestRelationships = latestRelationshipsRef.current;
+      if (!latest || (cleanDocRef.current === latest && cleanRelationshipsRef.current === latestRelationships)) return true;
+      try {
+        await StorageService.saveDocument({ ...latest, relationships: latestRelationships });
+        cleanDocRef.current = latest;
+        cleanRelationshipsRef.current = latestRelationships;
+        if (latestDocRef.current !== latest || latestRelationshipsRef.current !== latestRelationships) {
+          setSaveStatus({ state: 'warning', message: '保存期间又有新编辑；请暂停编辑后重试切换。' });
+          return false;
+        }
+        return true;
+      } catch (error) {
+        if (!(error instanceof DocumentConflictError)) throw error;
+        const copy = await StorageService.saveDocument({
+          ...latest,
+          relationships: latestRelationships,
+          id: 'doc_' + generateId(),
+          title: `${latest.title}（冲突副本）`,
+          revision: 0,
+          createdAt: Date.now(),
+        });
+        setSaveStatus({ state: 'warning', message: `原导图发生版本冲突；编辑已保存在「${copy.title}」。` });
+        return latestDocRef.current === latest && latestRelationshipsRef.current === latestRelationships;
+      }
+    } catch (error: any) {
+      setSaveStatus({ state: 'error', message: `切换已停止：当前导图保存失败：${error?.message || '存储不可用'}` });
+      return false;
+    }
+  }, []);
+
   // Reload current workspace (e.g. after full backup restore)
   const reloadWorkspace = useCallback(() => {
     StorageService.getActiveDocument().then((loadedDoc) => {
@@ -209,46 +246,128 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     });
   }, [centerCanvas, syncHistoryState]);
 
-  // Load active document on mount
-  useEffect(() => {
-    reloadWorkspace();
+  /**
+   * Create a brand-new dedicated mind map document from Zotero literature item(s),
+   * set the root node and document title to the paper, and immediately archive
+   * into Zotero as a child attachment (.mindflow) and outline note.
+   */
+  const createMindMapFromZoteroItems = useCallback(
+    async (rawItems: any[] | ZoteroItemData[]) => {
+      if (!Array.isArray(rawItems) || rawItems.length === 0) return;
+      const parsedItems: ZoteroItemData[] = [];
+      for (const raw of rawItems) {
+        const d = extractZoteroItemData(raw);
+        if (d) parsedItems.push(d);
+      }
+      if (parsedItems.length === 0) return;
 
-    // Import helper for Zotero items
-    const importZoteroItems = (items: any[]) => {
-      if (!Array.isArray(items) || items.length === 0) return;
-      setDoc((prev) => {
-        if (!prev) return prev;
-        let currentRoot = prev.root;
-        for (const rawItem of items) {
-          const itemData = extractZoteroItemData(rawItem);
-          if (itemData) {
-            const itemNode = convertZoteroItemToNode(itemData);
-            const { newRoot, newNodeId } = addChildNode(currentRoot, prev.root.id, itemNode.text);
-            currentRoot = updateNode(newRoot, newNodeId, {
-              note: itemNode.note,
-              link: itemNode.link,
-              tags: itemNode.tags,
-              color: itemNode.color,
-              children: itemNode.children,
-            });
-          }
-        }
-        return {
-          ...prev,
-          title: `Zotero 文献导图 (${items.length} 篇)`,
-          root: currentRoot,
-          updatedAt: Date.now(),
+      if (!(await flushCurrentDocument())) return;
+
+      let newDoc: MindMapDocument;
+      const primaryItem = parsedItems[0];
+      const primaryItemKey = primaryItem.key;
+
+      if (parsedItems.length === 1) {
+        const item = parsedItems[0];
+        const itemNode = convertZoteroItemToNode(item);
+        const rootNode: MindMapNode = {
+          id: generateId(),
+          text: item.title || '文献导图',
+          note: item.abstract ? `【文献摘要】\n${item.abstract}` : undefined,
+          link: item.zoteroUri,
+          tags: item.tags && item.tags.length > 0 ? item.tags : undefined,
+          color: '#0284c7',
+          isExpanded: true,
+          children: itemNode.children,
         };
-      });
-    };
 
-    // Import helper for an entire Zotero collection
-    const importZoteroCollection = (collectionName: string, items: any[]) => {
+        newDoc = {
+          id: 'doc_' + generateId(),
+          title: item.title || '文献导图',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          root: rootNode,
+          themeId: 'academic',
+          layoutType: 'mindmap',
+          metadata: {
+            zoteroItemKey: item.key,
+            zoteroItemTitle: item.title,
+            zoteroUri: item.zoteroUri,
+            zoteroYear: item.year,
+            zoteroAuthors: item.authors,
+            autoSyncToZotero: true,
+          },
+        };
+      } else {
+        const title = `Zotero 文献专题导图 (${parsedItems.length} 篇)`;
+        const rootNode: MindMapNode = {
+          id: generateId(),
+          text: `📚 文献研读专题 (${parsedItems.length} 篇)`,
+          color: '#0284c7',
+          isExpanded: true,
+          children: parsedItems.map((item) => convertZoteroItemToNode(item)),
+        };
+
+        newDoc = {
+          id: 'doc_' + generateId(),
+          title,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          root: rootNode,
+          themeId: 'academic',
+          layoutType: 'mindmap',
+          metadata: {
+            zoteroItemKey: primaryItemKey,
+            zoteroItemKeys: parsedItems.map((i) => i.key),
+            autoSyncToZotero: true,
+          },
+        };
+      }
+
+      const savedDoc = await StorageService.saveDocument(newDoc);
+      await StorageService.setActiveDocumentId(savedDoc.id);
+      cleanDocRef.current = savedDoc;
+      cleanRelationshipsRef.current = [];
+      setRelationships([]);
+      setDoc(savedDoc);
+      setSelectedId(savedDoc.root.id);
+      setSelectedIds([]);
+      historyRef.current.clear();
+      syncHistoryState();
+      setIsWelcomeOpen(false);
+      setTimeout(() => centerCanvas(), 60);
+
+      // Auto archive directly into Zotero literature item attachment (.mindflow) and child note!
+      if (isZoteroMode) {
+        setSaveStatus({ state: 'saving', message: '正在自动归档至 Zotero 文献条目…' });
+        try {
+          const res = await saveMindMapToZoteroAttachment(savedDoc, primaryItemKey, { silent: false });
+          if (res?.message) {
+            setSaveStatus({ state: 'saved', message: res.message });
+          }
+        } catch (e: any) {
+          console.warn('[MindFlow] Auto-archive note:', e);
+          setSaveStatus({ state: 'warning', message: '导图已创建，但归档至条目附件受阻：' + (e?.message || e) });
+        }
+      } else {
+        setSaveStatus({ state: 'saved', message: '已创建学术文献导图（在 Zotero 7 中将自动归档为条目附件）' });
+      }
+    },
+    [centerCanvas, flushCurrentDocument, isZoteroMode, syncHistoryState]
+  );
+
+  /**
+   * Import an entire Zotero collection as a structured knowledge map
+   */
+  const importZoteroCollection = useCallback(
+    async (collectionName: string, items: any[]) => {
       const parsedItems: ZoteroItemData[] = [];
       for (const raw of items) {
         const d = extractZoteroItemData(raw);
         if (d) parsedItems.push(d);
       }
+
+      if (!(await flushCurrentDocument())) return;
 
       const rootNode: MindMapNode = {
         id: generateId(),
@@ -266,20 +385,42 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
         root: rootNode,
         themeId: 'academic',
         layoutType: 'mindmap',
+        metadata: {
+          zoteroCollectionName: collectionName,
+          zoteroItemKeys: parsedItems.map((i) => i.key),
+          autoSyncToZotero: true,
+        },
       };
 
-      StorageService.saveDocument(newDoc).then(async (saved) => {
-        await StorageService.setActiveDocumentId(saved.id);
-        cleanDocRef.current = saved;
-        cleanRelationshipsRef.current = [];
-        setRelationships([]);
-        setDoc(saved);
-        setSelectedId(saved.root.id);
-        setTimeout(() => centerCanvas(), 60);
-      });
-    };
+      const saved = await StorageService.saveDocument(newDoc);
+      await StorageService.setActiveDocumentId(saved.id);
+      cleanDocRef.current = saved;
+      cleanRelationshipsRef.current = [];
+      setRelationships([]);
+      setDoc(saved);
+      setSelectedId(saved.root.id);
+      setSelectedIds([]);
+      historyRef.current.clear();
+      syncHistoryState();
+      setIsWelcomeOpen(false);
+      setTimeout(() => centerCanvas(), 60);
 
-    // Check if opened directly with Zotero items or document via context menu
+      if (isZoteroMode && parsedItems.length > 0) {
+        saveMindMapToZoteroAttachment(saved, parsedItems[0].key, { silent: false }).then((res) => {
+          if (res?.message) {
+            setSaveStatus({ state: 'saved', message: res.message });
+          }
+        });
+      }
+    },
+    [centerCanvas, flushCurrentDocument, isZoteroMode, syncHistoryState]
+  );
+
+  // Load active document on mount
+  useEffect(() => {
+    reloadWorkspace();
+
+    // Check if opened directly with Zotero items or document via context menu or toolbar
     if (typeof window !== 'undefined' && window.arguments && window.arguments[0]) {
       const args = window.arguments[0];
       if (args.mode === 'open_document' && args.doc) {
@@ -293,22 +434,28 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
             setRelationships(cleanRelationshipsRef.current);
             setDoc(savedDoc);
             setSelectedId(savedDoc.root.id);
+            setIsWelcomeOpen(false);
             setTimeout(() => centerCanvas(), 60);
           } catch (e) {
             console.error('[MindFlow] Failed to load initial document from args:', e);
           }
-        }, 120);
-      } else if (args.mode === 'create_from_selection' && Array.isArray(args.items) && args.items.length > 0) {
-        setTimeout(() => importZoteroItems(args.items), 150);
+        }, 100);
+      } else if (
+        (args.mode === 'create_from_selection' || args.mode === 'create_from_items') &&
+        Array.isArray(args.items) &&
+        args.items.length > 0
+      ) {
+        setTimeout(() => void createMindMapFromZoteroItems(args.items), 120);
       } else if (args.mode === 'create_from_collection' && Array.isArray(args.items)) {
-        setTimeout(() => importZoteroCollection(args.collectionName || args.collection?.name || '文献分类', args.items), 150);
+        setTimeout(() => void importZoteroCollection(args.collectionName || args.collection?.name || '文献分类', args.items), 120);
       }
     }
 
-    // Listen for live imports and document loads when running inside a persistent Zotero tab
+    // Listen for live imports and document loads when running inside a persistent Zotero tab or standalone window
     const handleImportMessage = (event: any) => {
       const data = event.data || event.detail;
       if (!data) return;
+
       if (data.type === 'MINDFLOW_LOAD_DOCUMENT' && data.doc) {
         try {
           const importedDoc = validateMindMapDocument(data.doc, '打开文献导图');
@@ -319,19 +466,55 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
             setRelationships(cleanRelationshipsRef.current);
             setDoc(savedDoc);
             setSelectedId(savedDoc.root.id);
+            setIsWelcomeOpen(false);
             setTimeout(() => centerCanvas(), 60);
           });
         } catch (e) {
           console.error('[MindFlow] Failed to load document from message:', e);
         }
-      } else if (data.type === 'MINDFLOW_IMPORT_ZOTERO_ITEMS' || data.mode === 'create_from_selection') {
+      } else if (
+        data.type === 'MINDFLOW_CREATE_FROM_ITEMS' ||
+        (data.mode === 'create_from_selection' && Array.isArray(data.items))
+      ) {
         const items = data.items || [];
-        importZoteroItems(items);
+        void createMindMapFromZoteroItems(items);
+      } else if (data.type === 'MINDFLOW_IMPORT_ZOTERO_ITEMS') {
+        const items = data.items || [];
+        const current = latestDocRef.current;
+        const isDefaultOrEmpty =
+          !current ||
+          current.title === '新建思维导图' ||
+          current.title === 'MindFlow 思维导图' ||
+          current.root.children.length === 0;
+
+        if (isDefaultOrEmpty) {
+          void createMindMapFromZoteroItems(items);
+        } else {
+          // Append as branch to current map
+          const parentId = selectedId || current.root.id;
+          let currentRoot = current.root;
+          for (const rawItem of items) {
+            const itemData = extractZoteroItemData(rawItem);
+            if (itemData) {
+              const itemNode = convertZoteroItemToNode(itemData);
+              const { newRoot, newNodeId } = addChildNode(currentRoot, parentId, itemNode.text);
+              currentRoot = updateNode(newRoot, newNodeId, {
+                note: itemNode.note,
+                link: itemNode.link,
+                tags: itemNode.tags,
+                color: itemNode.color,
+                children: itemNode.children,
+              });
+            }
+          }
+          commitRootChange(currentRoot);
+        }
       } else if (data.type === 'MINDFLOW_IMPORT_ZOTERO_COLLECTION' || data.mode === 'create_from_collection') {
         const items = data.items || [];
-        importZoteroCollection(data.collectionName || '文献分类', items);
+        void importZoteroCollection(data.collectionName || '文献分类', items);
       }
     };
+
     window.addEventListener('message', handleImportMessage);
     window.addEventListener('mindflow-import-items', handleImportMessage);
 
@@ -365,7 +548,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       window.removeEventListener('message', handleImportMessage);
       window.removeEventListener('mindflow-import-items', handleImportMessage);
     };
-  }, [reloadWorkspace]);
+  }, [centerCanvas, createMindMapFromZoteroItems, importZoteroCollection, reloadWorkspace]);
 
   // Auto-save locally, create interval-based recovery snapshots, then report
   // local/cloud outcomes separately so failures are visible to the user.
@@ -430,6 +613,19 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
         }
       }
 
+      // Silently sync updated mind map to the Zotero item attachment (.mindflow) and outline note
+      if (isZoteroMode && documentToSave.metadata?.zoteroItemKey) {
+        try {
+          void saveMindMapToZoteroAttachment(
+            documentToSave,
+            documentToSave.metadata.zoteroItemKey,
+            { silent: true }
+          );
+        } catch (e) {
+          console.warn('[MindFlow] Silent sync to Zotero attachment note:', e);
+        }
+      }
+
       setSaveStatus(warning
         ? { state: 'warning', message: warning }
         : {
@@ -462,7 +658,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       saveQueueRef.current = saveQueueRef.current.then(runSave, runSave);
     }, 600);
     return () => clearTimeout(timeout);
-  }, [doc, relationships, settings.webdav, settings.autoSnapshotEnabled, settings.autoSnapshotIntervalMinutes]);
+  }, [doc, isZoteroMode, relationships, settings.webdav, settings.autoSnapshotEnabled, settings.autoSnapshotIntervalMinutes]);
 
   // Dynamic document and window / tab title synchronization
   useEffect(() => {
@@ -481,43 +677,6 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       }
     }
   }, [doc?.title]);
-
-  // Document changes cancel the debounced save. Flush the latest editor state
-  // first so switching maps cannot silently discard recent typing.
-  const flushCurrentDocument = useCallback(async (): Promise<boolean> => {
-    try {
-      pendingSaveTokenRef.current += 1;
-      await saveQueueRef.current;
-      const latest = latestDocRef.current;
-      const latestRelationships = latestRelationshipsRef.current;
-      if (!latest || (cleanDocRef.current === latest && cleanRelationshipsRef.current === latestRelationships)) return true;
-      try {
-        await StorageService.saveDocument({ ...latest, relationships: latestRelationships });
-        cleanDocRef.current = latest;
-        cleanRelationshipsRef.current = latestRelationships;
-        if (latestDocRef.current !== latest || latestRelationshipsRef.current !== latestRelationships) {
-          setSaveStatus({ state: 'warning', message: '保存期间又有新编辑；请暂停编辑后重试切换。' });
-          return false;
-        }
-        return true;
-      } catch (error) {
-        if (!(error instanceof DocumentConflictError)) throw error;
-        const copy = await StorageService.saveDocument({
-          ...latest,
-          relationships: latestRelationships,
-          id: 'doc_' + generateId(),
-          title: `${latest.title}（冲突副本）`,
-          revision: 0,
-          createdAt: Date.now(),
-        });
-        setSaveStatus({ state: 'warning', message: `原导图发生版本冲突；编辑已保存在「${copy.title}」。` });
-        return latestDocRef.current === latest && latestRelationshipsRef.current === latestRelationships;
-      }
-    } catch (error: any) {
-      setSaveStatus({ state: 'error', message: `切换已停止：当前导图保存失败：${error?.message || '存储不可用'}` });
-      return false;
-    }
-  }, []);
 
   // Theme
   const theme = useMemo(() => {
@@ -1022,7 +1181,36 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   // Create clean blank document
   const handleCreateBlankDoc = useCallback(async () => {
     if (!(await flushCurrentDocument())) return;
-    const blankDoc = createBlankDocument('新建思维导图');
+
+    // Check if user currently has an item selected in Zotero
+    let targetItemKey: string | undefined = undefined;
+    let targetItemTitle: string | undefined = undefined;
+    let targetItemUri: string | undefined = undefined;
+
+    if (isZoteroMode) {
+      const selected = getSelectedZoteroItems();
+      if (selected && selected.length === 1) {
+        targetItemKey = selected[0].key;
+        targetItemTitle = selected[0].title;
+        targetItemUri = selected[0].zoteroUri;
+      }
+    }
+
+    const docTitle = targetItemTitle ? `${targetItemTitle} - 思维导图` : '新建思维导图';
+    const blankDoc = createBlankDocument(docTitle);
+
+    if (targetItemKey) {
+      blankDoc.metadata = {
+        zoteroItemKey: targetItemKey,
+        zoteroItemTitle: targetItemTitle,
+        zoteroUri: targetItemUri,
+        autoSyncToZotero: true,
+      };
+      if (targetItemUri) {
+        blankDoc.root.link = targetItemUri;
+      }
+    }
+
     const savedDoc = await StorageService.saveDocument(blankDoc);
     await StorageService.setActiveDocumentId(savedDoc.id);
     cleanDocRef.current = savedDoc;
@@ -1033,10 +1221,20 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     setSelectedIds([]);
     historyRef.current.clear();
     syncHistoryState();
+    setIsWelcomeOpen(false);
     setTimeout(() => {
       centerCanvas();
     }, 50);
-  }, [centerCanvas, flushCurrentDocument, syncHistoryState]);
+
+    // If an item was selected, auto archive to that item right away
+    if (isZoteroMode && targetItemKey) {
+      saveMindMapToZoteroAttachment(savedDoc, targetItemKey, { silent: false }).then((res) => {
+        if (res?.message) {
+          setSaveStatus({ state: 'saved', message: res.message });
+        }
+      });
+    }
+  }, [centerCanvas, flushCurrentDocument, isZoteroMode, syncHistoryState]);
 
   // Open settings handler: directly opens Zotero Preferences in Zotero environment
   const handleOpenSettings = useCallback(() => {
@@ -1247,15 +1445,26 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
 
   // Zotero Literature Handlers
   const handleImportZoteroItems = useCallback(() => {
-    if (!doc) return;
-    const parentId = selectedId || doc.root.id;
-
     if (isZoteroMode) {
       const items = getSelectedZoteroItems();
       if (!items || items.length === 0) {
-        alert('请先在 Zotero 文献列表中选中 1 篇或多篇文献，然后再点击导入。');
+        alert('请先在 Zotero 文献列表中选中 1 篇或多篇文献，然后再点击导入或新建导图。');
         return;
       }
+
+      // Check if current document is default or empty
+      const isDefaultOrEmpty =
+        !doc ||
+        doc.title === '新建思维导图' ||
+        doc.title === 'MindFlow 思维导图' ||
+        doc.root.children.length === 0;
+
+      if (isDefaultOrEmpty) {
+        void createMindMapFromZoteroItems(items);
+        return;
+      }
+
+      const parentId = selectedId || doc.root.id;
       let currentRoot = doc.root;
       for (const itemData of items) {
         const itemNode = convertZoteroItemToNode(itemData);
@@ -1268,11 +1477,42 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
           children: itemNode.children,
         });
       }
+
+      const updatedDoc: MindMapDocument = {
+        ...doc,
+        root: currentRoot,
+        updatedAt: Date.now(),
+        metadata: {
+          ...doc.metadata,
+          zoteroItemKey: doc.metadata?.zoteroItemKey || items[0].key,
+          zoteroItemTitle: doc.metadata?.zoteroItemTitle || items[0].title,
+          autoSyncToZotero: true,
+        },
+      };
+
       commitRootChange(currentRoot);
+      setDoc(updatedDoc);
       setSaveStatus({ state: 'saved', message: `已成功导入 ${items.length} 篇 Zotero 文献！` });
+
+      // Automatically sync updated mind map to the primary item
+      if (items[0]?.key) {
+        void saveMindMapToZoteroAttachment(updatedDoc, items[0].key, { silent: true });
+      }
     } else {
       // Browser preview demo items
       const sampleItems = getSampleAcademicItems();
+      const isDefaultOrEmpty =
+        !doc ||
+        doc.title === '新建思维导图' ||
+        doc.title === 'MindFlow 思维导图' ||
+        doc.root.children.length === 0;
+
+      if (isDefaultOrEmpty) {
+        void createMindMapFromZoteroItems(sampleItems);
+        return;
+      }
+
+      const parentId = selectedId || doc.root.id;
       let currentRoot = doc.root;
       for (const itemData of sampleItems) {
         const itemNode = convertZoteroItemToNode(itemData);
@@ -1288,7 +1528,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       commitRootChange(currentRoot);
       setSaveStatus({ state: 'saved', message: '已载入 Zotero 学术文献示例（在 Zotero 7 中将直接读取选中文献）' });
     }
-  }, [doc, selectedId, isZoteroMode, commitRootChange]);
+  }, [commitRootChange, createMindMapFromZoteroItems, doc, isZoteroMode, selectedId]);
 
   const handleSaveToZoteroNote = useCallback(async () => {
     if (!doc) return;
@@ -1298,12 +1538,21 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
 
   const handleSaveToZoteroAttachment = useCallback(async () => {
     if (!doc) return;
-    const res = await saveMindMapToZoteroAttachment(doc);
-    if (res.message) {
+    let parentKey = doc.metadata?.zoteroItemKey;
+    if (!parentKey && isZoteroMode) {
+      const selected = getSelectedZoteroItems();
+      if (selected && selected.length > 0) {
+        parentKey = selected[0].key;
+      }
+    }
+    const res = await saveMindMapToZoteroAttachment(doc, parentKey, { silent: false });
+    if (res?.message) {
       alert(res.message);
     }
-    setSaveStatus({ state: 'saved', message: '已成功归档至 Zotero 文献条目！' });
-  }, [doc]);
+    if (res?.success) {
+      setSaveStatus({ state: 'saved', message: '已成功归档至 Zotero 文献条目！' });
+    }
+  }, [doc, isZoteroMode]);
 
   // Import file handler
   const handleImportFile = async (file: File) => {

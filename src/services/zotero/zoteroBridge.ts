@@ -58,19 +58,34 @@ export function isZoteroEnvironment(): boolean {
 }
 
 /**
- * Extract item information from a live Zotero.Item object
+ * Extract item information from a live Zotero.Item object or pre-serialized item
  */
 export function extractZoteroItemData(item: any): ZoteroItemData | null {
   try {
     if (!item) return null;
+
+    // Fast-path: Already a structured ZoteroItemData
+    if (item.key && item.title && Array.isArray(item.authors) && item.zoteroUri) {
+      return item as ZoteroItemData;
+    }
+
+    const Zotero = getZoteroInstance();
+
+    // If item is an attachment (e.g. user selected PDF under paper), resolve parent regular item!
+    let target = item;
+    if (target && typeof target.isAttachment === 'function' && target.isAttachment() && target.parentItemID) {
+      const parent = Zotero?.Items?.get?.(target.parentItemID);
+      if (parent) target = parent;
+    }
+
     // Ensure it's a regular item (not attachment/note alone, unless attachment has parent)
-    const isRegular = typeof item.isRegularItem === 'function' ? item.isRegularItem() : true;
-    if (!isRegular && typeof item.isNote === 'function' && !item.isNote()) {
+    const isRegular = typeof target.isRegularItem === 'function' ? target.isRegularItem() : true;
+    if (!isRegular && typeof target.isNote === 'function' && !target.isNote()) {
       return null;
     }
 
-    const title = (typeof item.getField === 'function' ? item.getField('title') : item.title) || '无标题文献';
-    const date = typeof item.getField === 'function' ? item.getField('date') : item.date;
+    const title = (typeof target.getField === 'function' ? target.getField('title') : target.title) || '无标题文献';
+    const date = typeof target.getField === 'function' ? target.getField('date') : target.date;
     let year = '';
     if (date) {
       const match = String(date).match(/\b(19|20)\d{2}\b/);
@@ -80,28 +95,28 @@ export function extractZoteroItemData(item: any): ZoteroItemData | null {
     // Authors
     let authors: string[] = [];
     try {
-      if (typeof item.getCreators === 'function') {
-        const creators = item.getCreators();
+      if (typeof target.getCreators === 'function') {
+        const creators = target.getCreators();
         authors = creators.map((c: any) => c.lastName || c.name || `${c.firstName || ''} ${c.lastName || ''}`.trim()).filter(Boolean);
-      } else if (Array.isArray(item.creators)) {
-        authors = item.creators.map((c: any) => c.lastName || c.name || '').filter(Boolean);
+      } else if (Array.isArray(target.creators)) {
+        authors = target.creators.map((c: any) => c.lastName || c.name || '').filter(Boolean);
       }
     } catch {
       // fallback
     }
 
-    const publication = typeof item.getField === 'function' ? (item.getField('publicationTitle') || item.getField('proceedingsTitle') || item.getField('publisher')) : '';
-    const doi = typeof item.getField === 'function' ? item.getField('DOI') : item.doi;
-    const url = typeof item.getField === 'function' ? item.getField('url') : item.url;
-    const abstract = typeof item.getField === 'function' ? item.getField('abstractNote') : item.abstractNote;
+    const publication = typeof target.getField === 'function' ? (target.getField('publicationTitle') || target.getField('proceedingsTitle') || target.getField('publisher')) : '';
+    const doi = typeof target.getField === 'function' ? target.getField('DOI') : target.doi;
+    const url = typeof target.getField === 'function' ? target.getField('url') : target.url;
+    const abstract = typeof target.getField === 'function' ? target.getField('abstractNote') : target.abstractNote;
 
     // Tags
     let tags: string[] = [];
     try {
-      if (typeof item.getTags === 'function') {
-        tags = item.getTags().map((t: any) => t.tag || String(t)).filter(Boolean);
-      } else if (Array.isArray(item.tags)) {
-        tags = item.tags.map((t: any) => t.tag || String(t)).filter(Boolean);
+      if (typeof target.getTags === 'function') {
+        tags = target.getTags().map((t: any) => t.tag || String(t)).filter(Boolean);
+      } else if (Array.isArray(target.tags)) {
+        tags = target.tags.map((t: any) => t.tag || String(t)).filter(Boolean);
       }
     } catch {
       // fallback
@@ -112,24 +127,24 @@ export function extractZoteroItemData(item: any): ZoteroItemData | null {
     const annotations: Array<{ text: string; comment?: string; pageLabel?: string; color?: string }> = [];
 
     try {
-      if (typeof item.getNotes === 'function') {
-        const noteIds = item.getNotes();
-        const Zotero = getZoteroInstance();
+      if (typeof target.getNotes === 'function') {
+        const noteIds = target.getNotes();
         if (Zotero && Array.isArray(noteIds)) {
           for (const noteId of noteIds) {
             const noteItem = Zotero.Items.get(noteId);
             if (noteItem) {
               const noteText = (noteItem.getNote() || '').replace(/<[^>]+>/g, '').trim();
-              if (noteText) notes.push(noteText.slice(0, 300));
+              if (noteText && !noteText.includes('MindFlow 导图大纲')) {
+                notes.push(noteText.slice(0, 300));
+              }
             }
           }
         }
       }
 
       // Attachments & Reader annotations
-      if (typeof item.getAttachments === 'function') {
-        const attIds = item.getAttachments();
-        const Zotero = getZoteroInstance();
+      if (typeof target.getAttachments === 'function') {
+        const attIds = target.getAttachments();
         if (Zotero && Array.isArray(attIds)) {
           for (const attId of attIds) {
             const att = Zotero.Items.get(attId);
@@ -154,14 +169,14 @@ export function extractZoteroItemData(item: any): ZoteroItemData | null {
       // Ignore reading child notes
     }
 
-    const key = item.key || String(item.id || Math.random());
-    const zoteroUri = `zotero://select/items/${item.key || item.id}`;
+    const key = target.key || String(target.id || Math.random());
+    const zoteroUri = `zotero://select/items/${target.key || target.id}`;
 
     return {
       key,
-      id: item.id,
+      id: target.id,
       title,
-      itemType: item.itemType || 'journalArticle',
+      itemType: target.itemType || 'journalArticle',
       authors,
       year,
       publication,
@@ -180,21 +195,36 @@ export function extractZoteroItemData(item: any): ZoteroItemData | null {
 }
 
 /**
- * Get selected items from Zotero client
+ * Get selected items from Zotero client across all possible window scopes
  */
 export function getSelectedZoteroItems(): ZoteroItemData[] {
   const Zotero = getZoteroInstance();
   if (!Zotero) return [];
 
   try {
-    const pane = Zotero.getActiveZoteroPane?.() || (typeof window !== 'undefined' && (window as any).ZoteroPane);
+    const mainWin = Zotero.getMainWindow ? Zotero.getMainWindow() : null;
+    const pane =
+      (Zotero.getActiveZoteroPane && Zotero.getActiveZoteroPane()) ||
+      mainWin?.ZoteroPane ||
+      (typeof window !== 'undefined' && (window.parent as any)?.ZoteroPane) ||
+      (typeof window !== 'undefined' && (window.opener as any)?.ZoteroPane) ||
+      (typeof window !== 'undefined' && (window as any).ZoteroPane);
+
     if (!pane) return [];
 
     const items = pane.getSelectedItems ? pane.getSelectedItems() : [];
     const results: ZoteroItemData[] = [];
     for (const item of items) {
-      const data = extractZoteroItemData(item);
-      if (data) results.push(data);
+      let target = item;
+      // Resolve attachment to parent
+      if (target && typeof target.isAttachment === 'function' && target.isAttachment() && target.parentItemID) {
+        const parent = Zotero.Items?.get?.(target.parentItemID);
+        if (parent) target = parent;
+      }
+      const data = extractZoteroItemData(target);
+      if (data && !results.some((r) => r.key === data.key)) {
+        results.push(data);
+      }
     }
     return results;
   } catch (error) {
@@ -689,8 +719,11 @@ export function openZoteroPreferences(): boolean {
  */
 export async function saveMindMapToZoteroAttachment(
   doc: MindMapDocument,
-  parentItemKey?: string
+  parentItemKey?: string,
+  options?: { silent?: boolean }
 ): Promise<{ success: boolean; message: string; savedPath?: string }> {
+  const targetKey = parentItemKey || doc.metadata?.zoteroItemKey;
+
   // 1. Post message to host window if inside an iframe
   if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
     try {
@@ -698,7 +731,8 @@ export async function saveMindMapToZoteroAttachment(
         {
           type: 'MINDFLOW_SAVE_ATTACHMENT',
           doc,
-          parentItemKey,
+          parentItemKey: targetKey,
+          silent: options?.silent,
         },
         '*'
       );
@@ -711,7 +745,11 @@ export async function saveMindMapToZoteroAttachment(
   const Zotero = getZoteroInstance();
   if (Zotero?.MindFlow?.saveMindMapToItem) {
     try {
-      return await Zotero.MindFlow.saveMindMapToItem({ doc, parentItemKey });
+      return await Zotero.MindFlow.saveMindMapToItem({
+        doc,
+        parentItemKey: targetKey,
+        silent: options?.silent,
+      });
     } catch (e: any) {
       console.warn('[MindFlow] saveMindMapToZoteroAttachment direct call error:', e);
       return { success: false, message: `保存失败: ${e?.message || e}` };
