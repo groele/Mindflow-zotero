@@ -1,10 +1,10 @@
 # MindFlow for Zotero 10：使用与开发指南
 
-本指南对应 Zotero 插件 v1.2.1。面向用户的完整功能与安装说明先看[项目 README](../README.md)。插件清单目前限定 Zotero 10.0.x。
+本指南对应 Zotero 插件 v1.3.0。面向用户的完整功能与安装说明先看[项目 README](../README.md)。插件清单目前限定 Zotero 10.0.x。
 
 ## 安装和升级
 
-从 [GitHub Releases](https://github.com/groele/Mindflow-zotero/releases/tag/v1.2.1) 下载 mindflow-zotero-1.2.1.xpi。在 Zotero 中打开“工具 → 插件”，将 XPI 拖入插件窗口安装；若提示则重启。升级前建议导出重要导图的工作区备份，并确认文献下的 .mindflow 附件已同步。
+从 [GitHub Releases](https://github.com/groele/Mindflow-zotero/releases/tag/v1.3.0) 下载 mindflow-zotero-1.3.0.xpi。在 Zotero 中打开“工具 → 插件”，将 XPI 拖入插件窗口安装；若提示则重启。升级前建议导出重要导图的工作区备份，并确认文献下的 .mindflow 附件已同步。
 
 插件 ID 为 mindflow@groele.org。版本由 zotero/manifest.json 声明；zotero/update.json 指向同版本的 GitHub Release XPI。
 
@@ -36,11 +36,17 @@ zotero/bootstrap.js 管理插件启动、资源注册和关闭清理。src/servi
 
 Zotero 的数据同步、附件文件同步与 MindFlow 的工作区 WebDAV 备份是三个不同过程。Zotero 官方[同步文档](https://www.zotero.org/support/sync)说明：WebDAV 可用于个人库文件，群组库附件需要 Zotero Storage。MindFlow 的 WebDAV 面板只上传工作区备份。
 
+## AI 论文解析
+
+在单篇文献右键菜单或工作台 Zotero 菜单启动。宿主脚本读取本机可用的题录、摘要、笔记、批注和 PDF 文字节选，再经用户配置的兼容 Chat Completions 接口生成固定的研究分析栏目。PDF 文字使用 Zotero 的 PDFWorker 提取，最多读取前 50 页；无法提取时仍可根据其他可用资料分析，但必须在根节点写明资料范围。模型返回的短引文须在对应输入来源中匹配，才能标为“原文支持”；其余内容标为推断或待核验。
+
+AI 密钥使用单独的本机 Zotero 首选项，不进入工作区备份。向模型发送论文内容只能由用户点击生成入口触发。新导图保存后按既有规则尝试归档为所属文献子附件；这一步失败时保留本机导图。完整使用说明见 [AI 研究导图](AI_RESEARCH_MAP.md)。
+
 ## 设置面板
 
 zotero/chrome/content/preferences.xhtml 是 Zotero 注册的设置页；对应的 zotero/chrome/content/scripts/preferences.js 生成字段并保存配置。工作台 SettingsService 与原生面板共享 mindflow.mindflow_app_settings 首选项。宿主逻辑仍使用的旧 extensions.mindflow.* 键也会同步更新，例如窗口模式。
 
-面板包含文献导入、工作台与工具栏、导图编辑、本地快照、WebDAV 五组配置。已打开的工作台会接收设置变更。工作区导出和恢复、WebDAV 连接测试是一次性操作，仍在工作台中执行。
+面板包含文献导入、AI 论文研究导图、工作台与工具栏、导图编辑、本地快照、WebDAV 六组配置。已打开的工作台会接收设置变更。工作区导出和恢复、WebDAV 连接测试是一次性操作，仍在工作台中执行。
 
 ## 构建和发布
 
@@ -49,9 +55,9 @@ zotero/chrome/content/preferences.xhtml 是 Zotero 注册的设置页；对应�
     npm ci
     npm run build:zotero
 
-构建脚本检查 TypeScript，生成 Zotero 用 IIFE 前端资源，检查宿主脚本语法，然后打包 dist-zip/mindflow-zotero-1.2.1.xpi。版本号取自 zotero/manifest.json。dist-zotero 和 dist-zip 是生成目录，不进入源码提交。
+构建脚本检查 TypeScript，生成 Zotero 用 IIFE 前端资源，检查宿主脚本语法，然后打包 dist-zip/mindflow-zotero-1.3.0.xpi。版本号取自 zotero/manifest.json。dist-zotero 和 dist-zip 是生成目录，不进入源码提交。
 
-本仓库另有 Chrome 扩展构建，版本为 3.2.0。Zotero 的 v1.2.1 与 Chrome 的 v3.2.0 属于两条版本线。发布时核对 Zotero 清单、更新清单、XPI 文件名、标签和 Release 资产的版本一致。
+本仓库另有 Chrome 扩展构建，版本为 3.2.0。Zotero 的 v1.3.0 与 Chrome 的 v3.2.0 属于两条版本线。发布时核对 Zotero 清单、更新清单、XPI 文件名、标签和 Release 资产的版本一致。
 
 ## 排查顺序
 

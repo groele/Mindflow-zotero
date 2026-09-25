@@ -1,16 +1,16 @@
 # MindFlow for Zotero
 
-[![Zotero 插件版本](https://img.shields.io/badge/Zotero%20插件-v1.2.1-2563eb)](https://github.com/groele/Mindflow-zotero/releases/tag/v1.2.1)
+[![Zotero 插件版本](https://img.shields.io/badge/Zotero%20插件-v1.3.0-2563eb)](https://github.com/groele/Mindflow-zotero/releases/tag/v1.3.0)
 [![兼容版本](https://img.shields.io/badge/Zotero-10.0.x-c2410c)](zotero/manifest.json)
 [![许可证](https://img.shields.io/badge/License-MIT-15803d)](LICENSE)
 
 **在 Zotero 10 中把文献、PDF 批注和阅读笔记整理成可编辑思维导图。** MindFlow 在文献列表和 PDF 阅读场景提供入口；导图可归档为文献下的 `.mindflow` 附件，并可写回结构化大纲笔记。
 
-> **版本说明：**本仓库同时保留 Chrome 扩展源码（版本 3.2.0）。本 README 和 GitHub `v1.2.1` 标签针对 **Zotero 插件**；下载 Zotero 安装包时请选择 `mindflow-zotero-1.2.1.xpi`，不要选择 Chrome ZIP。
+> **版本说明：**本仓库同时保留 Chrome 扩展源码（版本 3.2.0）。本 README 和 GitHub `v1.3.0` 标签针对 **Zotero 插件**；下载 Zotero 安装包时请选择 `mindflow-zotero-1.3.0.xpi`，不要选择 Chrome ZIP。
 
 ## 下载与安装
 
-1. 从 [v1.2.1 发布页](https://github.com/groele/Mindflow-zotero/releases/tag/v1.2.1)的 Assets 下载 `mindflow-zotero-1.2.1.xpi`。
+1. 从 [v1.3.0 发布页](https://github.com/groele/Mindflow-zotero/releases/tag/v1.3.0)的 Assets 下载 `mindflow-zotero-1.3.0.xpi`。
 2. 在 **Zotero 10** 打开 **工具 → 插件**，将 XPI 拖入插件窗口并按提示安装。Zotero 的[官方插件安装说明](https://www.zotero.org/support/plugins)也介绍了这一入口。
 3. 如 Zotero 提示重启，请重启。安装后可从工具菜单、主工具栏、文献右键菜单或条目详情侧栏打开 MindFlow；`Ctrl/Cmd+Alt+M` 也可调用入口。
 4. 在 **编辑 → 设置 → MindFlow** 调整导入规则、窗口模式、编辑默认值和备份配置。
@@ -62,8 +62,18 @@
 | 大纲笔记 | 可将导图写为关联文献的子笔记；再次保存同一导图时尝试更新对应笔记。 |
 | 权限反馈 | 群组库只读或禁止附件写入时，说明未归档的原因。 |
 | 工作方式 | 可选 Zotero 主窗口选项卡或独立窗口。 |
+| AI 研究解析 | 对单篇文献生成研究背景、问题、体系、方法、结果、意义与局限的独立导图；原文引文与推断分开标注。需自行配置兼容接口。 |
 
 独立笔记和没有文献父条目的附件不会被当作一篇“文献”来生成空白导图。
+
+## AI 论文研究导图
+
+1. 在 **编辑 → 设置 → MindFlow → AI 论文研究导图** 填写兼容 Chat Completions 的接口地址、模型名称和 API 密钥。公网接口必须使用 HTTPS；本机 `localhost` / `127.0.0.1` 可使用 HTTP。密钥保存在本机 Zotero 首选项，不写入导图或工作区备份。
+2. 在 Zotero 文献列表选中**一篇**论文，右键选择 **AI 解析论文并生成研究导图**；也可在 MindFlow 工作台的 Zotero 菜单点击同名操作。首次使用无需先创建普通导图。
+3. 插件在点击后读取该文献的题录、摘要、笔记、PDF 批注和本机可提取的 PDF 文字节选，并发送给所配置的模型服务。生成的新导图不会覆盖原导图；若文献库允许写入，会尝试归档为新的 `.mindflow` 子附件。
+4. 按“已有问题 → 研究目标 → 体系与方法 → 结果证据 → 解决的问题 → 创新意义 → 局限与后续验证”阅读。节点区分 **原文支持**、**推断/待核验**、**待解决**；短引文存于节点备注，原文支持表示引文匹配到发送的资料，仍需读者核对论文语境。
+
+PDF 最多提取前 50 页，过长文本会截断；扫描件、未下载的附件或受保护 PDF 可能无法提取文字。资料不足的栏目会标为待补充，不会伪造论文结论。AI 结果可能不准确，尤其不能把推断当作实验事实。详见 [AI 研究导图使用说明](docs/AI_RESEARCH_MAP.md)。
 
 ## Zotero 10 中的 MindFlow 设置
 
@@ -76,6 +86,7 @@
 | 新建导图与节点编辑 | 10 款默认主题、默认布局、连线、任务优先级、彩虹分支、音效、添加子节点时自动展开父节点。 |
 | 本地保存与历史快照 | 可选的额外保存文件夹、自动快照开关、间隔和每份导图的保留上限。 |
 | WebDAV 备份 | HTTPS 服务器、目录、账户、应用密码以及保存时自动上传工作区备份。 |
+| AI 论文研究导图 | 模型接口地址、模型名称和本机 API 密钥；只有点击生成操作时才发送论文资料。 |
 
 “恢复 MindFlow 默认设置”只重置插件配置，不删除导图、文献附件或历史快照。工作区导出、导入、WebDAV 连通性检查和版本恢复属于一次性操作，请在导图工作台的备份工具中执行。**“归档导图附件时更新结构化大纲子笔记”只控制子笔记**；关闭后，关联文献的 `.mindflow` 附件仍会尝试归档。
 
@@ -129,7 +140,7 @@ npm ci
 npm run build:zotero
 ```
 
-安装文件为 `dist-zip/mindflow-zotero-1.2.1.xpi`；已解压的构建目录在 `dist-zotero/`。这两个目录是生成物，不提交到 Git。Chrome 扩展另用 `npm run build` 构建到 `dist/`，其版本仍为 3.2.0。
+安装文件为 `dist-zip/mindflow-zotero-1.3.0.xpi`；已解压的构建目录在 `dist-zotero/`。这两个目录是生成物，不提交到 Git。Chrome 扩展另用 `npm run build` 构建到 `dist/`，其版本仍为 3.2.0。
 
 | 路径 | 用途 |
 | --- | --- |

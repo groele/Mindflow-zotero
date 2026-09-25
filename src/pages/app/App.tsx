@@ -45,6 +45,7 @@ import { SettingsService } from '../../services/storage/settingsService';
 import { BackupService, MAX_BACKUP_BYTES, validateMindMapDocument } from '../../services/storage/backupService';
 import { WebDAVService } from '../../services/sync/webdavService';
 import { safeStorage } from '../../services/storage/safeStorage';
+import { createResearchDocument, requestResearchAnalysis } from '../../services/zotero/researchAnalysis';
 import { Minimize2 } from 'lucide-react';
 
 interface AppProps {
@@ -57,6 +58,9 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isZoteroMode] = useState<boolean>(() => isZoteroEnvironment());
+  const [isAiAnalyzing, setIsAiAnalyzing] = useState(false);
+  const aiAnalyzingRef = useRef(false);
+  const analyzeRequestRef = useRef<(reference?: string) => Promise<void>>(async () => {});
   const [viewport, setViewport] = useState<ViewportTransform>({ x: 0, y: 0, scale: 1 });
   const clipboardSubtreeRef = useRef<MindMapNode | null>(null);
   const clipboardNodeTokenRef = useRef<string | null>(null);
@@ -134,7 +138,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       let hasDirectAction = false;
       if (typeof window !== 'undefined' && window.arguments && window.arguments[0]) {
         const args = window.arguments[0];
-        if (args.mode === 'create_from_selection' || args.mode === 'create_from_collection') {
+        if (args.mode === 'create_from_selection' || args.mode === 'create_from_collection' || args.mode === 'ai_analyze') {
           hasDirectAction = true;
         }
       }
@@ -502,6 +506,10 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
         setTimeout(() => void createMindMapFromZoteroItems(args.items), 120);
       } else if (args.mode === 'create_from_collection' && Array.isArray(args.items)) {
         setTimeout(() => void importZoteroCollection(args.collectionName || args.collection?.name || '文献分类', args.items), 120);
+      } else if (args.mode === 'ai_analyze' && Array.isArray(args.items) && args.items[0]?.zoteroUri) {
+        void workspaceReady.then(() => {
+          if (!disposed) void analyzeRequestRef.current(args.items[0].zoteroUri);
+        });
       }
     }
 
@@ -553,6 +561,8 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       } else if (data.type === 'MINDFLOW_IMPORT_ZOTERO_COLLECTION' || data.mode === 'create_from_collection') {
         const items = data.items || [];
         void importZoteroCollection(data.collectionName || '文献分类', items);
+      } else if (data.type === 'MINDFLOW_AI_ANALYZE' && typeof data.reference === 'string') {
+        void analyzeRequestRef.current(data.reference);
       }
     };
 
@@ -1504,6 +1514,58 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     }
   }, [createMindMapFromZoteroItems, isZoteroMode]);
 
+  const handleAnalyzeZoteroPaper = useCallback(async (referenceOverride?: string) => {
+    if (!isZoteroMode || aiAnalyzingRef.current) return;
+    const selected = getSelectedZoteroItems();
+    if (!referenceOverride && selected.length > 1) {
+      setSaveStatus({ state: 'warning', message: 'AI 论文分析一次只能处理一篇文献；请只选中一篇。' });
+      return;
+    }
+    const reference = referenceOverride || selected[0]?.zoteroUri || latestDocRef.current?.metadata?.zoteroItemKey;
+    if (!reference) {
+      setSaveStatus({ state: 'warning', message: '请先在 Zotero 文献列表选择一篇论文，或打开一份关联文献的导图。' });
+      return;
+    }
+    if (!(await flushCurrentDocument())) return;
+    aiAnalyzingRef.current = true;
+    setIsAiAnalyzing(true);
+    setSaveStatus({ state: 'saving', message: '正在读取 Zotero 论文资料并请求 AI 分析…' });
+    try {
+      const analysis = await requestResearchAnalysis(reference);
+      const newDoc = createResearchDocument(analysis, settings.defaultThemeId);
+      if (!(await flushCurrentDocument())) return;
+      const savedDoc = await StorageService.saveDocument(newDoc);
+      await StorageService.setActiveDocumentId(savedDoc.id);
+      cleanDocRef.current = savedDoc;
+      cleanRelationshipsRef.current = [];
+      setRelationships([]);
+      setDoc(savedDoc);
+      setSelectedId(savedDoc.root.id);
+      setSelectedIds([]);
+      historyRef.current.clear();
+      syncHistoryState();
+      setIsWelcomeOpen(false);
+      setTimeout(() => centerCanvas(), 60);
+      setSaveStatus({ state: 'saving', message: 'AI 研究导图已保存在本机，正在归档至 Zotero 文献…' });
+      try {
+        const archived = await saveMindMapToZoteroAttachment(savedDoc, reference, { silent: true });
+        setSaveStatus(archived.success
+          ? { state: 'saved', message: 'AI 研究导图已创建并归档。请核对每个结论与原文。' }
+          : { state: 'warning', message: `AI 研究导图已保存到本机，但 Zotero 归档失败：${archived.message}` });
+      } catch (archiveError: any) {
+        setSaveStatus({ state: 'warning', message: `AI 研究导图已保存到本机，但 Zotero 归档失败：${archiveError?.message || archiveError}` });
+      }
+    } catch (error: any) {
+      const message = String(error?.message || error);
+      setSaveStatus({ state: 'error', message: `AI 论文分析失败：${message}` });
+      if (message.includes('MindFlow 设置')) handleOpenSettings();
+    } finally {
+      aiAnalyzingRef.current = false;
+      setIsAiAnalyzing(false);
+    }
+  }, [centerCanvas, flushCurrentDocument, handleOpenSettings, isZoteroMode, settings.defaultThemeId, syncHistoryState]);
+  analyzeRequestRef.current = handleAnalyzeZoteroPaper;
+
   // Explicitly append selected literature as reference child branches to currently selected node
   const handleAppendZoteroItems = useCallback(() => {
     if (!doc) return;
@@ -1743,6 +1805,8 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
           onAppendZoteroItems={handleAppendZoteroItems}
           onSaveToZoteroNote={handleSaveToZoteroNote}
           onSaveToZoteroAttachment={handleSaveToZoteroAttachment}
+          onAnalyzeZoteroPaper={() => { void handleAnalyzeZoteroPaper(); }}
+          isAiAnalyzing={isAiAnalyzing}
         />
       )}
 

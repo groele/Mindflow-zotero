@@ -60,6 +60,8 @@ interface ToolbarProps {
   onAppendZoteroItems?: () => void;
   onSaveToZoteroNote?: () => void;
   onSaveToZoteroAttachment?: () => void;
+  onAnalyzeZoteroPaper?: () => void;
+  isAiAnalyzing?: boolean;
 }
 
 export const Toolbar: React.FC<ToolbarProps> = ({
@@ -112,6 +114,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onAppendZoteroItems,
   onSaveToZoteroNote,
   onSaveToZoteroAttachment,
+  onAnalyzeZoteroPaper,
+  isAiAnalyzing = false,
 }) => {
   const buttons = toolbarButtons || {
     history: true,
@@ -607,7 +611,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           </button>
 
           {isZoteroMenuOpen && (
-            <div className="absolute right-0 mt-1 w-56 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
+            <div className="absolute right-0 mt-1 w-64 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
               <div className="px-3 py-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
                 <span>Zotero 伴读联动</span>
                 <span className={`text-[10px] px-1.5 py-0.5 rounded font-normal ${
@@ -618,6 +622,20 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                   {isZoteroMode ? '已连接 Zotero' : '独立演示模式'}
                 </span>
               </div>
+
+              {isZoteroMode && onAnalyzeZoteroPaper && (
+                <button
+                  type="button"
+                  disabled={isAiAnalyzing}
+                  onClick={() => { onAnalyzeZoteroPaper(); setIsZoteroMenuOpen(false); }}
+                  title="将选中文献的摘要、笔记、批注及可读取的 PDF 文字发送至已配置的 AI 服务"
+                  className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-2 disabled:opacity-50"
+                >
+                  <Sparkles className="w-4 h-4 text-violet-600 shrink-0" />
+                  <span><span className="block font-semibold">{isAiAnalyzing ? '正在解析论文…' : 'AI 解析论文并生成导图'}</span>
+                    <span className="block text-[10px] text-slate-400">研究问题、体系、证据、意义与局限</span></span>
+                </button>
+              )}
 
               {onCreateFromZoteroItems && (
                 <button

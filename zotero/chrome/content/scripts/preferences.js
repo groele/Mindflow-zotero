@@ -39,6 +39,7 @@ var MindFlow_Preferences = (() => {
   };
   const NATIVE_DEFAULTS = {
     autoArchiveToItem: true, autoOpenAfterExport: true, customSavePath: '',
+    aiEndpoint: 'https://api.openai.com/v1/chat/completions', aiModel: '', aiApiKey: '',
   };
   const THEMES = [
     ['classic-blue', '经典商务蓝'], ['dark-nebula', '极夜星云'],
@@ -56,6 +57,11 @@ var MindFlow_Preferences = (() => {
       ['zoteroIncludeTags', '导入文献标签', 'check'],
       ['autoArchiveToItem', '归档导图附件时更新结构化大纲子笔记', 'check', null, true],
       ['autoOpenAfterExport', '保存为 Zotero 笔记后在文献库中定位', 'check', null, true],
+    ],
+    ai: [
+      ['aiEndpoint', '兼容 Chat Completions 的接口地址', 'url', null, true],
+      ['aiModel', '模型名称', 'text', null, true],
+      ['aiApiKey', 'API 密钥（仅保存在本机 Zotero 设置）', 'password', null, true],
     ],
     interface: [
       ['toolbarPosition', '工具栏位置', 'select', [['top', '顶部'], ['bottom', '底部']]],
@@ -192,6 +198,14 @@ var MindFlow_Preferences = (() => {
         : type === 'number-select' ? Number(input.value) : input.value.trim();
       try {
         if (native) {
+          if (path === 'aiEndpoint') {
+            const url = new URL(next);
+            const local = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+            if (!['https:', ...(local ? ['http:'] : [])].includes(url.protocol) ||
+                url.username || url.password || url.search || url.hash) {
+              throw new Error('AI 接口须使用 HTTPS；仅本机 localhost/127.0.0.1 可使用 HTTP，地址中不能包含账号或查询参数');
+            }
+          }
           Zotero.Prefs.set(PREFIX + path, next, true);
           if (prefGet(PREFIX + path, null) !== next) throw new Error('Zotero 未保存此设置');
         } else {
@@ -259,6 +273,8 @@ var MindFlow_Preferences = (() => {
         for (const field of fields) renderField(doc, container, field, settings);
         if (group === 'literature') appendDescription(doc, container,
           '附件和笔记保存在文献所属库；群组库写入取决于权限，跨设备附件同步取决于 Zotero 文件同步设置。');
+        if (group === 'ai') appendDescription(doc, container,
+          '点击“AI 解析论文”后，题录、摘要、笔记、批注及可读取的 PDF 文字节选会发送给您配置的模型服务。不会后台自动发送。扫描版 PDF 若无可提取文字，将仅依据可用资料分析；结果需核对原文。密钥不会写入导图或工作区备份。');
         if (group === 'backup') appendDescription(doc, container,
           '额外保存文件夹不代替文献下的 .mindflow 附件。导出、导入与恢复工作区请在导图工作台操作。');
         if (group === 'webdav') appendDescription(doc, container,
