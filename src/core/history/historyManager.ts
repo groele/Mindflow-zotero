@@ -11,12 +11,8 @@ export class HistoryManager {
   }
 
   public push(state: MindMapNode): void {
-    // If state is identical to top of stack, don't duplicate
-    const serialized = JSON.stringify(state);
-    if (this.undoStack.length > 0 && JSON.stringify(this.undoStack[this.undoStack.length - 1]) === serialized) {
-      return;
-    }
-
+    // Editor operations create a new tree before pushing the previous state.
+    // Avoid serializing the entire map on every edit; keep a defensive snapshot.
     this.undoStack.push(cloneTree(state));
     if (this.undoStack.length > this.maxSteps) {
       this.undoStack.shift();

@@ -1,20 +1,23 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { MindMapDocument, MindMapNode, InboxItem } from '../../core/model/types';
 import { StorageService, DocumentSummary } from '../../services/storage/storageService';
 import { InboxService } from '../../services/storage/inboxService';
 import { BackupService, DocSnapshot, StorageQuotaInfo } from '../../services/storage/backupService';
-import { collectMapTasks } from '../../core/model/taskUtils';
+import { collectMapTasks, summarizeBranchTasks } from '../../core/model/taskUtils';
+import { collectTagFacets } from '../../core/model/tagUtils';
 import {
   FolderOpen, ListTree, Inbox, ShieldCheck, Plus, Search,
   Trash2, Check, Download, Upload, History, RotateCcw,
-  FileText, PanelLeftClose, PanelLeftOpen, ArrowRight, HardDrive, ArrowLeftRight, X, Settings, ListTodo
+  FileText, PanelLeftClose, PanelLeftOpen, ArrowRight, HardDrive, ArrowLeftRight, X, Settings, ListTodo, Tag
 } from 'lucide-react';
 
-export type WorkbenchTab = 'docs' | 'outline' | 'tasks' | 'inbox' | 'backup';
+export type WorkbenchTab = 'docs' | 'outline' | 'tags' | 'tasks' | 'inbox' | 'backup';
 
 interface LeftWorkbenchProps {
   currentDoc: MindMapDocument;
   selectedId: string | null;
+  focusedTag: string | null;
+  onFocusTag: (tag: string | null) => void;
   isOpen: boolean;
   activeTab: WorkbenchTab;
   dockPosition: 'left' | 'right';
@@ -31,11 +34,14 @@ interface LeftWorkbenchProps {
   onInsertInboxItem: (item: InboxItem) => void;
   onRestoreSnapshot: (restoredDoc: MindMapDocument) => void;
   onReloadWorkspace: () => void;
+  onFlushCurrentDocument: () => Promise<boolean>;
 }
 
 export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
   currentDoc,
   selectedId,
+  focusedTag,
+  onFocusTag,
   isOpen,
   activeTab,
   dockPosition,
@@ -52,7 +58,11 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
   onInsertInboxItem,
   onRestoreSnapshot,
   onReloadWorkspace,
+  onFlushCurrentDocument,
 }) => {
+  const tagFacets = useMemo(() => collectTagFacets(currentDoc.root), [currentDoc.root]);
+  const branchProgress = useMemo(() => summarizeBranchTasks(currentDoc.root), [currentDoc.root]);
+  const activeTag = tagFacets.find(facet => facet.tag === focusedTag);
   // Docs state
   const [docList, setDocList] = useState<DocumentSummary[]>([]);
   const [docSearch, setDocSearch] = useState('');
@@ -96,9 +106,13 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
   const handleDeleteDoc = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (confirm('确定删除该导图文档吗？此操作无法撤销。')) {
-      await StorageService.deleteDocument(id);
-      const list = await StorageService.getDocumentList();
-      setDocList(list);
+      try {
+        await StorageService.deleteDocument(id);
+        setDocList(await StorageService.getDocumentList());
+      } catch (error: any) {
+        alert(`删除失败：${error?.message || '请稍后重试'}`);
+        setDocList(await StorageService.getDocumentList());
+      }
     }
   };
 
@@ -135,6 +149,7 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
   const handleRestoreSnapshot = async (snapId: string) => {
     if (confirm('确认将当前导图回滚至此历史快照？')) {
       try {
+        if (!(await onFlushCurrentDocument())) return;
         const restored = await BackupService.restoreSnapshot(currentDoc.id, snapId);
         if (restored) {
           onRestoreSnapshot(restored);
@@ -154,6 +169,7 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
   };
 
   const handleExportWorkspace = async () => {
+    if (!(await onFlushCurrentDocument())) return;
     await BackupService.exportFullWorkspaceBackup();
     showBackupNotice('全量工作区导出成功！');
   };
@@ -166,6 +182,9 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
       const content = event.target?.result as string;
       if (!content) return;
       try {
+        const preview = await BackupService.previewFullWorkspaceBackup(content);
+        if (!confirm(BackupService.describeRestorePreview(preview))) return;
+        if (!(await onFlushCurrentDocument())) return;
         const res = await BackupService.importFullWorkspaceBackup(content);
         showBackupNotice(`已还原 ${res.docCount} 篇思维导图与 ${res.inboxCount} 条收集箱记录！`);
         onReloadWorkspace();
@@ -249,6 +268,11 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
               {node.task.status === 'done' ? '✓' : '待办'}
             </span>
           )}
+          {hasChildren && (branchProgress.get(node.id)?.total || 0) > 0 && (
+            <span className="text-[10px] text-violet-600 dark:text-violet-300" title="分支任务完成进度">
+              {branchProgress.get(node.id)?.done}/{branchProgress.get(node.id)?.total}
+            </span>
+          )}
           <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 ml-1">
             <button
               onClick={(e) => {
@@ -287,7 +311,7 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
   const filteredTasks = tasks.filter(task =>
     (taskFilter === 'all' || (taskFilter === 'overdue' ? task.overdue : task.status === taskFilter)) &&
     task.text.toLocaleLowerCase().includes(taskSearch.trim().toLocaleLowerCase())
-  );
+  ).sort((a, b) => Number(b.overdue) - Number(a.overdue) || (a.priority ?? 4) - (b.priority ?? 4));
 
   return (
     <div className={`relative flex h-full z-30 select-none ${isLeftDock ? 'order-first' : 'order-last'}`}>
@@ -335,6 +359,18 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
             className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors ${isOpen && activeTab === 'tasks' ? 'bg-violet-50 text-violet-600 dark:bg-violet-900/40' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
           >
             <ListTodo className="w-4 h-4" />
+          </button>
+
+          <button
+            onClick={() => {
+              if (isOpen && activeTab === 'tags') onToggleOpen();
+              else { onTabChange('tags'); if (!isOpen) onToggleOpen(); }
+            }}
+            title="标签聚焦与主题筛选"
+            aria-label="标签聚焦与主题筛选"
+            className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors ${isOpen && activeTab === 'tags' ? 'bg-teal-50 text-teal-600 dark:bg-teal-900/40' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+          >
+            <Tag className="w-4 h-4" />
           </button>
 
           <button
@@ -407,6 +443,7 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
               {activeTab === 'docs' && <><FolderOpen className="w-4 h-4 text-blue-600" /> 我的导图文档</>}
               {activeTab === 'outline' && <><ListTree className="w-4 h-4 text-blue-600" /> 结构化大纲</>}
               {activeTab === 'tasks' && <><ListTodo className="w-4 h-4 text-violet-600" /> 任务总览</>}
+              {activeTab === 'tags' && <><Tag className="w-4 h-4 text-teal-600" /> 标签聚焦</>}
               {activeTab === 'inbox' && <><Inbox className="w-4 h-4 text-amber-500" /> 灵感与收集箱</>}
               {activeTab === 'backup' && <><ShieldCheck className="w-4 h-4 text-emerald-600" /> 数据安全与备份</>}
             </span>
@@ -463,7 +500,7 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
                           </div>
                         </div>
                       </div>
-                      {docList.length > 1 && (
+                      {docList.length > 1 && d.id !== currentDoc.id && (
                         <button
                           onClick={(e) => handleDeleteDoc(d.id, e)}
                           title="删除导图"
@@ -485,6 +522,31 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
             </div>
           )}
 
+          {activeTab === 'tags' && (
+            <div className="flex-1 overflow-y-auto p-3 space-y-3 text-xs">
+              <div className="flex items-center justify-between text-slate-500">
+                <span>{tagFacets.length} 个标签 · 点击后聚焦画布</span>
+                {focusedTag && <button type="button" onClick={() => onFocusTag(null)} className="text-teal-600 font-medium">清除聚焦</button>}
+              </div>
+              {tagFacets.length === 0 && <p className="py-8 text-center text-slate-500">为主题添加标签后，可在这里筛选与定位。</p>}
+              <div className="flex flex-wrap gap-1.5">
+                {tagFacets.map(facet => (
+                  <button key={facet.tag} type="button" onClick={() => onFocusTag(focusedTag === facet.tag ? null : facet.tag)}
+                    aria-pressed={focusedTag === facet.tag}
+                    className={`px-2.5 py-1 rounded-lg border ${focusedTag === facet.tag ? 'border-teal-500 bg-teal-600 text-white' : 'border-slate-200 dark:border-slate-700 hover:border-teal-400'}`}>
+                    {facet.tag} <span className="opacity-70">{facet.nodes.length}</span>
+                  </button>
+                ))}
+              </div>
+              {activeTag && <div className="space-y-1 pt-2 border-t border-slate-200 dark:border-slate-700">
+                <p className="font-semibold text-slate-600 dark:text-slate-300">匹配主题</p>
+                {activeTag.nodes.map(node => <button key={node.id} type="button" onClick={() => onSelectNode(node.id)}
+                  className={`block w-full text-left truncate px-2 py-1.5 rounded-lg hover:bg-teal-50 dark:hover:bg-slate-800 ${selectedId === node.id ? 'bg-teal-50 dark:bg-teal-900/30 text-teal-700' : ''}`}
+                  title={node.text}>{node.text}</button>)}
+              </div>}
+            </div>
+          )}
+
           {activeTab === 'tasks' && (
             <div className="flex-1 overflow-y-auto p-3 space-y-3 text-xs">
               <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 space-y-2">
@@ -502,7 +564,7 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
                 {filteredTasks.length === 0 && <p className="py-5 text-center text-slate-500">没有符合条件的任务</p>}
                 {filteredTasks.map(task => (
                   <button key={task.nodeId} onClick={() => onSelectNode(task.nodeId)} className={`w-full text-left p-2 rounded-lg border hover:border-violet-400 hover:bg-violet-50 dark:hover:bg-slate-800 ${selectedId === task.nodeId ? 'border-violet-400 bg-violet-50 dark:bg-violet-900/30' : 'border-slate-200 dark:border-slate-700'}`}>
-                    <span className="block font-medium truncate" title={task.text}>{task.text}</span>
+                    <span className="flex items-center gap-1 font-medium min-w-0">{task.priority && <span className={`px-1 rounded text-[10px] ${task.priority === 1 ? 'bg-red-100 text-red-700' : task.priority === 2 ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>P{task.priority}</span>}<span className="truncate" title={task.text}>{task.text}</span></span>
                     <span className={task.overdue ? 'text-red-600' : 'text-slate-500'}>{task.status === 'done' ? '已完成' : task.status === 'doing' ? '进行中' : '待办'}{task.dueDate ? ` · 截止 ${task.dueDate}` : ''}{task.overdue ? ' · 已逾期' : ''}</span>
                   </button>
                 ))}

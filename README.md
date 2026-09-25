@@ -1,6 +1,6 @@
 # 🚀 MindFlow - 现代 Chrome 浏览器思维导图与伴读笔记
 
-[![GitHub release](https://img.shields.io/badge/release-v2.6.0-blue.svg)](https://github.com/groele/mindflow/releases/tag/v2.6.0)
+[![GitHub release](https://img.shields.io/badge/release-v3.0.0-blue.svg)](https://github.com/groele/mindflow/releases/tag/v3.0.0)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-19-61dafb.svg)](https://react.dev/)
@@ -8,6 +8,18 @@
 [![Free & Open Source](https://img.shields.io/badge/Status-100%25%20Free%20%26%20Open%20Source-brightgreen.svg)](https://github.com/groele/mindflow)
 
 > 借鉴主流标杆（XMind、MindNode、ProcessOn），深度融合 Chrome 浏览器生态打造的轻量级、极速、高颜值思维导图扩展程序。100% 全功能永久免费开放、节点悬浮气泡微工具栏、跨分支自由关联线、全局查找与替换、分支多层级收折、矢量 PDF 纯净打印。
+
+---
+
+## 3.0.0 新功能
+
+- **标签聚焦**：在左侧标签工作台按标签筛选主题，并一键定位匹配节点。聚焦只影响显示，不改变导图数据。
+- **跨导图主题链接**：在主题属性中选择目标导图和主题；点击节点上的关联按钮即可跳转。若目标主题已删除，会回到目标导图的中心主题。
+- **任务分支进度**：大纲显示各分支的任务完成数；任务属性可设置高、中、低优先级。
+- **备份恢复预览**：导入本地或 WebDAV 工作区前显示新增、覆盖的导图数量，以及收集箱和快照数量。
+- **编辑保护**：切换导图、创建导图、导入与备份操作前保存当前编辑；后台顺序处理保存与删除，旧窗口无法将已删除导图写回。
+
+现有导图文件可继续打开；跨导图主题链接是可选字段。完整变更见 [CHANGELOG.md](CHANGELOG.md)。
 
 ---
 

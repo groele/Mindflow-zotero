@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { MindMapNode, NodeShape, TaskStatus } from '../../core/model/types';
+import { MindMapDocument, MindMapNode, NodeShape, TaskStatus } from '../../core/model/types';
+import { safeExternalUrl } from '../../core/model/links';
+import { DocumentSummary, StorageService } from '../../services/storage/storageService';
 import {
   X, Tag, Link, FileText, Palette, Shapes,
-  Star, Flag, CheckCircle2, HelpCircle, Plus, ListTodo
+  Star, Flag, CheckCircle2, HelpCircle, Plus, ListTodo, Link2
 } from 'lucide-react';
 
 interface PropertySidebarProps {
   selectedNode: MindMapNode | null;
+  currentDoc: MindMapDocument;
   onUpdateNode: (id: string, patch: Partial<MindMapNode>) => void;
+  onOpenInternalLink?: (documentId: string, nodeId?: string) => void;
   onClose: () => void;
   dockSide?: 'left' | 'right';
 }
@@ -20,20 +24,67 @@ const COLOR_PRESETS = [
 
 export const PropertySidebar: React.FC<PropertySidebarProps> = ({
   selectedNode,
+  currentDoc,
   onUpdateNode,
+  onOpenInternalLink,
   onClose,
   dockSide = 'right',
 }) => {
   const [noteText, setNoteText] = useState('');
   const [linkText, setLinkText] = useState('');
   const [newTagText, setNewTagText] = useState('');
+  const [linkError, setLinkError] = useState('');
+  const [documents, setDocuments] = useState<DocumentSummary[]>([]);
+  const [targetNodes, setTargetNodes] = useState<Array<{ id: string; text: string; depth: number }>>([]);
+  const [targetSearch, setTargetSearch] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    const refresh = () => StorageService.getDocumentList()
+      .then(list => { if (active) setDocuments(list); })
+      .catch(() => { if (active) setDocuments([]); });
+    void refresh();
+    const listener = (changes: Record<string, chrome.storage.StorageChange>, areaName: string) => {
+      if (areaName === 'local' && changes.mindflow_docs_index) void refresh();
+    };
+    if (typeof chrome !== 'undefined' && chrome.storage?.onChanged) chrome.storage.onChanged.addListener(listener);
+    return () => {
+      active = false;
+      if (typeof chrome !== 'undefined' && chrome.storage?.onChanged) chrome.storage.onChanged.removeListener(listener);
+    };
+  }, [currentDoc.id]);
+
+  useEffect(() => {
+    const documentId = selectedNode?.internalLink?.documentId;
+    if (!documentId) { setTargetNodes([]); return; }
+    let active = true;
+    const load = async () => {
+      const targetDoc = documentId === currentDoc.id
+        ? currentDoc
+        : await StorageService.getDocument(documentId, { trackRevision: false });
+      if (!active) return;
+      if (!targetDoc) { setTargetNodes([]); return; }
+      const nodes: Array<{ id: string; text: string; depth: number }> = [];
+      const pending = [{ node: targetDoc.root, depth: 0 }];
+      while (pending.length) {
+        const { node, depth } = pending.pop()!;
+        nodes.push({ id: node.id, text: node.text, depth });
+        for (let i = node.children.length - 1; i >= 0; i -= 1) pending.push({ node: node.children[i], depth: depth + 1 });
+      }
+      setTargetNodes(nodes);
+    };
+    load().catch(() => { if (active) setTargetNodes([]); });
+    return () => { active = false; };
+  }, [selectedNode?.internalLink?.documentId, currentDoc.id, currentDoc.root]);
 
   useEffect(() => {
     if (selectedNode) {
       setNoteText(selectedNode.note || '');
       setLinkText(selectedNode.link || '');
+      setLinkError('');
+      setTargetSearch('');
     }
-  }, [selectedNode]);
+  }, [selectedNode?.id]);
 
   if (!selectedNode) return null;
 
@@ -50,7 +101,13 @@ export const PropertySidebar: React.FC<PropertySidebarProps> = ({
   };
 
   const handleLinkBlur = () => {
-    onUpdateNode(selectedNode.id, { link: linkText.trim() || undefined });
+    const trimmed = linkText.trim();
+    if (trimmed && !safeExternalUrl(trimmed)) {
+      setLinkError('仅支持 HTTPS、HTTP 或 mailto 链接');
+      return;
+    }
+    setLinkError('');
+    onUpdateNode(selectedNode.id, { link: trimmed || undefined });
   };
 
   const handleAddTag = () => {
@@ -258,6 +315,14 @@ export const PropertySidebar: React.FC<PropertySidebarProps> = ({
 
               {/* Due Date */}
               <div>
+                <label htmlFor="task-priority" className="text-[11px] text-slate-400 block mb-1">优先级</label>
+                <select id="task-priority" value={selectedNode.task.priority || ''}
+                  onChange={event => onUpdateNode(selectedNode.id, { task: { ...selectedNode.task!, priority: event.target.value ? Number(event.target.value) as 1 | 2 | 3 : undefined } })}
+                  className="w-full px-2 py-1 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded text-[11px]">
+                  <option value="">未指定</option><option value="1">高</option><option value="2">中</option><option value="3">低</option>
+                </select>
+              </div>
+              <div>
                 <span className="text-[11px] text-slate-400 block mb-1">截止日期:</span>
                 <input
                   type="date"
@@ -287,6 +352,57 @@ export const PropertySidebar: React.FC<PropertySidebarProps> = ({
             onBlur={handleLinkBlur}
             className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 outline-none focus:border-blue-400 text-xs"
           />
+          {linkError && <p role="alert" className="mt-1 text-[11px] text-red-600">{linkError}</p>}
+        </div>
+
+        {/* Link to another document or a specific topic */}
+        <div className="space-y-2 p-2.5 rounded-xl border border-violet-200 dark:border-violet-900 bg-violet-50/50 dark:bg-violet-950/20">
+          <label className="flex items-center gap-1.5 font-medium text-violet-700 dark:text-violet-300">
+            <Link2 className="w-3.5 h-3.5" /> 关联导图主题
+          </label>
+          <select
+            value={selectedNode.internalLink?.documentId || ''}
+            onChange={(event) => {
+              setTargetSearch('');
+              onUpdateNode(selectedNode.id, { internalLink: event.target.value ? { documentId: event.target.value } : undefined });
+            }}
+            aria-label="选择关联导图"
+            className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs"
+          >
+            <option value="">不关联</option>
+            {selectedNode.internalLink && !documents.some(document => document.id === selectedNode.internalLink?.documentId) && currentDoc.id !== selectedNode.internalLink.documentId &&
+              <option value={selectedNode.internalLink.documentId}>目标导图已删除</option>}
+            {documents.map(document => <option key={document.id} value={document.id}>{document.title}</option>)}
+            {!documents.some(document => document.id === currentDoc.id) && <option value={currentDoc.id}>{currentDoc.title}</option>}
+          </select>
+          {selectedNode.internalLink && (
+            <>
+              <p className="text-[10px] text-slate-500">目标主题：{targetNodes.find(node => node.id === selectedNode.internalLink?.nodeId)?.text || (targetNodes.length ? '中心主题或主题已删除' : '目标导图不可用')}</p>
+              <input
+                value={targetSearch}
+                onChange={event => setTargetSearch(event.target.value)}
+                placeholder="搜索目标主题（留空为中心主题）"
+                aria-label="搜索关联主题"
+                className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs"
+              />
+              {targetSearch.trim() && (
+                <div className="max-h-32 overflow-y-auto space-y-0.5">
+                  {targetNodes.filter(node => node.text.toLocaleLowerCase().includes(targetSearch.trim().toLocaleLowerCase())).slice(0, 20).map(node => (
+                    <button key={node.id} type="button" onClick={() => {
+                      onUpdateNode(selectedNode.id, { internalLink: { documentId: selectedNode.internalLink!.documentId, nodeId: node.id } });
+                      setTargetSearch('');
+                    }} className="block w-full text-left truncate px-2 py-1 rounded hover:bg-violet-100 dark:hover:bg-violet-900/40" title={node.text}>
+                      {'· '.repeat(Math.min(node.depth, 5))}{node.text}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <button type="button" onClick={() => onUpdateNode(selectedNode.id, { internalLink: { documentId: selectedNode.internalLink!.documentId } })} className="text-[11px] text-violet-600">指向中心主题</button>
+                <button type="button" onClick={() => onOpenInternalLink?.(selectedNode.internalLink!.documentId, selectedNode.internalLink!.nodeId)} className="text-[11px] font-medium text-violet-700 dark:text-violet-300">打开目标</button>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Tags */}

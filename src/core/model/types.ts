@@ -13,12 +13,18 @@ export interface TaskInfo {
   progress?: number;
 }
 
+export interface InternalNodeLink {
+  documentId: string;
+  nodeId?: string;
+}
+
 export interface MindMapNode {
   id: string;
   text: string;
   type?: NodeType;
   note?: string;
   link?: string;
+  internalLink?: InternalNodeLink;
   tags?: string[];
   icons?: string[];
   task?: TaskInfo;

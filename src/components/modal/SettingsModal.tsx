@@ -16,6 +16,7 @@ interface SettingsModalProps {
   settings: AppSettings;
   onUpdateSettings: (newSettings: AppSettings) => void;
   onReloadWorkspace?: () => void;
+  onFlushCurrentDocument?: () => Promise<boolean>;
   onLicenseChanged?: () => void;
 }
 
@@ -27,6 +28,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   settings,
   onUpdateSettings,
   onReloadWorkspace,
+  onFlushCurrentDocument,
 }) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('interface');
   const [currentSettings, setCurrentSettings] = useState<AppSettings>(settings);
@@ -146,6 +148,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setSyncingWebDAV(true);
     setSyncNotice(null);
     try {
+      if (onFlushCurrentDocument && !(await onFlushCurrentDocument())) return;
       const granted = await WebDAVService.requestServerPermission(currentSettings.webdav.serverUrl);
       if (!granted) {
         setSyncNotice({ success: false, message: '未获得该 WebDAV 服务器的访问权限，未上传数据。' });
@@ -184,9 +187,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const handleDownloadFromWebDAV = async () => {
     const versionLabel = selectedVersion || '最新备份';
-    if (!window.confirm(`将从云端「${versionLabel}」导入所有导图，并为被覆盖的本地导图创建恢复快照。是否继续？`)) {
-      return;
-    }
     setSyncingWebDAV(true);
     setSyncNotice(null);
     try {
@@ -197,6 +197,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       }
       const res = await WebDAVService.downloadBackup(currentSettings.webdav, selectedVersion || undefined);
       if (res.success && res.data) {
+        const preview = await BackupService.previewFullWorkspaceData(res.data);
+        if (!window.confirm(`云端「${versionLabel}」：\n${BackupService.describeRestorePreview(preview)}`)) return;
+        if (onFlushCurrentDocument && !(await onFlushCurrentDocument())) return;
         await BackupService.importFullWorkspaceData(res.data);
         setSyncNotice({ success: true, message: res.message });
         if (onReloadWorkspace) onReloadWorkspace();
@@ -211,6 +214,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const handleExportLocalWorkspace = async () => {
+    if (onFlushCurrentDocument && !(await onFlushCurrentDocument())) return;
     await BackupService.exportFullWorkspaceBackup();
     setBackupNotice('工作区全量备份已导出！');
   };
@@ -220,11 +224,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     if (!file) return;
     try {
       const text = await file.text();
+      const preview = await BackupService.previewFullWorkspaceBackup(text);
+      if (!window.confirm(BackupService.describeRestorePreview(preview))) return;
+      if (onFlushCurrentDocument && !(await onFlushCurrentDocument())) return;
       await BackupService.importFullWorkspaceBackup(text);
       setBackupNotice('工作区数据恢复成功！');
       if (onReloadWorkspace) onReloadWorkspace();
-    } catch {
-      setBackupNotice('导入失败：文件损坏或非标准 MindFlow 备份 JSON');
+    } catch (error: any) {
+      setBackupNotice(`导入失败：${error?.message || '文件损坏或格式无效'}`);
+    } finally {
+      e.target.value = '';
     }
   };
 
@@ -1046,7 +1055,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-slate-900 dark:text-white">MindFlow 思维导图与伴读笔记</h3>
-                    <p className="text-[11px] text-blue-600 dark:text-blue-400 font-medium">版本 2.6.0 (Manifest V3 规范 • 100% 全功能免费版)</p>
+                    <p className="text-[11px] text-blue-600 dark:text-blue-400 font-medium">版本 3.0.0 (Manifest V3 规范 • 100% 全功能免费版)</p>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
                       基于 Chrome 浏览器的模块化、离线优先、全键盘盲操思维导图引擎。
                     </p>

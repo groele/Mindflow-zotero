@@ -67,6 +67,8 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   // New features: In-canvas Search, Presentation Mode, Node Context Menu, Commercial License
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchMatchedIds, setSearchMatchedIds] = useState<string[]>([]);
+  const [focusedTag, setFocusedTag] = useState<string | null>(null);
+  useEffect(() => { setFocusedTag(null); }, [doc?.id]);
   const [isPresentationOpen, setIsPresentationOpen] = useState(false);
   const [contextMenuState, setContextMenuState] = useState<{ x: number; y: number; node: MindMapNode } | null>(null);
   const [relationships, setRelationships] = useState<RelationshipLink[]>([]);
@@ -82,8 +84,10 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   const latestDocRef = useRef<MindMapDocument | null>(null);
   const latestRelationshipsRef = useRef<RelationshipLink[]>([]);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const pendingSaveTokenRef = useRef(0);
   const autoSyncTimerRef = useRef<number | undefined>(undefined);
   const saveGenerationRef = useRef(0);
+  const pendingNavigationRef = useRef<{ documentId: string; nodeId?: string } | null>(null);
   const currentDocIdRef = useRef<string | null>(null);
   currentDocIdRef.current = doc?.id || null;
   latestDocRef.current = doc;
@@ -199,9 +203,12 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   useEffect(() => {
     if (!doc) return;
     if (cleanDocRef.current === doc && cleanRelationshipsRef.current === relationships) return;
+    const saveToken = ++pendingSaveTokenRef.current;
     setSaveStatus({ state: 'saving', message: '保存中…' });
     const timeout = setTimeout(() => {
+      if (saveToken !== pendingSaveTokenRef.current) return;
       const runSave = async () => {
+      if (saveToken !== pendingSaveTokenRef.current) return;
       if (currentDocIdRef.current !== doc.id) return;
       const documentToSave = { ...doc, relationships };
       try {
@@ -287,6 +294,43 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     }, 600);
     return () => clearTimeout(timeout);
   }, [doc, relationships, settings.webdav, settings.autoSnapshotEnabled, settings.autoSnapshotIntervalMinutes]);
+
+  // Document changes cancel the debounced save. Flush the latest editor state
+  // first so switching maps cannot silently discard recent typing.
+  const flushCurrentDocument = useCallback(async (): Promise<boolean> => {
+    try {
+      pendingSaveTokenRef.current += 1;
+      await saveQueueRef.current;
+      const latest = latestDocRef.current;
+      const latestRelationships = latestRelationshipsRef.current;
+      if (!latest || (cleanDocRef.current === latest && cleanRelationshipsRef.current === latestRelationships)) return true;
+      try {
+        await StorageService.saveDocument({ ...latest, relationships: latestRelationships });
+        cleanDocRef.current = latest;
+        cleanRelationshipsRef.current = latestRelationships;
+        if (latestDocRef.current !== latest || latestRelationshipsRef.current !== latestRelationships) {
+          setSaveStatus({ state: 'warning', message: '保存期间又有新编辑；请暂停编辑后重试切换。' });
+          return false;
+        }
+        return true;
+      } catch (error) {
+        if (!(error instanceof DocumentConflictError)) throw error;
+        const copy = await StorageService.saveDocument({
+          ...latest,
+          relationships: latestRelationships,
+          id: 'doc_' + generateId(),
+          title: `${latest.title}（冲突副本）`,
+          revision: 0,
+          createdAt: Date.now(),
+        });
+        setSaveStatus({ state: 'warning', message: `原导图发生版本冲突；编辑已保存在「${copy.title}」。` });
+        return latestDocRef.current === latest && latestRelationshipsRef.current === latestRelationships;
+      }
+    } catch (error: any) {
+      setSaveStatus({ state: 'error', message: `切换已停止：当前导图保存失败：${error?.message || '存储不可用'}` });
+      return false;
+    }
+  }, []);
 
   // Theme
   const theme = useMemo(() => {
@@ -528,6 +572,50 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     }
   }, [layout.nodes]);
 
+  const openDocumentAt = useCallback(async (documentId: string, nodeId?: string) => {
+    if (doc?.id === documentId) {
+      if (nodeId && findNode(doc.root, nodeId)) handleSelectAndCenterNode(nodeId);
+      else handleSelectAndCenterNode(doc.root.id);
+      return;
+    }
+    if (!(await flushCurrentDocument())) return;
+    try {
+      const selectedDoc = await StorageService.getDocument(documentId);
+      if (!selectedDoc) {
+        setSaveStatus({ state: 'warning', message: '链接目标导图已不存在，当前导图保持打开。' });
+        return;
+      }
+      if (!(await flushCurrentDocument())) return;
+      await StorageService.setActiveDocumentId(documentId);
+      const loadedRelationships = selectedDoc.relationships || [];
+      cleanDocRef.current = selectedDoc;
+      cleanRelationshipsRef.current = loadedRelationships;
+      pendingNavigationRef.current = { documentId, nodeId };
+      setRelationships(loadedRelationships);
+      setDoc(selectedDoc);
+      setSelectedIds([]);
+      setSelectedId(selectedDoc.root.id);
+      historyRef.current.clear();
+      syncHistoryState();
+    } catch (error: any) {
+      setSaveStatus({ state: 'error', message: `打开导图失败：${error?.message || '读取本地数据失败'}` });
+    }
+  }, [doc, flushCurrentDocument, handleSelectAndCenterNode, syncHistoryState]);
+
+  useEffect(() => {
+    const pending = pendingNavigationRef.current;
+    if (!doc || pending?.documentId !== doc.id) return;
+    const target = layout.nodes.find(node => node.id === pending.nodeId)
+      || layout.nodes.find(node => node.id === doc.root.id);
+    pendingNavigationRef.current = null;
+    if (!target) return;
+    setSelectedId(target.id);
+    centerCanvas({ minX: target.x, maxX: target.x + target.width, minY: target.y, maxY: target.y + target.height });
+    if (pending.nodeId && target.id !== pending.nodeId) {
+      setSaveStatus({ state: 'warning', message: '目标主题已不存在，已打开目标导图的中心主题。' });
+    }
+  }, [doc, layout, centerCanvas]);
+
   // Handle node right click
   const handleContextMenuNode = useCallback((nodeId: string, clientX: number, clientY: number) => {
     if (!doc) return;
@@ -636,6 +724,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
 
   // Apply template
   const handleSelectTemplate = useCallback(async (tpl: TemplateDefinition) => {
+    if (!(await flushCurrentDocument())) return;
     const newDoc: MindMapDocument = {
       id: 'doc_' + generateId(),
       title: tpl.title,
@@ -655,7 +744,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     historyRef.current.clear();
     syncHistoryState();
     setTimeout(() => centerCanvas(), 50);
-  }, [centerCanvas, syncHistoryState]);
+  }, [centerCanvas, flushCurrentDocument, syncHistoryState]);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -835,9 +924,11 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   };
 
   // Import file handler
-  const handleImportFile = (file: File) => {
+  const handleImportFile = async (file: File) => {
+    if (!(await flushCurrentDocument())) return;
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
+      if (!(await flushCurrentDocument())) return;
       const content = event.target?.result as string;
       if (!content) return;
 
@@ -1009,21 +1100,10 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
             dockPosition={dockPosition}
             onToggleOpen={() => setIsWorkbenchOpen(!isWorkbenchOpen)}
             onTabChange={(tab) => setWorkbenchTab(tab)}
+            focusedTag={focusedTag}
+            onFocusTag={setFocusedTag}
             onToggleDockPosition={handleToggleDockPosition}
-            onSelectDoc={async (id) => {
-              const selectedDoc = await StorageService.getDocument(id);
-              if (selectedDoc) {
-                await StorageService.setActiveDocumentId(id);
-                cleanDocRef.current = selectedDoc;
-                cleanRelationshipsRef.current = selectedDoc.relationships || [];
-                setDoc(selectedDoc);
-                setRelationships(cleanRelationshipsRef.current);
-                setSelectedId(selectedDoc.root.id);
-                historyRef.current.clear();
-                syncHistoryState();
-                setTimeout(() => centerCanvas(), 50);
-              }
-            }}
+            onSelectDoc={(id) => { void openDocumentAt(id); }}
             onNewDoc={() => setIsTemplateModalOpen(true)}
             onSelectNode={handleSelectAndCenterNode}
             onUpdateNodeText={(id, text) => handleUpdateNodePatch(id, { text })}
@@ -1039,6 +1119,8 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
             }}
             onInsertInboxItem={handleInsertInboxItem}
             onRestoreSnapshot={(restored) => {
+              cleanDocRef.current = restored;
+              cleanRelationshipsRef.current = restored.relationships || [];
               setDoc(restored);
               setRelationships(restored.relationships || []);
               setSelectedId(restored.root.id);
@@ -1047,6 +1129,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
               setTimeout(() => centerCanvas(), 50);
             }}
             onReloadWorkspace={reloadWorkspace}
+            onFlushCurrentDocument={flushCurrentDocument}
             onOpenSettings={() => setIsSettingsOpen(true)}
           />
         )}
@@ -1073,8 +1156,10 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
               onCancelEditNode={() => setEditingId(null)}
               onToggleCollapse={handleToggleCollapse}
               onToggleTaskStatus={handleToggleTaskStatus}
+              onOpenInternalLink={(documentId, nodeId) => { void openDocumentAt(documentId, nodeId); }}
               onMoveNode={handleMoveNode}
               searchMatchedIds={searchMatchedIds}
+              focusedTag={focusedTag}
               onContextMenuNode={handleContextMenuNode}
               onAddChildNode={handleAddChild}
               onAddSiblingNode={() => handleAddSibling(false)}
@@ -1119,7 +1204,9 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
         {!isZenMode && isPropertySidebarOpen && selectedNode && (
           <PropertySidebar
             selectedNode={selectedNode}
+            currentDoc={doc}
             onUpdateNode={handleUpdateNodePatch}
+            onOpenInternalLink={(documentId, nodeId) => { void openDocumentAt(documentId, nodeId); }}
             onClose={() => setIsPropertySidebarOpen(false)}
             dockSide={inspectorDockSide}
           />
@@ -1176,6 +1263,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
           setDockPosition(newSettings.workbenchDockPosition);
         }}
         onReloadWorkspace={reloadWorkspace}
+        onFlushCurrentDocument={flushCurrentDocument}
       />
 
       {/* Node Context Menu (Right Click) */}

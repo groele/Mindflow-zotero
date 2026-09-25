@@ -3,6 +3,7 @@ import { createDefaultDocument } from '../../core/model/sampleData';
 
 const STORAGE_KEYS = {
   DOC_PREFIX: 'mindflow_doc_',
+  DELETED_PREFIX: 'mindflow_deleted_doc_',
   DOC_INDEX: 'mindflow_docs_index',
   ACTIVE_DOC_ID: 'mindflow_active_doc_id',
 };
@@ -194,6 +195,9 @@ export class StorageService {
   private static async writeDocumentNow(doc: MindMapDocument, expectedRevision: number, force: boolean): Promise<MindMapDocument> {
     const current = await this.getDocument(doc.id);
     const currentRevision = revisionOf(current);
+    if (!current && !force && await getItem(STORAGE_KEYS.DELETED_PREFIX + doc.id)) {
+      throw new DocumentConflictError('此导图已在其他窗口删除；请保留为新导图或从备份恢复');
+    }
     if (!force && currentRevision !== expectedRevision) {
       throw new DocumentConflictError(`导图已被其他窗口修改（当前版本 ${currentRevision}，本窗口版本 ${expectedRevision}）`);
     }
@@ -268,11 +272,32 @@ export class StorageService {
   }
 
   public static async deleteDocument(id: string): Promise<void> {
-    await removeItem(STORAGE_KEYS.DOC_PREFIX + id);
-    let index = await this.getDocumentList();
-    index = index.filter(item => item.id !== id);
-    await setItem(STORAGE_KEYS.DOC_INDEX, JSON.stringify(index));
+    const current = await this.getDocument(id, { trackRevision: false });
+    if (!current) return;
+    const expectedRevision = revisionOf(current);
+    if (isChromeStorage() && typeof window !== 'undefined') {
+      const response = await chrome.runtime.sendMessage({ type: 'DELETE_DOCUMENT', id, expectedRevision }) as { success?: boolean; error?: string; conflict?: boolean };
+      if (!response?.success) {
+        if (response?.conflict) throw new DocumentConflictError(response.error || '其他窗口已修改此导图');
+        throw new Error(response?.error || '删除导图失败');
+      }
+    } else {
+      await this.deleteDocumentDirect(id, expectedRevision);
+    }
     this.knownRevisions.delete(id);
+  }
+
+  public static deleteDocumentDirect(id: string, expectedRevision: number): Promise<void> {
+    const operation = this.writeQueue.then(async () => {
+      const current = await this.getDocument(id, { trackRevision: false });
+      if (!current || revisionOf(current) !== expectedRevision) throw new DocumentConflictError('导图已被其他窗口修改或删除，请刷新列表后重试');
+      const index = (await this.getDocumentList()).filter(item => item.id !== id);
+      await setItem(STORAGE_KEYS.DELETED_PREFIX + id, String(Date.now()));
+      await removeItem(STORAGE_KEYS.DOC_PREFIX + id);
+      await setItem(STORAGE_KEYS.DOC_INDEX, JSON.stringify(index));
+    });
+    this.writeQueue = operation.catch(() => undefined);
+    return operation;
   }
 }
 

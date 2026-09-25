@@ -29,3 +29,25 @@ export function collectMapTasks(root: MindMapNode, today = new Date()): MapTask[
   }
   return tasks;
 }
+
+export interface BranchTaskProgress { total: number; done: number }
+
+export function summarizeBranchTasks(root: MindMapNode): Map<string, BranchTaskProgress> {
+  const progress = new Map<string, BranchTaskProgress>();
+  const pending: Array<{ node: MindMapNode; visited: boolean }> = [{ node: root, visited: false }];
+  while (pending.length) {
+    const { node, visited } = pending.pop()!;
+    if (!visited) {
+      pending.push({ node, visited: true });
+      for (const child of node.children) pending.push({ node: child, visited: false });
+      continue;
+    }
+    const summary = { total: node.task ? 1 : 0, done: node.task?.status === 'done' ? 1 : 0 };
+    for (const child of node.children) {
+      const childSummary = progress.get(child.id);
+      if (childSummary) { summary.total += childSummary.total; summary.done += childSummary.done; }
+    }
+    progress.set(node.id, summary);
+  }
+  return progress;
+}

@@ -26,9 +26,11 @@ interface CanvasProps {
   onCancelEditNode: () => void;
   onToggleCollapse: (id: string) => void;
   onToggleTaskStatus?: (id: string) => void;
+  onOpenInternalLink?: (documentId: string, nodeId?: string) => void;
   onMoveNode: (sourceId: string, targetId: string) => void;
   onContextMenuNode?: (id: string, clientX: number, clientY: number) => void;
   searchMatchedIds?: string[];
+  focusedTag?: string | null;
   canvasBackground?: 'dots' | 'grid' | 'blank';
   // Micro-toolbar & Relationship actions
   onAddChildNode?: (parentId: string) => void;
@@ -61,9 +63,11 @@ export const Canvas: React.FC<CanvasProps> = ({
   onCancelEditNode,
   onToggleCollapse,
   onToggleTaskStatus,
+  onOpenInternalLink,
   onMoveNode,
   onContextMenuNode,
   searchMatchedIds = [],
+  focusedTag = null,
   canvasBackground = 'dots',
   onAddChildNode,
   onAddSiblingNode,
@@ -338,7 +342,7 @@ export const Canvas: React.FC<CanvasProps> = ({
               stroke={conn.color}
               strokeWidth={conn.strokeWidth}
               strokeLinecap="round"
-              className="transition-colors duration-200"
+              className={`transition-colors duration-200 ${focusedTag ? 'opacity-25' : ''}`}
             />
           ))}
 
@@ -369,7 +373,7 @@ export const Canvas: React.FC<CanvasProps> = ({
                 strokeWidth="2"
                 strokeDasharray={rel.style === 'solid' ? undefined : '5,4'}
                 markerEnd="url(#rel-arrow)"
-                className="transition-colors duration-200 opacity-80 hover:opacity-100"
+                className={`transition-colors duration-200 ${focusedTag ? 'opacity-25' : 'opacity-80 hover:opacity-100'}`}
               />
             );
           })}
@@ -437,6 +441,8 @@ export const Canvas: React.FC<CanvasProps> = ({
               isSelected={activeSelectedSet.has(layoutNode.id)}
               isEditing={editingId === layoutNode.id}
               isSearchMatched={searchMatchedIds.includes(layoutNode.id)}
+              isTagMatched={Boolean(focusedTag && layoutNode.node.tags?.includes(focusedTag))}
+              isTagDimmed={Boolean(focusedTag && !layoutNode.node.tags?.includes(focusedTag) && selectedId !== layoutNode.id)}
               onSelect={(id, e) => {
                 e.stopPropagation();
                 if (connectingFromId) {
@@ -458,6 +464,7 @@ export const Canvas: React.FC<CanvasProps> = ({
               onCancelEdit={onCancelEditNode}
               onToggleCollapse={onToggleCollapse}
               onToggleTaskStatus={onToggleTaskStatus}
+              onOpenInternalLink={onOpenInternalLink}
               onDragStart={handleNodeDragStart}
               onDragOver={handleNodeDragOver}
               onDrop={handleNodeDrop}

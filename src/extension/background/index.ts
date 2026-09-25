@@ -136,6 +136,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .then((doc) => sendResponse({ success: true, doc }))
       .catch((error) => sendResponse({ success: false, conflict: error instanceof DocumentConflictError, error: error.message }));
     return true;
+  } else if (message.type === 'DELETE_DOCUMENT') {
+    StorageService.deleteDocumentDirect(String(message.id), Number(message.expectedRevision))
+      .then(() => sendResponse({ success: true }))
+      .catch((error) => sendResponse({ success: false, conflict: error instanceof DocumentConflictError, error: error.message }));
+    return true;
   } else if (message.type === 'OPEN_FULLSCREEN') {
     chrome.tabs.create({ url: chrome.runtime.getURL('index.html') });
     sendResponse({ success: true });

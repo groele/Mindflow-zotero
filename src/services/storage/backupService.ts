@@ -27,6 +27,14 @@ export interface StorageQuotaInfo {
   percent: number;
 }
 
+export interface WorkspaceRestorePreview {
+  documents: number;
+  replacing: string[];
+  adding: string[];
+  inboxItems: number;
+  snapshots: number;
+}
+
 const SNAPSHOT_STORAGE_KEY = 'mindflow_snapshots_';
 const DEFAULT_MAX_SNAPSHOTS_PER_DOC = 20;
 export const MAX_BACKUP_BYTES = 20 * 1024 * 1024;
@@ -82,6 +90,11 @@ export function validateMindMapDocument(value: unknown, label = '导图'): MindM
         (entry.node.tags !== undefined && (!Array.isArray(entry.node.tags) || !entry.node.tags.every(tag => typeof tag === 'string'))) ||
         (entry.node.icons !== undefined && (!Array.isArray(entry.node.icons) || !entry.node.icons.every(icon => typeof icon === 'string')))) {
       throw new Error(`${label}包含格式无效的节点属性`);
+    }
+    if (entry.node.internalLink !== undefined &&
+        (!isRecord(entry.node.internalLink) || typeof entry.node.internalLink.documentId !== 'string' || !entry.node.internalLink.documentId ||
+          (entry.node.internalLink.nodeId !== undefined && typeof entry.node.internalLink.nodeId !== 'string'))) {
+      throw new Error(`${label}包含格式无效的跨导图链接`);
     }
     if (entry.node.task !== undefined) {
       if (!isRecord(entry.node.task) || !['todo', 'doing', 'done'].includes(String(entry.node.task.status)) ||
@@ -160,6 +173,27 @@ function validateWorkspaceData(value: unknown): WorkspaceBackupData {
 }
 
 export class BackupService {
+  public static async previewFullWorkspaceData(input: unknown): Promise<WorkspaceRestorePreview> {
+    const data = validateWorkspaceData(input);
+    const existing = new Set((await StorageService.getDocumentList()).map(doc => doc.id));
+    return {
+      documents: data.documents.length,
+      replacing: data.documents.filter(doc => existing.has(doc.id)).map(doc => doc.title),
+      adding: data.documents.filter(doc => !existing.has(doc.id)).map(doc => doc.title),
+      inboxItems: data.inboxItems?.length || 0,
+      snapshots: data.snapshots?.length || 0,
+    };
+  }
+
+  public static async previewFullWorkspaceBackup(raw: string): Promise<WorkspaceRestorePreview> {
+    if (new TextEncoder().encode(raw).byteLength > MAX_BACKUP_BYTES) throw new Error('备份文件超过 20 MB 安全导入上限');
+    return this.previewFullWorkspaceData(JSON.parse(raw));
+  }
+
+  public static describeRestorePreview(preview: WorkspaceRestorePreview): string {
+    const names = preview.replacing.slice(0, 5).join('、');
+    return `备份包含 ${preview.documents} 篇导图（新增 ${preview.adding.length}、覆盖 ${preview.replacing.length}）、${preview.inboxItems} 条收集箱记录、${preview.snapshots} 个快照。${preview.replacing.length ? `\n将覆盖：${names}${preview.replacing.length > 5 ? '等' : ''}。覆盖前会创建本地恢复快照。` : ''}\n确认导入吗？`;
+  }
   // 1. Create a version snapshot for a document
   public static async createSnapshot(doc: MindMapDocument): Promise<DocSnapshot> {
     const snapshots = await this.getSnapshots(doc.id);
@@ -313,7 +347,7 @@ export class BackupService {
 
     // Save all documents
     for (const doc of data.documents) {
-      await StorageService.saveDocument(existingIds.has(doc.id) ? doc : { ...doc, revision: 0 });
+      await StorageService.saveDocument(existingIds.has(doc.id) ? doc : { ...doc, revision: 0 }, { force: !existingIds.has(doc.id) });
     }
 
     // Save inbox items

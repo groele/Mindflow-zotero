@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { LayoutNode } from '../../core/model/types';
-import { ExternalLink, FileText, ChevronRight, Tag, Star, Flag, CheckCircle2, HelpCircle } from 'lucide-react';
+import { safeExternalUrl } from '../../core/model/links';
+import { ExternalLink, FileText, ChevronRight, Tag, Star, Flag, CheckCircle2, HelpCircle, Link2 } from 'lucide-react';
 
 interface NodeCardProps {
   layoutNode: LayoutNode;
   isSelected: boolean;
   isEditing: boolean;
   isSearchMatched?: boolean;
+  isTagMatched?: boolean;
+  isTagDimmed?: boolean;
   onSelect: (id: string, e: React.MouseEvent) => void;
   onContextMenu?: (id: string, e: React.MouseEvent) => void;
   onStartEdit: (id: string) => void;
@@ -14,6 +17,7 @@ interface NodeCardProps {
   onCancelEdit: () => void;
   onToggleCollapse: (id: string) => void;
   onToggleTaskStatus?: (id: string) => void;
+  onOpenInternalLink?: (documentId: string, nodeId?: string) => void;
   onDragStart?: (id: string, e: React.DragEvent) => void;
   onDragOver?: (id: string, e: React.DragEvent) => void;
   onDrop?: (targetId: string, e: React.DragEvent) => void;
@@ -24,6 +28,8 @@ export const NodeCard: React.FC<NodeCardProps> = ({
   isSelected,
   isEditing,
   isSearchMatched = false,
+  isTagMatched = false,
+  isTagDimmed = false,
   onSelect,
   onContextMenu,
   onStartEdit,
@@ -31,6 +37,7 @@ export const NodeCard: React.FC<NodeCardProps> = ({
   onCancelEdit,
   onToggleCollapse,
   onToggleTaskStatus,
+  onOpenInternalLink,
   onDragStart,
   onDragOver,
   onDrop,
@@ -75,6 +82,7 @@ export const NodeCard: React.FC<NodeCardProps> = ({
   };
 
   const hasChildren = node.children && node.children.length > 0;
+  const externalUrl = safeExternalUrl(node.link);
   const isCollapsed = node.isExpanded === false;
 
   // Visual shape style
@@ -160,6 +168,8 @@ export const NodeCard: React.FC<NodeCardProps> = ({
         ${isDragOverTarget ? 'ring-2 ring-indigo-500 ring-offset-2 scale-[1.04] bg-indigo-50/40 dark:bg-indigo-950/50 shadow-xl z-40' : ''}
         ${isSelected && !isDragOverTarget ? 'ring-2 ring-blue-500 ring-offset-2 ring-offset-transparent shadow-node-selected z-20' : 'shadow-node hover:shadow-node-hover z-10'}
         ${isSearchMatched ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-amber-100 dark:ring-offset-slate-900 shadow-lg scale-105 z-30' : ''}
+        ${isTagMatched ? 'ring-2 ring-teal-500 ring-offset-2 ring-offset-teal-50 dark:ring-offset-slate-900 z-30' : ''}
+        ${isTagDimmed ? 'opacity-25' : ''}
         ${shape !== 'underline' ? 'backdrop-blur-sm' : ''}
       `}
     >
@@ -265,12 +275,26 @@ export const NodeCard: React.FC<NodeCardProps> = ({
         )}
 
         {/* Hyperlink button */}
-        {node.link && (
+        {node.internalLink && (
+          <button
+            type="button"
+            title="打开关联导图主题"
+            aria-label="打开关联导图主题"
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpenInternalLink?.(node.internalLink!.documentId, node.internalLink!.nodeId);
+            }}
+            className="flex-shrink-0 text-violet-600 hover:text-violet-800 p-0.5 rounded hover:bg-violet-50 transition-colors"
+          >
+            <Link2 className="w-3.5 h-3.5" />
+          </button>
+        )}
+        {externalUrl && (
           <a
-            href={node.link}
+            href={externalUrl}
             target="_blank"
             rel="noopener noreferrer"
-            title={node.link}
+            title={externalUrl}
             onClick={(e) => e.stopPropagation()}
             className="flex-shrink-0 text-blue-500 hover:text-blue-700 p-0.5 rounded hover:bg-blue-50 transition-colors"
           >

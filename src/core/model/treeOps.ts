@@ -12,6 +12,7 @@ export function cloneTree(node: MindMapNode, regenerateIds = false): MindMapNode
     id: regenerateIds ? generateId() : node.id,
     tags: node.tags ? [...node.tags] : undefined,
     icons: node.icons ? [...node.icons] : undefined,
+    internalLink: node.internalLink ? { ...node.internalLink } : undefined,
     children: node.children ? node.children.map(child => cloneTree(child, regenerateIds)) : []
   };
 }
@@ -405,4 +406,3 @@ export function replaceAllNodeText(
   walk(newRoot);
   return { newRoot, count };
 }
-
