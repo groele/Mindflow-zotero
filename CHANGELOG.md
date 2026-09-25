@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Zotero v1.1.0] - 2026-09-25
+
+### 新增
+- Zotero 10 原生 MindFlow 设置面板集中管理文献导入、工具栏、编辑默认值、快照和 WebDAV 配置；与工作台共用设置并同步变更。
+- 同一文献的多份 .mindflow 附件可从右键菜单分别打开；PDF 批注节点可返回原 PDF 标注位置。
+- 导图关联文献后可更新对应子笔记；长摘要、文献笔记和批注保留完整内容。
+
+### 修复与兼容
+- 纠正异步 PDF 附件选择、群组库只读反馈、云端附件未下载时的重复新建风险，以及保存状态提前报成功的问题。
+- 默认主题、布局、缩放步进与任务优先级接入实际编辑操作；兼容范围明确为 Zotero 10.0.x。
+- Zotero 与 Chrome 扩展使用独立版本号；Zotero 发布资产为同版本 XPI。
+
+### 验证范围
+- 通过 Zotero XPI 构建（含 TypeScript 与宿主 JavaScript 语法检查）；尚未在 Zotero 10 图形界面完成安装和完整交互验证。
+
 ## [3.2.0] - 2026-09-25
 
 ### 新增

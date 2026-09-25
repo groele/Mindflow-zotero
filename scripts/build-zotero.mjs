@@ -1,8 +1,8 @@
 /**
  * MindFlow for Zotero - Packaging Pipeline
- * Builds React app as a self-contained IIFE bundle for Gecko (Zotero 7+),
+ * Builds React app as a self-contained IIFE bundle for Zotero 10 Gecko,
  * avoids CORS/ES-module restrictions in chrome:// URLs,
- * structures Zotero 7 addon, validates syntax, and packages .xpi
+ * structures Zotero addon, validates syntax, and packages .xpi
  */
 
 import fs from 'node:fs';
@@ -37,6 +37,7 @@ function copyDirRecursive(src, dest) {
 }
 
 async function main() {
+  const addonVersion = JSON.parse(fs.readFileSync(path.join(zoteroSrc, 'manifest.json'), 'utf-8')).version;
   console.log('🧹 [1/5] Preparing Zotero addon staging directory...');
   if (fs.existsSync(zoteroStaging)) {
     fs.rmSync(zoteroStaging, { recursive: true, force: true });
@@ -45,6 +46,7 @@ async function main() {
 
   // 1. Copy core Zotero root files
   fs.copyFileSync(path.join(zoteroSrc, 'manifest.json'), path.join(zoteroStaging, 'manifest.json'));
+  fs.copyFileSync(path.join(zoteroSrc, 'update.json'), path.join(zoteroStaging, 'update.json'));
   fs.copyFileSync(path.join(zoteroSrc, 'bootstrap.js'), path.join(zoteroStaging, 'bootstrap.js'));
   fs.copyFileSync(path.join(zoteroSrc, 'prefs.js'), path.join(zoteroStaging, 'prefs.js'));
   fs.copyFileSync(path.join(zoteroSrc, 'chrome.manifest'), path.join(zoteroStaging, 'chrome.manifest'));
@@ -53,7 +55,7 @@ async function main() {
   copyDirRecursive(path.join(zoteroSrc, 'locale'), path.join(zoteroStaging, 'locale'));
   copyDirRecursive(path.join(zoteroSrc, 'chrome'), path.join(zoteroStaging, 'chrome'));
 
-  console.log('🚀 [2/5] Building dedicated standalone bundle for Zotero 7 (Gecko IIFE)...');
+  console.log('🚀 [2/5] Building dedicated Zotero desktop bundle (Gecko IIFE)...');
   // Type check first
   execSync('npx tsc --noEmit', { cwd: projectRoot, stdio: 'inherit' });
 
@@ -165,9 +167,9 @@ async function main() {
 
   console.log('📦 [4/5] Packaging into Zotero .xpi archive...');
   const psScriptPath = path.join(projectRoot, 'scripts', 'build-zotero.ps1');
-  execSync(`powershell -NoProfile -ExecutionPolicy Bypass -File "${psScriptPath}"`, { stdio: 'inherit' });
+  execSync(`pwsh -NoProfile -ExecutionPolicy Bypass -File "${psScriptPath}"`, { stdio: 'inherit' });
 
-  console.log('✨ [5/5] Build complete! Zotero addon ready at dist-zotero/ and dist-zip/mindflow-zotero-1.0.0.xpi');
+  console.log(`✨ [5/5] Build complete! Zotero addon ready at dist-zotero/ and dist-zip/mindflow-zotero-${addonVersion}.xpi`);
 }
 
 main().catch((err) => {

@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { LayoutNode } from '../../core/model/types';
 import { safeExternalUrl } from '../../core/model/links';
 import { imageDisplayHeight, isSafeNodeImage } from '../../core/model/nodeImage';
-import { ExternalLink, FileText, ChevronRight, Tag, Star, Flag, CheckCircle2, HelpCircle, Link2, GraduationCap } from 'lucide-react';
-import { locateItemInZotero } from '../../services/zotero/zoteroBridge';
+import { ExternalLink, FileText, ChevronRight, ChevronDown, Tag, Star, Flag, CheckCircle2, HelpCircle, Link2, GraduationCap } from 'lucide-react';
+import { openZoteroUri } from '../../services/zotero/zoteroBridge';
 
 interface NodeCardProps {
   layoutNode: LayoutNode;
@@ -241,7 +241,10 @@ export const NodeCard: React.FC<NodeCardProps> = ({
             onClick={(e) => e.stopPropagation()}
           />
         ) : node.text ? (
-          <span className={`truncate flex-1 tracking-wide leading-tight ${node.task?.status === 'done' ? 'line-through opacity-60' : ''}`}>
+          <span
+            title={node.text}
+            className={`truncate flex-1 tracking-wide leading-tight ${node.task?.status === 'done' ? 'line-through opacity-60' : ''}`}
+          >
             {node.text}
           </span>
         ) : null}
@@ -265,24 +268,32 @@ export const NodeCard: React.FC<NodeCardProps> = ({
             onMouseEnter={() => setShowNotePopover(true)}
             onMouseLeave={() => setShowNotePopover(false)}
           >
-            <span
+            <button
+              type="button"
+              aria-label={`查看完整备注或摘要（${node.note.length} 字）`}
+              aria-expanded={showNotePopover}
+              title={`查看完整备注或摘要（${node.note.length} 字）`}
               onClick={(e) => {
                 e.stopPropagation();
                 setShowNotePopover(!showNotePopover);
               }}
-              className="text-slate-400 hover:text-amber-500 transition-colors cursor-pointer flex items-center"
+              className="p-1 -m-1 text-slate-400 hover:text-amber-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 rounded transition-colors cursor-pointer flex items-center"
             >
               <FileText className="w-3.5 h-3.5" />
-            </span>
+            </button>
             {showNotePopover && (
               <div
                 onClick={(e) => e.stopPropagation()}
-                className="absolute left-0 bottom-full mb-2 w-56 p-2.5 rounded-xl bg-slate-900/95 text-slate-100 text-xs shadow-2xl backdrop-blur-md border border-slate-700/80 z-50 pointer-events-auto leading-relaxed animate-in fade-in zoom-in-95 duration-150"
+                role="dialog"
+                aria-label="完整摘要或备注"
+                style={{ width: 'min(70vw, 32rem)', maxHeight: 'min(60vh, 32rem)' }}
+                className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 p-3 rounded-xl bg-slate-900/95 text-slate-100 text-xs shadow-2xl backdrop-blur-md border border-slate-700/80 z-50 pointer-events-auto leading-relaxed overflow-y-auto overscroll-contain whitespace-pre-wrap break-words animate-in fade-in zoom-in-95 duration-150"
               >
-                <div className="text-[10px] font-bold text-amber-400 uppercase tracking-wider mb-1 flex items-center gap-1">
-                  <FileText className="w-3 h-3" /> 备注内容
+                <div className="sticky top-0 -mt-0.5 pb-1.5 mb-1.5 bg-slate-900/95 text-[10px] font-bold text-amber-400 uppercase tracking-wider flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-1"><FileText className="w-3 h-3" /> 完整摘要 / 备注</span>
+                  <span className="font-normal normal-case text-slate-400">{node.note.length} 字</span>
                 </div>
-                <div className="max-h-32 overflow-y-auto whitespace-pre-wrap font-normal break-words text-[11px] text-slate-200">
+                <div className="font-normal text-[11px] text-slate-200">
                   {node.note}
                 </div>
               </div>
@@ -309,11 +320,11 @@ export const NodeCard: React.FC<NodeCardProps> = ({
           externalUrl.startsWith('zotero://') ? (
             <button
               type="button"
-              title="在 Zotero 文库中定位该文献（右键可选择阅读 PDF）"
-              aria-label="在 Zotero 文库中定位该文献"
+              title={externalUrl.startsWith('zotero://open-pdf/') ? '在 Zotero PDF 阅读器中查看原批注' : '在 Zotero 中定位关联条目'}
+              aria-label={externalUrl.startsWith('zotero://open-pdf/') ? '查看原 PDF 批注' : '在 Zotero 中定位关联条目'}
               onClick={(e) => {
                 e.stopPropagation();
-                locateItemInZotero(externalUrl);
+                openZoteroUri(externalUrl);
               }}
               className="flex-shrink-0 text-sky-600 hover:text-sky-800 p-0.5 rounded hover:bg-sky-100 dark:hover:bg-sky-950 transition-colors flex items-center"
             >
@@ -337,23 +348,41 @@ export const NodeCard: React.FC<NodeCardProps> = ({
       {/* Collapse/Expand button for nodes with children */}
       {hasChildren && !isRoot && (
         <button
+          type="button"
+          draggable={false}
           onClick={(e) => {
             e.stopPropagation();
             onToggleCollapse(node.id);
           }}
-          title={isCollapsed ? `展开 ${node.children.length} 个子主题` : '收起子主题'}
-          className={`
-            absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full flex items-center justify-center
-            text-[9px] font-bold shadow-sm transition-transform z-30
-            ${isCollapsed 
-              ? 'bg-blue-600 text-white hover:bg-blue-700 hover:scale-110' 
-              : 'bg-slate-200 hover:bg-slate-300 text-slate-700 opacity-0 group-hover:opacity-100 hover:opacity-100'}
-          `}
-          style={{
-            opacity: isCollapsed ? 1 : undefined,
+          onPointerDown={(e) => e.stopPropagation()}
+          onDragStart={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
           }}
+          aria-expanded={!isCollapsed}
+          aria-label={isCollapsed ? `展开 ${node.children.length} 个子主题` : `收起 ${node.children.length} 个子主题`}
+          title={isCollapsed ? `展开 ${node.children.length} 个子主题` : `收起 ${node.children.length} 个子主题`}
+          className={`
+            absolute -right-3.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full flex items-center justify-center
+            border shadow-md transition-all duration-150 z-30 touch-manipulation
+            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2
+            hover:scale-110 active:scale-95
+            ${isCollapsed
+              ? 'bg-blue-600 border-blue-700 text-white hover:bg-blue-700'
+              : 'bg-white border-slate-300 text-slate-600 hover:bg-blue-50 hover:border-blue-400 hover:text-blue-700 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700'}
+          `}
         >
-          {isCollapsed ? node.children.length : <ChevronRight className="w-3 h-3" />}
+          {isCollapsed
+            ? <ChevronRight className="w-4 h-4" aria-hidden="true" />
+            : <ChevronDown className="w-4 h-4" aria-hidden="true" />}
+          {isCollapsed && (
+            <span
+              aria-hidden="true"
+              className="absolute -top-1 -right-1 min-w-4 h-4 px-0.5 rounded-full flex items-center justify-center bg-white text-blue-700 border border-blue-200 text-[9px] leading-none font-bold shadow-sm"
+            >
+              {node.children.length > 99 ? '99+' : node.children.length}
+            </span>
+          )}
         </button>
       )}
     </div>

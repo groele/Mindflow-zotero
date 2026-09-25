@@ -1,6 +1,6 @@
 /**
  * MindFlow for Zotero - Bootstrap Entry
- * Supports Zotero 7+ (Gecko 115 ESR / Firefox Architecture)
+ * Zotero 10 desktop bootstrap
  */
 
 if (typeof Zotero === 'undefined') {

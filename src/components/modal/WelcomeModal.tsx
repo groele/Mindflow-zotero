@@ -84,7 +84,7 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({
               <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <span>欢迎使用 MindFlow 思维导图</span>
                 <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300">
-                  {isZoteroMode ? 'Zotero 7 伴读版' : '工作台'}
+                  {isZoteroMode ? 'Zotero 10 伴读版' : '工作台'}
                 </span>
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">

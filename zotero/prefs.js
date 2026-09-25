@@ -1,6 +1,6 @@
 pref("extensions.mindflow.windowMode", "tab");
 pref("extensions.mindflow.showWelcomeOnStartup", true);
-pref("extensions.mindflow.theme", "academic");
+pref("extensions.mindflow.theme", "classic-blue");
 pref("extensions.mindflow.defaultLayout", "mindmap");
 pref("extensions.mindflow.canvasBackground", "dots");
 pref("extensions.mindflow.curveStyle", "bezier");

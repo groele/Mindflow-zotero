@@ -4,6 +4,7 @@ import { generateId } from '../../core/model/treeOps';
 export interface ZoteroItemData {
   key: string;
   id?: number | string;
+  libraryID?: number;
   title: string;
   itemType?: string;
   authors: string[];
@@ -13,8 +14,8 @@ export interface ZoteroItemData {
   url?: string;
   abstract?: string;
   tags: string[];
-  notes?: string[];
-  annotations?: Array<{ text: string; comment?: string; pageLabel?: string; color?: string }>;
+  notes?: Array<string | { text: string; uri?: string }>;
+  annotations?: Array<{ text: string; comment?: string; pageLabel?: string; color?: string; uri?: string }>;
   zoteroUri: string;
 }
 
@@ -26,7 +27,7 @@ declare global {
 }
 
 /**
- * Get the global Zotero object if running inside Zotero 7 / Firefox Gecko environment
+ * Get the global Zotero object if running inside Zotero 10 / Gecko
  */
 export function getZoteroInstance(): any | null {
   try {
@@ -51,10 +52,49 @@ export function getZoteroInstance(): any | null {
 }
 
 /**
- * Check if the application is running inside Zotero 7 desktop environment
+ * Check if the application is running inside Zotero desktop
  */
 export function isZoteroEnvironment(): boolean {
   return getZoteroInstance() !== null;
+}
+
+function noteHtmlToText(html: string): string {
+  try {
+    const parsed = new DOMParser().parseFromString(html, 'text/html');
+    parsed.querySelectorAll('br').forEach((node) => node.replaceWith('\n'));
+    parsed.querySelectorAll('p, div, li').forEach((node) => node.append('\n'));
+    return (parsed.body.textContent || '').replace(/\n{3,}/g, '\n\n').trim();
+  } catch {
+    return html.replace(/<[^>]+>/g, ' ').trim();
+  }
+}
+
+function annotationLink(attachment: any, annotation: any, Zotero: any): string | undefined {
+  if (!annotation?.key || !attachment?.key) return undefined;
+  const groupID = Zotero?.Libraries?.get?.(attachment.libraryID)?.groupID;
+  const base = groupID
+    ? `zotero://open-pdf/groups/${groupID}/items/${attachment.key}`
+    : `zotero://open-pdf/library/items/${attachment.key}`;
+  let page: number | undefined;
+  try {
+    const index = JSON.parse(annotation.annotationPosition || '{}').pageIndex;
+    if (Number.isSafeInteger(index) && index >= 0) page = index + 1;
+  } catch { /* annotation link still works without a page */ }
+  return `${base}?${page ? `page=${page}&` : ''}annotation=${encodeURIComponent(annotation.key)}`;
+}
+
+function resolveZoteroItem(reference: string | number, Zotero: any): any | null {
+  const raw = String(reference).trim();
+  const group = raw.match(/^zotero:\/\/(?:select|open-pdf)\/groups\/(\d+)\/items\/([A-Za-z0-9_]+)/);
+  const key = group?.[2] || raw.match(/\/items\/([A-Za-z0-9_]+)(?:[?#]|$)/)?.[1] || raw;
+  if (!/^[A-Za-z0-9_]+$/.test(key)) return null;
+  if (!raw.includes('/items/') && /^\d+$/.test(key)) return Zotero.Items.get(Number(key));
+  let libraryID = Zotero.Libraries?.userLibraryID || 1;
+  if (group) {
+    libraryID = Zotero.Groups?.getLibraryIDFromGroupID?.(Number(group[1]));
+    if (!libraryID) return null;
+  }
+  return Zotero.Items.getByLibraryAndKey?.(libraryID, key) || null;
 }
 
 /**
@@ -71,16 +111,21 @@ export function extractZoteroItemData(item: any): ZoteroItemData | null {
 
     const Zotero = getZoteroInstance();
 
-    // If item is an attachment (e.g. user selected PDF under paper), resolve parent regular item!
+    // Resolve child attachments and notes to their bibliographic parent. A
+    // standalone note is not a literature item and must not become a map root.
     let target = item;
-    if (target && typeof target.isAttachment === 'function' && target.isAttachment() && target.parentItemID) {
+    const isChildItem = target && (
+      (typeof target.isAttachment === 'function' && target.isAttachment()) ||
+      (typeof target.isNote === 'function' && target.isNote())
+    );
+    if (isChildItem && target.parentItemID) {
       const parent = Zotero?.Items?.get?.(target.parentItemID);
       if (parent) target = parent;
     }
 
-    // Ensure it's a regular item (not attachment/note alone, unless attachment has parent)
-    const isRegular = typeof target.isRegularItem === 'function' ? target.isRegularItem() : true;
-    if (!isRegular && typeof target.isNote === 'function' && !target.isNote()) {
+    // Zotero notes and attachments are not source literature items. Unknown
+    // object shapes are rejected too; serialized descriptors were handled above.
+    if (typeof target.isRegularItem !== 'function' || !target.isRegularItem()) {
       return null;
     }
 
@@ -123,8 +168,8 @@ export function extractZoteroItemData(item: any): ZoteroItemData | null {
     }
 
     // Notes and annotations
-    const notes: string[] = [];
-    const annotations: Array<{ text: string; comment?: string; pageLabel?: string; color?: string }> = [];
+    const notes: Array<{ text: string; uri?: string }> = [];
+    const annotations: Array<{ text: string; comment?: string; pageLabel?: string; color?: string; uri?: string }> = [];
 
     try {
       if (typeof target.getNotes === 'function') {
@@ -133,9 +178,15 @@ export function extractZoteroItemData(item: any): ZoteroItemData | null {
           for (const noteId of noteIds) {
             const noteItem = Zotero.Items.get(noteId);
             if (noteItem) {
-              const noteText = (noteItem.getNote() || '').replace(/<[^>]+>/g, '').trim();
+              const noteText = noteHtmlToText(noteItem.getNote() || '');
               if (noteText && !noteText.includes('MindFlow 导图大纲')) {
-                notes.push(noteText.slice(0, 300));
+                const groupID = Zotero.Libraries?.get?.(noteItem.libraryID)?.groupID;
+                notes.push({
+                  text: noteText,
+                  uri: groupID
+                    ? `zotero://select/groups/${groupID}/items/${noteItem.key}`
+                    : `zotero://select/library/items/${noteItem.key}`,
+                });
               }
             }
           }
@@ -157,7 +208,7 @@ export function extractZoteroItemData(item: any): ZoteroItemData | null {
                   const pageLabel = anno.annotationPageLabel;
                   const color = anno.annotationColor;
                   if (text || comment) {
-                    annotations.push({ text: text || '', comment, pageLabel, color });
+                    annotations.push({ text: text || '', comment, pageLabel, color, uri: annotationLink(att, anno, Zotero) });
                   }
                 }
               }
@@ -170,11 +221,15 @@ export function extractZoteroItemData(item: any): ZoteroItemData | null {
     }
 
     const key = target.key || String(target.id || Math.random());
-    const zoteroUri = `zotero://select/items/${target.key || target.id}`;
+    const groupID = Zotero?.Libraries?.get?.(target.libraryID)?.groupID;
+    const zoteroUri = groupID
+      ? `zotero://select/groups/${groupID}/items/${target.key || target.id}`
+      : `zotero://select/library/items/${target.key || target.id}`;
 
     return {
       key,
       id: target.id,
+      libraryID: target.libraryID,
       title,
       itemType: target.itemType || 'journalArticle',
       authors,
@@ -222,7 +277,7 @@ export function getSelectedZoteroItems(): ZoteroItemData[] {
         if (parent) target = parent;
       }
       const data = extractZoteroItemData(target);
-      if (data && !results.some((r) => r.key === data.key)) {
+      if (data && !results.some((r) => r.key === data.key && r.libraryID === data.libraryID)) {
         results.push(data);
       }
     }
@@ -250,7 +305,8 @@ export function getZoteroPref<T>(key: string, defaultValue: T): T {
 }
 
 /**
- * Set a MindFlow extension preference in Zotero.Prefs and broadcast to host
+ * Set a MindFlow extension preference in Zotero.Prefs, using the host bridge
+ * only when this frame cannot access the Zotero preference API.
  */
 export function setZoteroPref(key: string, value: any): boolean {
   const zotero = getZoteroInstance();
@@ -263,20 +319,22 @@ export function setZoteroPref(key: string, value: any): boolean {
       saved = false;
     }
   }
-  try {
-    if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
-      window.parent.postMessage(
-        {
-          type: 'MINDFLOW_SET_PREF',
-          key,
-          value,
-        },
-        '*'
-      );
-      saved = true;
+  if (!saved) {
+    try {
+      if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
+        window.parent.postMessage(
+          {
+            type: 'MINDFLOW_SET_PREF',
+            key,
+            value,
+          },
+          '*'
+        );
+        saved = true;
+      }
+    } catch {
+      // ignore
     }
-  } catch {
-    // ignore
   }
   return saved;
 }
@@ -377,29 +435,34 @@ export function convertZoteroItemToNode(
 
   // 3. Annotations & Highlights
   if (includeAnnotations && item.annotations && item.annotations.length > 0) {
-    const annoChildren: MindMapNode[] = item.annotations.slice(0, 10).map((anno) => ({
+    const annoChildren: MindMapNode[] = item.annotations.map((anno) => ({
       id: generateId(),
-      text: (anno.pageLabel ? `[P.${anno.pageLabel}] ` : '') + (anno.text || anno.comment || '批注'),
-      note: anno.comment ? `批注说明: ${anno.comment}` : undefined,
+      text: (anno.pageLabel ? `[P.${anno.pageLabel}] ` : '') + ((anno.text || anno.comment || '批注').slice(0, 160)),
+      note: [anno.text, anno.comment ? `批注说明: ${anno.comment}` : ''].filter(Boolean).join('\n\n'),
+      link: anno.uri,
       color: anno.color,
       children: [],
     }));
     children.push({
       id: generateId(),
       text: `✏️ 阅读批注 (${item.annotations.length})`,
-      isExpanded: true,
+      isExpanded: false,
       children: annoChildren,
     });
   }
 
   // 4. Notes
   if (includeAnnotations && item.notes && item.notes.length > 0) {
-    const noteChildren: MindMapNode[] = item.notes.map((n) => ({
+    const noteChildren: MindMapNode[] = item.notes.map((entry) => {
+      const text = typeof entry === 'string' ? entry : entry.text;
+      return {
       id: generateId(),
-      text: n.length > 80 ? `${n.slice(0, 80)}...` : n,
-      note: n,
+      text: text.length > 80 ? `${text.slice(0, 80)}...` : text,
+      note: text,
+      link: typeof entry === 'string' ? undefined : entry.uri,
       children: [],
-    }));
+      };
+    });
     children.push({
       id: generateId(),
       text: `📝 关联笔记 (${item.notes.length})`,
@@ -427,7 +490,7 @@ export function convertZoteroItemToNode(
       item.publication ? `刊物: ${item.publication}` : null,
       item.year ? `年代: ${item.year}` : null,
       item.doi ? `DOI: ${item.doi}` : null,
-      item.abstract ? `\n摘要:\n${item.abstract}` : null,
+      includeAbstract && item.abstract ? `\n摘要:\n${item.abstract}` : null,
     ].filter(Boolean).join('\n'),
     link: item.zoteroUri,
     tags: item.tags.length ? item.tags.slice(0, 3) : undefined,
@@ -447,6 +510,14 @@ export async function saveMindMapToZoteroNote(doc: MindMapDocument): Promise<{ s
   }
 
   try {
+    const parentReference = doc.metadata?.zoteroUri || doc.metadata?.zoteroItemKey;
+    const parentItem = parentReference ? resolveZoteroItem(parentReference, Zotero) : null;
+    if (parentReference && (!parentItem || !parentItem.isRegularItem?.())) {
+      return { success: false, message: '关联的 Zotero 文献已不可用，未创建独立笔记以免丢失文献关联。' };
+    }
+    if (parentItem && Zotero.Libraries?.get?.(parentItem.libraryID)?.editable === false) {
+      return { success: false, message: '目标 Zotero 文献库为只读，无法保存子笔记。' };
+    }
     function nodeToHtml(node: MindMapNode, level: number = 1): string {
       const indent = '  '.repeat(level);
       let html = `${indent}<li><strong>${escapeHtml(node.text)}</strong>`;
@@ -479,7 +550,7 @@ export async function saveMindMapToZoteroNote(doc: MindMapDocument): Promise<{ s
     }
 
     const noteHtml = `
-      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+      <div data-mindflow-document-id="${escapeHtml(doc.id)}" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
         <h2 style="color: #0284c7;">🧠 MindFlow 导图笔记: ${escapeHtml(doc.title)}</h2>
         <p style="color: #64748b; font-size: 12px;">创建时间: ${new Date(doc.createdAt).toLocaleString()} | 更新时间: ${new Date(doc.updatedAt).toLocaleString()}</p>
         <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 12px 0;" />
@@ -491,11 +562,35 @@ export async function saveMindMapToZoteroNote(doc: MindMapDocument): Promise<{ s
       </div>
     `.trim();
 
-    const noteItem = new Zotero.Item('note');
+    let noteItem: any = null;
+    if (parentItem && typeof parentItem.getNotes === 'function') {
+      for (const noteID of parentItem.getNotes()) {
+        const candidate = Zotero.Items.get(noteID);
+        if (candidate?.isNote?.() && candidate.getNote?.().includes(`data-mindflow-document-id="${escapeHtml(doc.id)}"`)) {
+          noteItem = candidate;
+          break;
+        }
+      }
+    }
+    if (!noteItem) {
+      noteItem = new Zotero.Item('note');
+      if (parentItem) {
+        noteItem.libraryID = parentItem.libraryID;
+        noteItem.parentItemID = parentItem.id;
+      }
+    }
     noteItem.setNote(noteHtml);
     await noteItem.saveTx();
+    if (getZoteroPref('autoOpenAfterExport', false)) {
+      try {
+        const pane = Zotero.getActiveZoteroPane?.() || Zotero.getMainWindow?.()?.ZoteroPane;
+        await pane?.selectItem?.(noteItem.id);
+      } catch { /* the note has already been saved */ }
+    }
 
-    return { success: true, message: `已成功保存到 Zotero 笔记库：“${doc.title}”` };
+    return { success: true, message: parentItem
+      ? `已将导图大纲保存为“${parentItem.getField('title')}”的子笔记`
+      : `已将导图大纲保存为 Zotero 独立笔记：“${doc.title}”` };
   } catch (error: any) {
     console.error('Failed to save to Zotero note:', error);
     return { success: false, message: `保存失败: ${error?.message || error}` };
@@ -507,30 +602,12 @@ export async function saveMindMapToZoteroNote(doc: MindMapDocument): Promise<{ s
  */
 export function locateItemInZotero(itemKeyOrUri: string | number): boolean {
   const Zotero = getZoteroInstance();
-  const key = String(itemKeyOrUri).replace(/^.*\/items\//, '').trim();
 
-  // 1. Send postMessage to host window (Zotero top-level)
-  if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
-    try {
-      window.parent.postMessage({
-        type: 'MINDFLOW_LOCATE_ITEM',
-        key,
-      }, '*');
-    } catch {
-      // ignore
-    }
-  }
-
-  // 2. Direct XPCOM invocation if accessible in current context
+  // Prefer a direct Zotero API call. Sending both this and a host message
+  // selects the same item twice and can race tab switching.
   if (Zotero) {
     try {
-      const userLibId = Zotero.Libraries?.userLibraryID || 1;
-      let item = null;
-      if (/^\d+$/.test(key)) {
-        item = Zotero.Items.get(Number(key));
-      } else if (Zotero.Items.getByLibraryAndKey) {
-        item = Zotero.Items.getByLibraryAndKey(userLibId, key);
-      }
+      const item = resolveZoteroItem(itemKeyOrUri, Zotero);
 
       const win = (typeof window !== 'undefined' && window.parent !== window ? window.parent : null) || Zotero.getMainWindow?.();
       if (win?.Zotero_Tabs) {
@@ -546,6 +623,15 @@ export function locateItemInZotero(itemKeyOrUri: string | number): boolean {
     }
   }
 
+  // In an iframe without direct Zotero access, delegate to the host window.
+  if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
+    try {
+      window.parent.postMessage({ type: 'MINDFLOW_LOCATE_ITEM', key: itemKeyOrUri }, '*');
+      return true;
+    } catch {
+      // ignore
+    }
+  }
   return false;
 }
 
@@ -554,37 +640,17 @@ export function locateItemInZotero(itemKeyOrUri: string | number): boolean {
  */
 export function openItemPdfInZotero(itemKeyOrUri: string | number): boolean {
   const Zotero = getZoteroInstance();
-  const key = String(itemKeyOrUri).replace(/^.*\/items\//, '').trim();
 
-  // 1. Send postMessage to host window
-  if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
-    try {
-      window.parent.postMessage({
-        type: 'MINDFLOW_OPEN_PDF',
-        key,
-      }, '*');
-    } catch {
-      // ignore
-    }
-  }
-
-  // 2. Direct XPCOM invocation if accessible
+  // Prefer a direct Zotero API call. Do not also ask the host to open a
+  // second reader for the same item.
   if (Zotero) {
     try {
-      const userLibId = Zotero.Libraries?.userLibraryID || 1;
-      let item = null;
-      if (/^\d+$/.test(key)) {
-        item = Zotero.Items.get(Number(key));
-      } else if (Zotero.Items.getByLibraryAndKey) {
-        item = Zotero.Items.getByLibraryAndKey(userLibId, key);
-      }
+      const item = resolveZoteroItem(itemKeyOrUri, Zotero);
 
       if (item) {
         let pdfAttachment: any = null;
         if (item.isAttachment && item.isAttachment() && item.isPDFAttachment && item.isPDFAttachment()) {
           pdfAttachment = item;
-        } else if (typeof item.getBestAttachment === 'function') {
-          pdfAttachment = item.getBestAttachment();
         } else if (typeof item.getAttachments === 'function') {
           const attIds = item.getAttachments();
           for (const attId of attIds) {
@@ -597,7 +663,9 @@ export function openItemPdfInZotero(itemKeyOrUri: string | number): boolean {
         }
 
         if (pdfAttachment && Zotero.Reader && typeof Zotero.Reader.open === 'function') {
-          Zotero.Reader.open({ itemID: pdfAttachment.id });
+          void Promise.resolve(Zotero.Reader.open({ itemID: pdfAttachment.id })).catch((error) => {
+            console.warn('[MindFlow] PDF reader opening failed:', error);
+          });
           return true;
         }
       }
@@ -606,15 +674,24 @@ export function openItemPdfInZotero(itemKeyOrUri: string | number): boolean {
     }
   }
 
+  if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
+    try {
+      window.parent.postMessage({ type: 'MINDFLOW_OPEN_PDF', key: itemKeyOrUri }, '*');
+      return true;
+    } catch {
+      // ignore
+    }
+  }
+
   // Fallback to locating item
-  return locateItemInZotero(key);
+  return locateItemInZotero(itemKeyOrUri);
 }
 
 /**
  * Open / Navigate to a Zotero URI
  */
 export function openZoteroUri(uri: string): void {
-  if (uri.startsWith('zotero://select/items/')) {
+  if (uri.startsWith('zotero://select/') && uri.includes('/items/')) {
     if (locateItemInZotero(uri)) return;
   }
 
@@ -673,16 +750,8 @@ export function getSampleAcademicItems(): ZoteroItemData[] {
  * Open Zotero Preferences / Settings Window (Focusing on MindFlow Plugin Settings)
  */
 export function openZoteroPreferences(): boolean {
-  // 1. Post message to host window if inside an iframe
-  if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
-    try {
-      window.parent.postMessage({ type: 'MINDFLOW_OPEN_PREFERENCES' }, '*');
-    } catch {
-      // ignore
-    }
-  }
-
-  // 2. Direct XPCOM invocation if accessible
+  // Prefer direct Zotero API access; dispatching both paths can open two
+  // Preferences windows from the same click.
   const Zotero = getZoteroInstance();
   if (Zotero) {
     try {
@@ -711,6 +780,14 @@ export function openZoteroPreferences(): boolean {
     }
   }
 
+  if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
+    try {
+      window.parent.postMessage({ type: 'MINDFLOW_OPEN_PREFERENCES' }, '*');
+      return true;
+    } catch {
+      // ignore
+    }
+  }
   return false;
 }
 
@@ -732,24 +809,8 @@ export async function saveMindMapToZoteroAttachment(
     targetKey = parentItemKeyOrOptions || doc.metadata?.zoteroItemKey;
   }
 
-  // 1. Post message to host window if inside an iframe
-  if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
-    try {
-      window.parent.postMessage(
-        {
-          type: 'MINDFLOW_SAVE_ATTACHMENT',
-          doc,
-          parentItemKey: targetKey,
-          silent: opts?.silent,
-        },
-        '*'
-      );
-    } catch {
-      // ignore
-    }
-  }
-
-  // 2. Direct XPCOM invocation if accessible in current context
+  // Prefer a direct call when Zotero's plugin API is available. Sending both
+  // a direct call and a host message can archive the same document twice.
   const Zotero = getZoteroInstance();
   if (Zotero?.MindFlow?.saveMindMapToItem) {
     try {
@@ -764,9 +825,46 @@ export async function saveMindMapToZoteroAttachment(
     }
   }
 
+  // In native tabs, the Zotero window owns the API while the app runs in an
+  // iframe. Wait for the host's result so the UI does not report a save before
+  // Zotero has actually written the attachment/note.
+  if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
+    const requestId = `mindflow-save-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    return new Promise((resolve) => {
+      const finish = (result: { success: boolean; message: string; savedPath?: string }) => {
+        window.removeEventListener('message', onMessage);
+        window.clearTimeout(timeout);
+        resolve(result);
+      };
+      const onMessage = (event: MessageEvent) => {
+        if (event.source !== window.parent) return;
+        const data = event.data;
+        if (data?.type !== 'MINDFLOW_SAVE_ATTACHMENT_RESULT' || data.requestId !== requestId) return;
+        finish(data.result || { success: false, message: 'Zotero 未返回归档结果' });
+      };
+      const timeout = window.setTimeout(() => {
+        finish({ success: false, message: '等待 Zotero 归档结果超时，请检查 Zotero 错误日志后重试' });
+      }, 30000);
+      window.addEventListener('message', onMessage);
+      try {
+        window.parent.postMessage(
+          {
+            type: 'MINDFLOW_SAVE_ATTACHMENT',
+            requestId,
+            doc,
+            parentItemKey: targetKey,
+            silent: opts?.silent,
+          },
+          '*'
+        );
+      } catch {
+        finish({ success: false, message: '无法向 Zotero 主窗口发送归档请求' });
+      }
+    });
+  }
+
   return {
-    success: true,
-    message: '已向 Zotero 发送归档请求：保存为文献条目子附件 (.mindflow) 与结构化大纲笔记。',
+    success: false,
+    message: '未检测到可用的 Zotero 插件通信通道，导图尚未归档。',
   };
 }
-

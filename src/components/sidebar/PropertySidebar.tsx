@@ -18,6 +18,7 @@ interface PropertySidebarProps {
   onOpenInternalLink?: (documentId: string, nodeId?: string) => void;
   onClose: () => void;
   dockSide?: 'left' | 'right';
+  defaultTaskPriority?: 1 | 2 | 3;
 }
 
 const COLOR_PRESETS = [
@@ -34,6 +35,7 @@ export const PropertySidebar: React.FC<PropertySidebarProps> = ({
   onOpenInternalLink,
   onClose,
   dockSide = 'right',
+  defaultTaskPriority = 2,
 }) => {
   const [noteText, setNoteText] = useState('');
   const [nodeText, setNodeText] = useState('');
@@ -156,6 +158,10 @@ export const PropertySidebar: React.FC<PropertySidebarProps> = ({
   };
 
   const currentIcons = selectedNode.icons || [];
+  const noteRows = Math.min(18, Math.max(4, noteText.split('\n').reduce(
+    (rows, line) => rows + Math.max(1, Math.ceil(line.length / 42)),
+    0
+  )));
 
   return (
     <aside className={`w-72 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-slate-200 dark:border-slate-800 flex flex-col h-full z-20 select-none shadow-xl ${dockSide === 'left' ? 'border-r order-first animate-in slide-in-from-left duration-150' : 'border-l order-last animate-in slide-in-from-right duration-150'}`}>
@@ -332,7 +338,7 @@ export const PropertySidebar: React.FC<PropertySidebarProps> = ({
                 if (selectedNode.task) {
                   onUpdateNode(selectedNode.id, { task: undefined });
                 } else {
-                  onUpdateNode(selectedNode.id, { task: { status: 'todo' } });
+                  onUpdateNode(selectedNode.id, { task: { status: 'todo', priority: defaultTaskPriority } });
                 }
               }}
               className={`px-2 py-0.5 rounded text-[11px] font-medium border transition-colors ${
@@ -414,8 +420,8 @@ export const PropertySidebar: React.FC<PropertySidebarProps> = ({
         {/* Zotero Item Link Action Box */}
         {(() => {
           const zoteroTargetKey =
-            (selectedNode.link && selectedNode.link.startsWith('zotero://') ? selectedNode.link : null) ||
-            currentDoc.metadata?.zoteroItemKey;
+            currentDoc.metadata?.zoteroItemKey ||
+            (selectedNode.link && selectedNode.link.startsWith('zotero://') ? selectedNode.link : null);
 
           if (!zoteroTargetKey) return null;
 
@@ -423,9 +429,9 @@ export const PropertySidebar: React.FC<PropertySidebarProps> = ({
             setIsSyncingToZotero(true);
             setSyncStatusMsg(null);
             try {
-              const res = await saveMindMapToZoteroAttachment(currentDoc, { silent: true });
+              const res = await saveMindMapToZoteroAttachment(currentDoc, zoteroTargetKey, { silent: true });
               if (res.success) {
-                setSyncStatusMsg('已成功同步至文献附件与笔记');
+                setSyncStatusMsg(res.message || '已同步至文献附件');
               } else {
                 setSyncStatusMsg(res.message || '未关联到对应条目');
               }
@@ -602,16 +608,17 @@ export const PropertySidebar: React.FC<PropertySidebarProps> = ({
 
         {/* Notes */}
         <div>
-          <label className="flex items-center gap-1.5 font-medium text-slate-500 mb-1.5">
+          <label className="flex items-center justify-between gap-1.5 font-medium text-slate-500 mb-1.5">
             <FileText className="w-3.5 h-3.5" /> 备注注释
+            <span className="ml-auto text-[10px] font-normal text-slate-400">{noteText.length} 字</span>
           </label>
           <textarea
-            rows={4}
+            rows={noteRows}
             value={noteText}
             placeholder="为该主题添加长文本备注或待办细节..."
             onChange={(e) => setNoteText(e.target.value)}
             onBlur={handleNoteBlur}
-            className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 outline-none focus:border-blue-400 text-xs resize-none"
+            className="w-full min-h-24 max-h-[55vh] overflow-y-auto px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 outline-none focus:border-blue-400 text-xs resize-y"
           />
         </div>
       </div>

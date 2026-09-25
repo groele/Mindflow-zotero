@@ -817,7 +817,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1.5">
                       <div className="flex items-center justify-between text-[11px]">
                         <span className="flex items-center gap-1 font-medium">
-                          <HardDrive className="w-3.5 h-3.5 text-blue-500" /> 本机 Chrome 存储使用量
+                          <HardDrive className="w-3.5 h-3.5 text-blue-500" /> {isZoteroEnvironment() ? '本机工作区存储使用量' : '本机 Chrome 存储使用量'}
                         </span>
                         <span className="font-semibold text-slate-700 dark:text-slate-300">
                           {formatSize(quota.usedBytes)} / {formatSize(quota.maxBytes)} ({quota.percent}%)
@@ -1078,7 +1078,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   {isZoteroEnvironment() && (
                     <div className="mt-2 flex items-center justify-between px-3 py-2 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
                       <span className="text-[11px] text-slate-500">
-                        当前环境已连接 Zotero 7 原生客户端，设置将实时同步至 Zotero 系统首选项。
+                        当前环境已连接 Zotero 10，设置会同步至 Zotero 的 MindFlow 设置面板。
                       </span>
                       <button
                         type="button"
@@ -1119,7 +1119,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <label className="flex items-center justify-between p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
                       <div>
                         <div className="font-semibold text-slate-800 dark:text-slate-200">自动提取 PDF 划线高亮批注与笔记 (Annotations)</div>
-                        <div className="text-[10px] text-slate-400">读取 Zotero 7 内置阅读器的高亮标注、页码与批注内容，生成专属研读子项</div>
+                        <div className="text-[10px] text-slate-400">读取 Zotero 内置阅读器的高亮标注、页码与批注内容，生成研读子项</div>
                       </div>
                       <input
                         type="checkbox"
@@ -1237,7 +1237,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-slate-900 dark:text-white">MindFlow 思维导图与伴读笔记</h3>
-                    <p className="text-[11px] text-blue-600 dark:text-blue-400 font-medium">版本 3.2.0 (Manifest V3 规范 • 100% 全功能免费版)</p>
+                    <p className="text-[11px] text-blue-600 dark:text-blue-400 font-medium">{isZoteroEnvironment() ? 'Zotero 10 插件版 1.1.0' : '浏览器扩展版 3.2.0'}</p>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
                       基于 Chrome 浏览器的模块化、离线优先、全键盘盲操思维导图引擎。
                     </p>

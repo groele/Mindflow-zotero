@@ -186,3 +186,86 @@
   justify-content: flex-end;
   margin-top: 6px;
 }
+
+/* Zotero 10 preference pane: long lists stay readable at narrow widths. */
+.mindflow-prefs-container {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 820px;
+  padding: 16px 20px 28px;
+  color: var(--fill-primary, #1e293b);
+}
+.mindflow-pref-header-banner { gap: 12px; flex-wrap: wrap; }
+.mindflow-pref-header-banner button { flex-shrink: 0; }
+.mindflow-pref-status {
+  margin: 0 0 12px;
+  color: var(--fill-secondary, #64748b);
+  font-size: 12px;
+}
+.mindflow-pref-error { color: #b91c1c; }
+.mindflow-pref-content {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 18px;
+  padding: 4px 0;
+}
+.mindflow-control-row { min-width: 0; }
+.mindflow-control-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 500;
+}
+.mindflow-control {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 30px;
+  padding: 4px 8px;
+  color: var(--fill-primary, #1e293b);
+  background: var(--material-background, #fff);
+  border: 1px solid var(--material-border, #cbd5e1);
+  border-radius: 6px;
+  font: inherit;
+}
+.mindflow-control:focus-visible,
+.mindflow-btn-primary:focus-visible,
+.mindflow-btn-secondary:focus-visible {
+  outline: 2px solid #0284c7;
+  outline-offset: 2px;
+}
+.mindflow-check-row { grid-column: span 1; align-self: center; }
+.mindflow-check-row .mindflow-control-label {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  min-height: 30px;
+  font-weight: 400;
+}
+.mindflow-check-row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  order: 1;
+  accent-color: #0284c7;
+}
+.mindflow-pref-content .mindflow-pref-desc {
+  grid-column: 1 / -1;
+  margin: 3px 0 6px;
+  line-height: 1.5;
+}
+.mindflow-folder-row {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: end;
+  gap: 8px;
+}
+.mindflow-folder-row .mindflow-control-label { flex: 1; }
+@media (max-width: 620px) {
+  .mindflow-prefs-container { padding: 12px; }
+  .mindflow-pref-content { grid-template-columns: minmax(0, 1fr); }
+}

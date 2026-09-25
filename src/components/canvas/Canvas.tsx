@@ -32,6 +32,7 @@ interface CanvasProps {
   searchMatchedIds?: string[];
   focusedTag?: string | null;
   canvasBackground?: 'dots' | 'grid' | 'blank';
+  zoomStep?: number;
   // Micro-toolbar & Relationship actions
   onAddChildNode?: (parentId: string) => void;
   onAddSiblingNode?: () => void;
@@ -70,6 +71,7 @@ export const Canvas: React.FC<CanvasProps> = ({
   searchMatchedIds = [],
   focusedTag = null,
   canvasBackground = 'dots',
+  zoomStep = 0.15,
   onAddChildNode,
   onAddSiblingNode,
   onImportNodeImage,
@@ -138,7 +140,7 @@ export const Canvas: React.FC<CanvasProps> = ({
       const mouseX = e.clientX - rect.left;
       const mouseY = e.clientY - rect.top;
 
-      const zoomFactor = e.deltaY < 0 ? 1.12 : 0.89;
+      const zoomFactor = e.deltaY < 0 ? 1 + zoomStep : 1 / (1 + zoomStep);
       const newScale = Math.min(Math.max(viewport.scale * zoomFactor, 0.25), 3.0);
 
       // Adjust offset so point under mouse remains stable
@@ -154,7 +156,7 @@ export const Canvas: React.FC<CanvasProps> = ({
         scale: viewport.scale,
       });
     }
-  }, [viewport, onViewportChange]);
+  }, [viewport, onViewportChange, zoomStep]);
 
   useEffect(() => {
     const el = containerRef.current;

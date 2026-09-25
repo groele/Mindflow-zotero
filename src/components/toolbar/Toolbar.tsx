@@ -3,7 +3,7 @@ import {
   Plus, CornerDownRight, Trash2, Undo2, Redo2,
   Palette, Layout, ListTree, Download, Upload,
   HelpCircle, Maximize2, Minimize2, ZoomIn, ZoomOut,
-  Globe, ChevronDown, Check, Inbox, Sparkles, Command, Settings,
+  ChevronDown, Check, Inbox, Sparkles, Command, Settings,
   Presentation, Search as SearchIcon, Scan, Layers, ImagePlus, GraduationCap
 } from 'lucide-react';
 import { LayoutType, ThemeColors } from '../../core/model/types';
@@ -54,10 +54,10 @@ interface ToolbarProps {
   onExportPDF?: () => void;
   onCollapseByLevel?: (level: number) => void;
   onImportFile: (file: File) => void;
-  onCaptureCurrentTab?: () => void;
   isSidepanelMode?: boolean;
   isZoteroMode?: boolean;
-  onImportZoteroItems?: () => void;
+  onCreateFromZoteroItems?: () => void;
+  onAppendZoteroItems?: () => void;
   onSaveToZoteroNote?: () => void;
   onSaveToZoteroAttachment?: () => void;
 }
@@ -106,10 +106,10 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onExportPDF,
   onCollapseByLevel,
   onImportFile,
-  onCaptureCurrentTab,
   isSidepanelMode,
   isZoteroMode = false,
-  onImportZoteroItems,
+  onCreateFromZoteroItems,
+  onAppendZoteroItems,
   onSaveToZoteroNote,
   onSaveToZoteroAttachment,
 }) => {
@@ -283,17 +283,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
       {/* Right: Layout, Theme, Outline, Export, Zoom & Extensions */}
       <div className="flex items-center gap-1.5 flex-shrink-0">
-        {/* Capture webpage card button (Chrome extension feature) */}
-        {onCaptureCurrentTab && (
-          <button
-            onClick={onCaptureCurrentTab}
-            title="一键收录当前网页信息至导图"
-            className="hidden sm:flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium text-blue-600 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 transition-colors"
-          >
-            <Globe className="w-3.5 h-3.5" />
-            <span className="hidden xl:inline">收录网页</span>
-          </button>
-        )}
 
         {/* Layout dropdown */}
         {buttons.layout && (
@@ -626,23 +615,41 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                     ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
                     : 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
                 }`}>
-                  {isZoteroMode ? '已连接 Zotero 7' : '独立演示模式'}
+                  {isZoteroMode ? '已连接 Zotero' : '独立演示模式'}
                 </span>
               </div>
 
-              <button
-                onClick={() => {
-                  onImportZoteroItems?.();
-                  setIsZoteroMenuOpen(false);
-                }}
-                className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-2"
-              >
-                <span className="text-base">📥</span>
-                <div>
-                  <div className="font-medium text-slate-800 dark:text-slate-200">导入选中文献</div>
-                  <div className="text-[10px] text-slate-400">将选中的论文与批注转为导图分支</div>
-                </div>
-              </button>
+              {onCreateFromZoteroItems && (
+                <button
+                  onClick={() => {
+                    onCreateFromZoteroItems();
+                    setIsZoteroMenuOpen(false);
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-2 cursor-pointer"
+                >
+                  <span className="text-base">📄</span>
+                  <div>
+                    <div className="font-semibold text-slate-800 dark:text-slate-200">从选中文献新建导图</div>
+                    <div className="text-[10px] text-slate-400">独立导图文件，专属归档至该文献附件</div>
+                  </div>
+                </button>
+              )}
+
+              {onAppendZoteroItems && (
+                <button
+                  onClick={() => {
+                    onAppendZoteroItems();
+                    setIsZoteroMenuOpen(false);
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-2 cursor-pointer"
+                >
+                  <span className="text-base">📥</span>
+                  <div>
+                    <div className="font-medium text-slate-800 dark:text-slate-200">追加文献至当前分支</div>
+                    <div className="text-[10px] text-slate-400">作为参考引用节点追加进当前导图</div>
+                  </div>
+                </button>
+              )}
 
               {onSaveToZoteroAttachment && (
                 <button

@@ -1,147 +1,62 @@
-# MindFlow for Zotero 插件开发与使用指南
+# MindFlow for Zotero 10：使用与开发指南
 
-MindFlow for Zotero 是将 MindFlow 现代思维导图与科研伴读扩展移植并深度适配到 **Zotero 7+**（支持 `strict_max_version: 10.0.*`）的原生客户端插件。
+本指南对应 Zotero 插件 v1.1.0。面向用户的完整功能与安装说明先看[项目 README](../README.md)。插件清单目前限定 Zotero 10.0.x。
 
-它让学者、研究生与科研人员能够在 Zotero 桌面端中，将文献题录、核心摘要、阅读高亮批注和笔记一键整理为结构清晰、色彩优雅的学术思维导图，并支持双向跳转与一键回存为 Zotero 笔记。
+## 安装和升级
 
----
+从 [GitHub Releases](https://github.com/groele/Mindflow-zotero/releases/tag/v1.1.0) 下载 mindflow-zotero-1.1.0.xpi。在 Zotero 中打开“工具 → 插件”，将 XPI 拖入插件窗口安装；若提示则重启。升级前建议导出重要导图的工作区备份，并确认文献下的 .mindflow 附件已同步。
 
-## 一、Zotero 7 插件架构解析
+插件 ID 为 mindflow@groele.org。版本由 zotero/manifest.json 声明；zotero/update.json 指向同版本的 GitHub Release XPI。
 
-### 1. 架构变迁与现代化生态
-- **引擎升级**：Zotero 7 基于 Firefox 115 ESR，彻底移除了旧版 XUL Overlays，转向 **Bootstrap 扩展模式**（通过 `bootstrap.js` 进行生命周期管理）+ **ESM (ECMAScript Modules)**。
-- **清单声明 (`manifest.json`)**：采用类似 WebExtension 的 JSON 清单，通过 `applications.zotero` 声明插件 ID、最低和最高支持版本（如 `6.999` 到 `10.0.*`）。
-- **生命周期机制 (`bootstrap.js`)**：
-  - `startup()`：在 Zotero 初始化完毕后，通过 `amIAddonManagerStartup.registerChrome` 注册 `chrome://mindflow/content/` 路径映射与本地化语言包，并加载运行脚本。
-  - `shutdown()`：在插件禁用、卸载或应用退出时，必须清理所有注入到 Zotero 界面上的 DOM 节点（菜单、按钮、分隔线），销毁 `chromeHandle` 并释放事件监听器，避免内存泄漏。
+## 入口与数据流
 
-### 2. 界面注入与 API 交互 (`zotero/chrome/content/scripts/index.js`)
-- **顶栏“工具”菜单 (`menu_ToolsPopup`)**：注入 `MindFlow 思维导图` 菜单项。
-- **文献列表右键菜单 (`zotero-itemmenu`)**：注入 `在 MindFlow 中生成思维导图` 与 `添加到当前 MindFlow 导图`。
-- **分类列表右键菜单 (`zotero-collectionmenu`)**：注入 `生成此分类思维导图`。
-- **主工具栏 (`zotero-toolbar`)**：添加 MindFlow 图标快捷入口。
-- **双向数据桥梁 (`src/services/zotero/zoteroBridge.ts`)**：
-  - 当通过 `Services.ww.openWindow` 打开 MindFlow 导图工作区时，将 `Zotero` 实例与上下文参数通过 `window.arguments[0]` 传入。
-  - 导图内可直接调用 `Zotero.getActiveZoteroPane().getSelectedItems()` 提取文献、作者、年份、刊物、DOI、摘要及 PDF 划线高亮。
-  - 支持将导图大纲结构一键保存为 Zotero 富文本笔记（`new Zotero.Item('note')`）。
+1. Zotero 文献、分类或 PDF 阅读器触发原生入口。
+2. zotero/chrome/content/scripts/index.js 读取条目、打开附件，并管理导图窗口。
+3. src/services/zotero/zoteroBridge.ts 将 Zotero 文献与批注转换为导图节点，处理定位、PDF 打开和归档请求。
+4. src/pages/app/App.tsx 负责工作台编辑、本机保存和归档状态。
+5. 关联文献的导图可保存为 .mindflow 子附件，并可更新结构化大纲子笔记。
 
----
+zotero/bootstrap.js 管理插件启动、资源注册和关闭清理。src/services/storage/safeStorage.ts 在 Zotero 环境中通过本机首选项保存工作区数据。文献库跨设备同步的对象是条目下的附件和笔记，而非本机工作区缓存。
 
-## 二、目录结构
+## 文献导入
 
-```text
-Mindmapext/
-├── zotero/                               # Zotero 插件源码模板与清单
-│   ├── manifest.json                     # Zotero 插件元数据与版本声明
-│   ├── bootstrap.js                      # Zotero 7 启动与关闭生命周期控制
-│   ├── prefs.js                          # 插件默认偏好设置
-│   ├── chrome.manifest                   # Chrome 协议后备映射
-│   ├── locale/                           # 多语言 Fluent 资源
-│   │   ├── zh-CN/mindflow.ftl
-│   │   └── en-US/mindflow.ftl
-│   └── chrome/content/
-│       ├── icons/                        # 16px、48px、128px 图标
-│       └── scripts/
-│           └── index.js                  # Zotero 原生 UI 注入与窗口管理脚本
-├── src/
-│   └── services/zotero/
-│       └── zoteroBridge.ts               # React Web App 与 Zotero 核心通信桥
-├── scripts/
-│   ├── build-zotero.mjs                  # Node.js 构建编排脚本
-│   └── build-zotero.ps1                  # PowerShell 高性能 POSIX 规范 XPI 打包脚本
-├── dist-zotero/                          # 构建生成的已解压 Zotero 插件目录（可用于软链开发）
-└── dist-zip/
-    └── mindflow-zotero-1.0.0.xpi         # 最终可供一键安装的 Zotero 插件安装包
-```
+入口接受常规文献条目及其子附件、子笔记；子项先解析到父文献。独立笔记或没有常规文献父项的附件不会被伪装成文献。单篇、多篇和分类入口会保留原文献链接。
 
----
+在“编辑 → 设置 → MindFlow”可调整摘要、标签、PDF 批注和文献笔记的导入。批注和笔记正文保留在节点内容中；批注链接可尝试返回原 PDF 页与标注。Zotero 内置阅读器的标注存于 Zotero 数据库，详见[官方说明](https://www.zotero.org/support/kb/annotations_in_database)。
 
-## 三、快速构建与打包
+同一文献可保存多份导图；右键菜单会列出已有的 .mindflow 附件。若只有云端附件记录、本机尚未下载文件，先通过 Zotero 下载；插件不会因读取失败自动创建另一份。
 
-已在 `package.json` 中配置了一键打包脚本：
+## 附件、笔记与权限
 
-```bash
-npm run build:zotero
-```
+归档时，宿主脚本将导图 JSON 作为 .mindflow 子附件导入 Zotero。它会尝试按导图 ID 找到并更新已有附件；若更新不可用，可能创建新附件。可选的大纲子笔记按导图 ID 关联并更新。
 
-### 构建步骤详解：
-1. **编译前端应用**：执行 `tsc && vite build`，将 React 19 + TypeScript + TailwindCSS 编译为高性能静态资源；
-2. **装配插件目录**：自动在 `dist-zotero/` 组织 `bootstrap.js`、`manifest.json`、`locale/`、`icons/` 及 `chrome/content/` 静态网页；
-3. **语法安全校验**：自动运行 `node --check` 验证启动脚本语法正确性；
-4. **生成标准 XPI 包**：自动处理 POSIX 正斜杠目录路径，生成 `dist-zip/mindflow-zotero-1.0.0.xpi` 并输出 SHA-256 校验和。
+“归档导图附件时更新结构化大纲子笔记”只控制笔记。文献附件能否写入取决于所属库权限；只读群组库或禁止上传附件的群组库会返回失败原因。本机工作区保存成功，不等于 Zotero 附件或跨设备同步已经成功。
 
----
+Zotero 的数据同步、附件文件同步与 MindFlow 的工作区 WebDAV 备份是三个不同过程。Zotero 官方[同步文档](https://www.zotero.org/support/sync)说明：WebDAV 可用于个人库文件，群组库附件需要 Zotero Storage。MindFlow 的 WebDAV 面板只上传工作区备份。
 
-## 四、在 Zotero 7 中安装与体验
+## 设置面板
 
-### 方式 1：直接通过 XPI 文件安装（最简方式）
-1. 启动 **Zotero 7**；
-2. 点击顶部菜单栏的 **“工具 (Tools)” → “附加组件 (Plugins / Add-ons)”**；
-3. 点击附加组件管理器右上角的 **齿轮设置图标**；
-4. 选择 **“Install Add-on From File...” (从本地文件安装附加组件)**；
-5. 选择本项目下的 `dist-zip/mindflow-zotero-1.0.0.xpi`；
-6. 确认安装后重启 Zotero 即可。
+zotero/chrome/content/preferences.xhtml 是 Zotero 注册的设置页；对应的 zotero/chrome/content/scripts/preferences.js 生成字段并保存配置。工作台 SettingsService 与原生面板共享 mindflow.mindflow_app_settings 首选项。宿主逻辑仍使用的旧 extensions.mindflow.* 键也会同步更新，例如窗口模式。
 
-### 方式 2：开发者代理文件软链接调试（实时调试）
-在 Zotero 的 Profiles 目录下创建开发指针文件，无需每次重新打包 XPI：
-1. 打开 Zotero 数据目录下的 `profile/extensions/` 文件夹（通常在 `%APPDATA%\Zotero\Zotero\Profiles\<profile>\extensions\`）；
-2. 新建一个无后缀的文本文件，文件名为插件 ID：`mindflow@groele.org`；
-3. 文本内容填写解压后的绝对路径：
-   ```text
-   D:\Dev Studio\Mindmapext\dist-zotero
-   ```
-4. 每次运行 `npm run build:zotero` 更新后，在 Zotero 中按 `Ctrl+R` 或重启即可生效。
+面板包含文献导入、工作台与工具栏、导图编辑、本地快照、WebDAV 五组配置。已打开的工作台会接收设置变更。工作区导出和恢复、WebDAV 连接测试是一次性操作，仍在工作台中执行。
 
----
+## 构建和发布
 
-1. **原生主窗口选项卡（Native Tab 集成，非独立弹出窗口）**：
-   - 深度集成到 Zotero 7 原生多标签页体系 (`Zotero_Tabs`)；
-   - 点击主工具栏图标或菜单时，直接在 Zotero 主窗口中开辟 `[MindFlow 思维导图]` 标签页，并带有珊瑚粉专属图标徽标；
-   - 支持智能标签页复用（单例激活，避免重复开辟）；
-   - 支持全局快捷键 `Ctrl+Alt+M` (macOS 下为 `Cmd+Alt+M`) 随手唤出或切换至导图标签页。
+需要 Node.js、npm 和 PowerShell 7。在项目根目录运行：
 
-2. **一键生成文献导图（多篇批量 + 动态计数）**：
-   - 在 Zotero 中选中任意 1 篇或多篇论文；
-   - 鼠标右键点击选中条目，菜单动态显示 **“在 MindFlow 中生成文献导图 (X 篇文献)”**；
-   - 自动解析论文标题、年份、作者、发表刊物、DOI、核心摘要、标签及 PDF 阅读高亮批注！
+    npm ci
+    npm run build:zotero
 
-3. **文献分类文件夹一键生成全库知识树**：
-   - 在左侧分类文件夹（Collection）右键，选择 **“生成【分类名称】思维导图”**；
-   - 自动以分类名称作为中心主题，将该分类下的全部文献系统化构建为知识脉络。
+构建脚本检查 TypeScript，生成 Zotero 用 IIFE 前端资源，检查宿主脚本语法，然后打包 dist-zip/mindflow-zotero-1.1.0.xpi。版本号取自 zotero/manifest.json。dist-zotero 和 dist-zip 是生成目录，不进入源码提交。
 
-4. **双向无缝联动（文库精准定位 + 原生 PDF 阅读器直达）**：
-   - 导图中文献节点右上角带有专属 🎓 学术标识，点击直接在 Zotero 文库中高亮定位对应文献；
-   - 右键文献节点可选择 **“在 Zotero 文库中定位”** 或 **“打开 PDF 阅读器”**，瞬间直达 Zotero 7 内置 PDF 阅读批注界面；
-   - 在右侧属性面板中，选中文献节点时提供快捷操作卡片（“文库定位” 与 “阅读 PDF”）。
+本仓库另有 Chrome 扩展构建，版本为 3.2.0。Zotero 的 v1.1.0 与 Chrome 的 v3.2.0 属于两条版本线。发布时核对 Zotero 清单、更新清单、XPI 文件名、标签和 Release 资产的版本一致。
 
-5. **内嵌选项卡 vs 独立窗口自由切换（双端实时可设）**：
-   - **内嵌选项卡（Native Tab，默认）**：直接嵌入在 Zotero 主界面顶部标签栏，与文库、PDF 标签并列切换，体验紧凑一体化；
-   - **独立桌面窗口（Standalone Window）**：开辟独立浮动窗口，适合双屏/多显示器对照研读；
-   - **随时切换**：在 MindFlow 工作区右上角“设置”弹窗中的【Zotero 伴读联动】标签，或在 Zotero 原生首选项中一键切换。
+## 排查顺序
 
-6. **Zotero 原生首选项面板（Preferences Pane 集成）**：
-   - 深度集成到 Zotero 7 原生偏好设置体系（`Zotero.PreferencePanes.register`）；
-   - 在 Zotero 菜单中点击 **“编辑” → “设置”**（或快捷键 `Ctrl+,`），即可在左侧导航看到专属 **MindFlow** 配置面板；
-   - 可针对窗口展现模式、文献摘要提取、PDF 划线高亮批注提取、标签提取、默认导图布局与主题风格进行全局持久化配置。
+1. 确认 Zotero 版本在清单范围内，插件已启用，并重启过 Zotero。
+2. 若入口不出现，确认选中的是常规文献或有父文献的子附件，而非独立笔记。
+3. 若导图打不开，确认 .mindflow 附件文件已下载到本机。
+4. 若归档失败，查看工作台保存状态，以及文献库和附件写入权限。
+5. 若设置未立即更新工作台，切回导图窗口或标签页；仍有问题时重新打开并查看 Zotero 错误日志。
 
-7. **一键导出为 Zotero 永久笔记**：
-   - 梳理完学术脉络后，点击顶部工具栏 **“Zotero → 存为 Zotero 大纲笔记”**；
-   - 导图大纲将以格式优雅的富文本永久保存进您的 Zotero 文献库中。
-
-8. **文献条目子附件归档与多端云同步（.mindflow 格式）**：
-   - 点击顶部工具栏 **“Zotero → 存为文献条目附件 (.mindflow)”** 或使用快捷键 `Ctrl+S`；
-   - 思维导图将作为对应文献条目的子附件直接保存在 Zotero 本地数据目录（`storage/<key>/<文献名>.mindflow`）；
-   - **多端漫游**：自动享受 Zotero 原生 WebDAV / 官方云同步，跨设备无缝漫游；
-   - **双击/右键直达**：在 Zotero 文献树中右键点击 `.mindflow` 附件，可直接选择 **“在 MindFlow 中打开此思维导图”**！
-
-9. **自定义本地物理路径备份（双重安全防护）**：
-   - 在 Zotero 首选项（MindFlow 插件设置页）中，可配置 **自定义本地保存路径**；
-   - 支持调用操作系统原生文件夹选择器一键指定目录（如 `D:\Research\MindMaps\`）；
-   - 保存时同步在外部磁盘中生成 `.mindflow` 实体文件，本地安全绝对掌控。
-
-10. **独立窗口完整视窗控制与全屏沉浸**：
-   - 独立窗口已完整支持操作系统标准控件：**最小化（`—`）**、**最大化/还原（`🗖`）** 与 **关闭（`✕`）**；
-   - 支持 `F11` 沉浸式全屏研读切换与顶部全屏按钮；
-   - 窗口标题与 Zotero 标签标题随当前思维导图名称实时动态同步。
-
-
+提交问题请附复现步骤与版本信息，避免上传私人文献、笔记或 WebDAV 密码。
