@@ -124,21 +124,26 @@ export class StorageService {
   public static async getActiveDocument(): Promise<MindMapDocument> {
     const activeId = await getItem(STORAGE_KEYS.ACTIVE_DOC_ID);
     if (activeId) {
-      const doc = await this.getDocument(activeId);
-      if (doc) return doc;
+      if (activeId === 'doc_welcome_default') {
+        await this.deleteDocument('doc_welcome_default');
+      } else {
+        const doc = await this.getDocument(activeId);
+        if (doc && doc.id !== 'doc_welcome_default') return doc;
+      }
     }
 
-    // If no active doc or not found, try to get the first one in index
+    // If no active doc or not found, try to get the first valid one in index
     const index = await this.getDocumentList();
-    if (index.length > 0) {
-      const firstDoc = await this.getDocument(index[0].id);
+    const validItems = index.filter((item) => item.id !== 'doc_welcome_default');
+    if (validItems.length > 0) {
+      const firstDoc = await this.getDocument(validItems[0].id);
       if (firstDoc) {
         await this.setActiveDocumentId(firstDoc.id);
         return firstDoc;
       }
     }
 
-    // Otherwise create default document
+    // Otherwise create default clean blank document
     const defaultDoc = createDefaultDocument();
     await this.saveDocument(defaultDoc);
     await this.setActiveDocumentId(defaultDoc.id);

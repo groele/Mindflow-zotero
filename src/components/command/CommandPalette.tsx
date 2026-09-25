@@ -3,7 +3,7 @@ import { LayoutNode } from '../../core/model/types';
 import {
   Search, Plus, CornerDownRight, Layout, Palette,
   ListTree, Download, Maximize2, HelpCircle, Inbox,
-  FileText, ArrowRight, Settings
+  FileText, ArrowRight, Settings, Sparkles
 } from 'lucide-react';
 
 export interface CommandItem {
@@ -33,6 +33,8 @@ interface CommandPaletteProps {
   onExportPDF?: () => void;
   onOpenShortcuts: () => void;
   onOpenSettings?: () => void;
+  onCreateBlank?: () => void;
+  onOpenWelcome?: () => void;
 }
 
 export const CommandPalette: React.FC<CommandPaletteProps> = ({
@@ -53,6 +55,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   onExportPDF,
   onOpenShortcuts,
   onOpenSettings,
+  onCreateBlank,
+  onOpenWelcome,
 }) => {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -70,6 +74,22 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
   // Base system commands
   const defaultCommands: CommandItem[] = [
+    ...(onCreateBlank ? [{
+      id: 'cmd_new_blank',
+      title: '新建空白思维导图 (New Blank Map)',
+      subtitle: '清空并开启一张全新空白导图',
+      category: '操作指令' as const,
+      icon: <Plus className="w-4 h-4 text-blue-500" />,
+      action: onCreateBlank,
+    }] : []),
+    ...(onOpenWelcome ? [{
+      id: 'cmd_welcome',
+      title: '欢迎与起步中心 (Welcome Hub)',
+      subtitle: '快速新建、文献成图、模板与文件导入',
+      category: '操作指令' as const,
+      icon: <Sparkles className="w-4 h-4 text-amber-500" />,
+      action: onOpenWelcome,
+    }] : []),
     {
       id: 'cmd_add_child',
       title: '插入子主题 (Add Child)',

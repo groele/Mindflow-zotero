@@ -39,6 +39,8 @@ import { CanvasSearch } from '../../components/search/CanvasSearch';
 import { ContextMenu } from '../../components/menu/ContextMenu';
 import { PresentationMode } from '../../components/presentation/PresentationMode';
 import { AppSettings, DEFAULT_SETTINGS } from '../../core/model/settingsTypes';
+import { createBlankDocument } from '../../core/model/sampleData';
+import { WelcomeModal } from '../../components/modal/WelcomeModal';
 import { SettingsService } from '../../services/storage/settingsService';
 import { BackupService, MAX_BACKUP_BYTES, validateMindMapDocument } from '../../services/storage/backupService';
 import { WebDAVService } from '../../services/sync/webdavService';
@@ -72,8 +74,10 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+  const [isWelcomeOpen, setIsWelcomeOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isZenMode, setIsZenMode] = useState(false);
+  const importFileInputRef = useRef<HTMLInputElement>(null);
 
   // New features: In-canvas Search, Presentation Mode, Node Context Menu, Commercial License
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -119,11 +123,23 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     }
   }, [doc?.title]);
 
-  // Load Settings on mount
+  // Load Settings on mount & handle Welcome display
   useEffect(() => {
     SettingsService.getSettings().then((loaded) => {
       setSettings(loaded);
       setDockPosition(loaded.workbenchDockPosition);
+
+      // Check if opened directly with context-action arguments
+      let hasDirectAction = false;
+      if (typeof window !== 'undefined' && window.arguments && window.arguments[0]) {
+        const args = window.arguments[0];
+        if (args.mode === 'create_from_selection' || args.mode === 'create_from_collection') {
+          hasDirectAction = true;
+        }
+      }
+      if (loaded.showWelcomeOnStartup && !hasDirectAction) {
+        setIsWelcomeOpen(true);
+      }
     });
   }, []);
 
@@ -954,6 +970,25 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     setTimeout(() => centerCanvas(), 50);
   }, [centerCanvas, flushCurrentDocument, syncHistoryState]);
 
+  // Create clean blank document
+  const handleCreateBlankDoc = useCallback(async () => {
+    if (!(await flushCurrentDocument())) return;
+    const blankDoc = createBlankDocument('新建思维导图');
+    const savedDoc = await StorageService.saveDocument(blankDoc);
+    await StorageService.setActiveDocumentId(savedDoc.id);
+    cleanDocRef.current = savedDoc;
+    cleanRelationshipsRef.current = [];
+    setRelationships([]);
+    setDoc(savedDoc);
+    setSelectedId(savedDoc.root.id);
+    setSelectedIds([]);
+    historyRef.current.clear();
+    syncHistoryState();
+    setTimeout(() => {
+      centerCanvas();
+    }, 50);
+  }, [centerCanvas, flushCurrentDocument, syncHistoryState]);
+
   // Global keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1362,7 +1397,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
             onFocusTag={setFocusedTag}
             onToggleDockPosition={handleToggleDockPosition}
             onSelectDoc={(id) => { void openDocumentAt(id); }}
-            onNewDoc={() => setIsTemplateModalOpen(true)}
+            onNewDoc={() => setIsWelcomeOpen(true)}
             onSelectNode={handleSelectAndCenterNode}
             onUpdateNodeText={(id, text) => handleUpdateNodePatch(id, { text })}
             onAddChildNode={(parentId) => {
@@ -1498,6 +1533,8 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
         onExportPDF={printToPDF}
         onOpenShortcuts={() => setIsShortcutsOpen(true)}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        onCreateBlank={handleCreateBlankDoc}
+        onOpenWelcome={() => setIsWelcomeOpen(true)}
       />
 
       {/* Template Selection Modal */}
@@ -1505,6 +1542,38 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
         isOpen={isTemplateModalOpen}
         onClose={() => setIsTemplateModalOpen(false)}
         onSelectTemplate={handleSelectTemplate}
+      />
+
+      {/* Welcome / Quick-Start Hub Modal */}
+      <WelcomeModal
+        isOpen={isWelcomeOpen}
+        onClose={() => setIsWelcomeOpen(false)}
+        onCreateBlank={handleCreateBlankDoc}
+        onImportZotero={handleImportZoteroItems}
+        onOpenTemplates={() => setIsTemplateModalOpen(true)}
+        onTriggerImportFile={() => importFileInputRef.current?.click()}
+        onOpenDocument={(id) => { void openDocumentAt(id); }}
+        showOnStartup={settings.showWelcomeOnStartup}
+        onToggleShowOnStartup={(val) => {
+          setSettings((s) => ({ ...s, showWelcomeOnStartup: val }));
+          void SettingsService.updateSettings({ showWelcomeOnStartup: val });
+        }}
+        isZoteroMode={isZoteroMode}
+      />
+
+      {/* Hidden file input for file import from WelcomeModal */}
+      <input
+        ref={importFileInputRef}
+        type="file"
+        accept=".json,.md,.markdown,.opml"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) {
+            void handleImportFile(file);
+          }
+          e.target.value = '';
+        }}
       />
 
       {/* Shortcuts Cheat Sheet Modal */}

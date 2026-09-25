@@ -55,6 +55,7 @@ export interface AppSettings {
   zoteroIncludeAbstract: boolean;              // 导入文献时是否自动包含摘要
   zoteroIncludeAnnotations: boolean;           // 导入文献时是否自动包含 PDF 高亮批注与笔记
   zoteroIncludeTags: boolean;                  // 导入文献时是否自动提取标签
+  showWelcomeOnStartup: boolean;               // 启动时是否展示欢迎新建引导页
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -100,4 +101,5 @@ export const DEFAULT_SETTINGS: AppSettings = {
   zoteroIncludeAbstract: true,
   zoteroIncludeAnnotations: true,
   zoteroIncludeTags: true,
+  showWelcomeOnStartup: true,
 };
