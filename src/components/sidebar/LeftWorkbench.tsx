@@ -260,7 +260,7 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
               className="flex-1 truncate text-xs leading-relaxed"
               title="双击可编辑文本"
             >
-              {node.text}
+              {node.text || (node.image ? '🖼️ 图片节点' : '未命名主题')}
             </span>
           )}
           {node.task && (

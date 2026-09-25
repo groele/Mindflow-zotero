@@ -1,4 +1,5 @@
 import { MindMapNode, LayoutNode, ConnectionCurve, LayoutType, ThemeColors, NodeShape } from '../model/types';
+import { imageDisplayHeight, isSafeNodeImage } from '../model/nodeImage';
 
 // Approximate dimensions for a node based on content
 export function measureNode(node: MindMapNode, level: number): { width: number; height: number } {
@@ -26,6 +27,15 @@ export function measureNode(node: MindMapNode, level: number): { width: number; 
   }
   if (node.task) {
     extraWidth += 26;
+  }
+
+  if (isSafeNodeImage(node.image)) {
+    const baseWidth = level === 0 ? 120 : level === 1 ? 90 : 70;
+    const textWidth = estimatedTextWidth + (level === 0 ? 48 : level === 1 ? 36 : 28) + extraWidth;
+    return {
+      width: Math.max(baseWidth, node.image.width + 24, Math.min(textWidth, 520)),
+      height: imageDisplayHeight(node.image) + 16 + (node.text || node.task || node.tags?.length || node.icons?.length || node.note || node.link || node.internalLink ? 30 : 0),
+    };
   }
 
   if (level === 0) {
@@ -239,7 +249,7 @@ function layoutSubtree(
 
     const childY = currentY + (subHeight - childDim.height) / 2;
 
-    const childShape: NodeShape = child.shape || (level === 1 ? 'rounded' : 'underline');
+    const childShape: NodeShape = child.shape || (isSafeNodeImage(child.image) || level === 1 ? 'rounded' : 'underline');
 
     const layoutChild: LayoutNode = {
       id: child.id,

@@ -1,5 +1,18 @@
 import { MindMapDocument, MindMapNode, LayoutNode, ConnectionCurve, ThemeColors, TaskInfo } from '../../core/model/types';
+import { imageDisplayHeight, isSafeNodeImage } from '../../core/model/nodeImage';
 import { generateId } from '../../core/model/treeOps';
+
+function confirmTextOnlyExport(root: MindMapNode): boolean {
+  const pending = [root];
+  while (pending.length) {
+    const node = pending.pop()!;
+    if (node.image && typeof window !== 'undefined') {
+      return window.confirm('此格式只保存文字结构，不包含节点图片。建议同时导出 JSON 工作副本。仍要继续吗？');
+    }
+    pending.push(...node.children);
+  }
+  return true;
+}
 
 // Export as formatted JSON (supports both MindMapDocument and bare MindMapNode)
 export function exportToJSON(data: MindMapDocument | MindMapNode, fallbackTitle = 'mindmap'): void {
@@ -23,6 +36,7 @@ export function exportToJSON(data: MindMapDocument | MindMapNode, fallbackTitle 
 
 // Export to Markdown with task checkboxes and metadata
 export function exportToMarkdown(root: MindMapNode, title: string): void {
+  if (!confirmTextOnlyExport(root)) return;
   const lines: string[] = [`# ${root.text}\n`];
 
   function walk(node: MindMapNode, depth: number) {
@@ -162,6 +176,7 @@ function renderOutline(node: MindMapNode, indent: string): string {
 }
 
 export function exportToOPML(root: MindMapNode, title: string): void {
+  if (!confirmTextOnlyExport(root)) return;
   const opmlContent = `<?xml version="1.0" encoding="UTF-8"?>
 <opml version="2.0">
   <head>
@@ -358,9 +373,10 @@ export function exportToSVG(
     const fontSize = n.level === 0 ? 16 : (n.level === 1 ? 14 : 12);
     const fontWeight = n.level === 0 ? 'bold' : (n.level === 1 ? '600' : 'normal');
     const textColor = n.level === 0 ? safeColor(n.textColor, '#0f172a') : safeColor(theme.nodeText, '#0f172a');
-    const textY = n.height / 2 + (fontSize / 3);
-
-    svg += `    <text x="${n.width / 2}" y="${textY}" text-anchor="middle" font-size="${fontSize}" font-weight="${fontWeight}" fill="${escapeXml(textColor)}" class="node-text">${escapeXml(n.node.text)}</text>\n`;
+    const image = isSafeNodeImage(n.node.image) ? n.node.image : null;
+    const textY = image ? n.height - 12 : n.height / 2 + (fontSize / 3);
+    if (image) svg += `    <image href="${escapeXml(image.dataUrl)}" x="${(n.width - image.width) / 2}" y="8" width="${image.width}" height="${imageDisplayHeight(image)}" preserveAspectRatio="xMidYMid meet" />\n`;
+    if (n.node.text) svg += `    <text x="${n.width / 2}" y="${textY}" text-anchor="middle" font-size="${fontSize}" font-weight="${fontWeight}" fill="${escapeXml(textColor)}" class="node-text">${escapeXml(n.node.text)}</text>\n`;
     svg += `  </g>\n`;
   }
 
@@ -403,6 +419,16 @@ export async function exportToPNG(
 
   ctx.scale(dpr, dpr);
 
+  const imageCache = new Map<string, HTMLImageElement>();
+  await Promise.all(nodes.filter(n => isSafeNodeImage(n.node.image)).map(async n => {
+    const source = n.node.image!.dataUrl;
+    if (imageCache.has(source)) return;
+    const image = new Image();
+    image.src = source;
+    await image.decode();
+    imageCache.set(source, image);
+  }));
+
   // Background
   ctx.fillStyle = theme.background;
   ctx.fillRect(0, 0, width, height);
@@ -443,13 +469,25 @@ export async function exportToPNG(
       ctx.stroke();
     }
 
+    const nodeImage = isSafeNodeImage(n.node.image) ? n.node.image : null;
+    if (nodeImage) {
+      const source = imageCache.get(nodeImage.dataUrl);
+      if (source) {
+        const boxHeight = imageDisplayHeight(nodeImage);
+        const scale = Math.min(nodeImage.width / source.naturalWidth, boxHeight / source.naturalHeight);
+        const drawWidth = source.naturalWidth * scale;
+        const drawHeight = source.naturalHeight * scale;
+        ctx.drawImage(source, (n.width - drawWidth) / 2, 8 + (boxHeight - drawHeight) / 2, drawWidth, drawHeight);
+      }
+    }
+
     // Text
     const fontSize = n.level === 0 ? 16 : (n.level === 1 ? 14 : 12);
     ctx.font = `${n.level === 0 ? 'bold' : '500'} ${fontSize}px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
     ctx.fillStyle = n.level === 0 ? n.textColor : theme.nodeText;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(n.node.text, n.width / 2, n.height / 2);
+    if (n.node.text) ctx.fillText(n.node.text, n.width / 2, nodeImage ? n.height - 15 : n.height / 2);
 
     ctx.restore();
   }
@@ -503,12 +541,14 @@ export function exportToInteractiveHTML(
     const fontSize = n.level === 0 ? 16 : (n.level === 1 ? 14 : 12);
     const fontWeight = n.level === 0 ? 'bold' : (n.level === 1 ? '600' : 'normal');
     const textColor = n.level === 0 ? safeColor(n.textColor, '#0f172a') : safeColor(theme.nodeText, '#0f172a');
-    const textY = n.height / 2 + (fontSize / 3);
+    const image = isSafeNodeImage(n.node.image) ? n.node.image : null;
+    const textY = image ? n.height - 12 : n.height / 2 + (fontSize / 3);
 
     nodesSvg += `
     <g class="mind-node" transform="translate(${n.x}, ${n.y})">
       <rect width="${n.width}" height="${n.height}" rx="${rx}" fill="${escapeXml(fill)}" stroke="${escapeXml(stroke)}" stroke-width="1.5" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.08))" />
-      <text x="${n.width / 2}" y="${textY}" text-anchor="middle" font-size="${fontSize}" font-weight="${fontWeight}" fill="${escapeXml(textColor)}">${escapeXml(n.node.text)}</text>
+      ${image ? `<image href="${escapeXml(image.dataUrl)}" x="${(n.width - image.width) / 2}" y="8" width="${image.width}" height="${imageDisplayHeight(image)}" preserveAspectRatio="xMidYMid meet" />` : ''}
+      ${n.node.text ? `<text x="${n.width / 2}" y="${textY}" text-anchor="middle" font-size="${fontSize}" font-weight="${fontWeight}" fill="${escapeXml(textColor)}">${escapeXml(n.node.text)}</text>` : ''}
     </g>`;
   }
 

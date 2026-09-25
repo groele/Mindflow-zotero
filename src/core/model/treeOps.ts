@@ -13,6 +13,7 @@ export function cloneTree(node: MindMapNode, regenerateIds = false): MindMapNode
     tags: node.tags ? [...node.tags] : undefined,
     icons: node.icons ? [...node.icons] : undefined,
     internalLink: node.internalLink ? { ...node.internalLink } : undefined,
+    image: node.image ? { ...node.image } : undefined,
     children: node.children ? node.children.map(child => cloneTree(child, regenerateIds)) : []
   };
 }

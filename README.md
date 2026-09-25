@@ -1,6 +1,6 @@
 # 🚀 MindFlow - 现代 Chrome 浏览器思维导图与伴读笔记
 
-[![GitHub release](https://img.shields.io/badge/release-v3.0.0-blue.svg)](https://github.com/groele/mindflow/releases/tag/v3.0.0)
+[![GitHub release](https://img.shields.io/badge/release-v3.1.0-blue.svg)](https://github.com/groele/mindflow/releases/tag/v3.1.0)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-19-61dafb.svg)](https://react.dev/)
@@ -8,6 +8,16 @@
 [![Free & Open Source](https://img.shields.io/badge/Status-100%25%20Free%20%26%20Open%20Source-brightgreen.svg)](https://github.com/groele/mindflow)
 
 > 借鉴主流标杆（XMind、MindNode、ProcessOn），深度融合 Chrome 浏览器生态打造的轻量级、极速、高颜值思维导图扩展程序。100% 全功能永久免费开放、节点悬浮气泡微工具栏、跨分支自由关联线、全局查找与替换、分支多层级收折、矢量 PDF 纯净打印。
+
+---
+
+## 3.1.0 图片与文字节点
+
+- 工具栏点击“图片节点”可在当前主题下导入图片；选中任意节点后，也可在属性面板为其添加或替换图片。
+- 图片可与节点文字同时显示。纯图片节点可留空文字，随后在属性面板中添加说明。
+- 在属性面板拖动“显示宽度”调整图片大小，画布和布局随之更新。
+- 图片会压缩后保存在导图中；JSON、工作区备份、SVG、PNG 和交互 HTML 保留图片。Markdown 与 OPML 是文字结构格式，导出前会提示图片无法保留。
+- 支持 PNG、JPEG、WebP，单张原始文件上限 15 MB；本地存储接近配额时会阻止新增图片并给出提示。
 
 ---
 

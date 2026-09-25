@@ -1,16 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { MindMapDocument, MindMapNode, NodeShape, TaskStatus } from '../../core/model/types';
 import { safeExternalUrl } from '../../core/model/links';
+import { imageDisplayHeight, isSafeNodeImage } from '../../core/model/nodeImage';
 import { DocumentSummary, StorageService } from '../../services/storage/storageService';
 import {
   X, Tag, Link, FileText, Palette, Shapes,
-  Star, Flag, CheckCircle2, HelpCircle, Plus, ListTodo, Link2
+  Star, Flag, CheckCircle2, HelpCircle, Plus, ListTodo, Link2, ImagePlus, Trash2
 } from 'lucide-react';
 
 interface PropertySidebarProps {
   selectedNode: MindMapNode | null;
   currentDoc: MindMapDocument;
   onUpdateNode: (id: string, patch: Partial<MindMapNode>) => void;
+  onImportImage: (id: string, file: File) => Promise<void>;
   onOpenInternalLink?: (documentId: string, nodeId?: string) => void;
   onClose: () => void;
   dockSide?: 'left' | 'right';
@@ -26,11 +28,16 @@ export const PropertySidebar: React.FC<PropertySidebarProps> = ({
   selectedNode,
   currentDoc,
   onUpdateNode,
+  onImportImage,
   onOpenInternalLink,
   onClose,
   dockSide = 'right',
 }) => {
   const [noteText, setNoteText] = useState('');
+  const [nodeText, setNodeText] = useState('');
+  const [imageBusy, setImageBusy] = useState(false);
+  const [imageError, setImageError] = useState('');
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const [linkText, setLinkText] = useState('');
   const [newTagText, setNewTagText] = useState('');
   const [linkError, setLinkError] = useState('');
@@ -80,13 +87,17 @@ export const PropertySidebar: React.FC<PropertySidebarProps> = ({
   useEffect(() => {
     if (selectedNode) {
       setNoteText(selectedNode.note || '');
+      setImageError('');
       setLinkText(selectedNode.link || '');
       setLinkError('');
       setTargetSearch('');
     }
   }, [selectedNode?.id]);
 
+  useEffect(() => { setNodeText(selectedNode?.text || ''); }, [selectedNode?.id, selectedNode?.text]);
+
   if (!selectedNode) return null;
+  const nodeImage = isSafeNodeImage(selectedNode.image) ? selectedNode.image : null;
 
   const handleShapeChange = (shape: NodeShape) => {
     onUpdateNode(selectedNode.id, { shape });
@@ -159,6 +170,47 @@ export const PropertySidebar: React.FC<PropertySidebarProps> = ({
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto p-4 space-y-5 text-xs text-slate-700 dark:text-slate-300">
+        <div className="space-y-2">
+          <label htmlFor="node-text" className="font-medium text-slate-500">节点文字</label>
+          <input id="node-text" value={nodeText} onChange={event => setNodeText(event.target.value)}
+            onBlur={() => { if (nodeText !== selectedNode.text) onUpdateNode(selectedNode.id, { text: nodeText }); }}
+            onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur(); }}
+            placeholder="可为空，保留纯图片节点"
+            className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 outline-none focus:border-blue-400" />
+        </div>
+
+        <div className="space-y-2 p-2.5 rounded-xl border border-violet-200 dark:border-violet-900 bg-violet-50/40 dark:bg-violet-950/20">
+          <label className="flex items-center gap-1.5 font-medium text-violet-700 dark:text-violet-300"><ImagePlus className="w-3.5 h-3.5" /> 节点图片</label>
+          <p className="text-[10px] text-slate-500">支持 PNG、JPEG、WebP；导入时自动压缩并保存到导图。</p>
+          <input ref={imageInputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" aria-label="选择节点图片"
+            onChange={async event => {
+              const file = event.target.files?.[0];
+              event.target.value = '';
+              if (!file) return;
+              setImageBusy(true);
+              setImageError('');
+              try { await onImportImage(selectedNode.id, file); }
+              catch (error: any) { setImageError(error?.message || '图片导入失败'); }
+              finally { setImageBusy(false); }
+            }} />
+          {nodeImage && <>
+            <img src={nodeImage.dataUrl} alt={selectedNode.text || '节点图片预览'}
+              style={{ maxHeight: 150 }} className="max-w-full mx-auto object-contain rounded-lg border border-slate-200 dark:border-slate-700" />
+            <div className="flex items-center justify-between text-[11px]"><span>显示宽度</span><span>{nodeImage.width} px · 高约 {imageDisplayHeight(nodeImage)} px</span></div>
+            <input type="range" min="80" max="480" step="10" value={nodeImage.width} aria-label="调整节点图片宽度"
+              onChange={event => onUpdateNode(selectedNode.id, { image: { ...nodeImage, width: Number(event.target.value) } })}
+              className="w-full accent-violet-600" />
+          </>}
+          {selectedNode.image && !nodeImage && <p role="alert" className="text-[11px] text-red-600">此节点图片数据无效，可替换或删除。</p>}
+          <div className="flex gap-2">
+            <button type="button" disabled={imageBusy} onClick={() => imageInputRef.current?.click()}
+              className="px-2.5 py-1.5 rounded-lg bg-violet-600 text-white disabled:opacity-50">{imageBusy ? '处理中…' : selectedNode.image ? '替换图片' : '导入图片'}</button>
+            {selectedNode.image && <button type="button" onClick={() => onUpdateNode(selectedNode.id, { image: undefined, type: selectedNode.type === 'image' ? 'topic' : selectedNode.type })}
+              className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-red-600 flex items-center gap-1"><Trash2 className="w-3 h-3" /> 删除图片</button>}
+          </div>
+          {imageError && <p role="alert" className="text-[11px] text-red-600">{imageError}</p>}
+        </div>
+
         {/* Node Shape */}
         <div>
           <label className="flex items-center gap-1.5 font-medium text-slate-500 mb-2">

@@ -3,6 +3,7 @@ import { StorageService } from './storageService';
 import { InboxService } from './inboxService';
 import { generateId } from '../../core/model/treeOps';
 import { SettingsService } from './settingsService';
+import { isSafeNodeImage } from '../../core/model/nodeImage';
 
 export interface DocSnapshot {
   id: string;
@@ -95,6 +96,9 @@ export function validateMindMapDocument(value: unknown, label = '导图'): MindM
         (!isRecord(entry.node.internalLink) || typeof entry.node.internalLink.documentId !== 'string' || !entry.node.internalLink.documentId ||
           (entry.node.internalLink.nodeId !== undefined && typeof entry.node.internalLink.nodeId !== 'string'))) {
       throw new Error(`${label}包含格式无效的跨导图链接`);
+    }
+    if (entry.node.image !== undefined && !isSafeNodeImage(entry.node.image)) {
+      throw new Error(`${label}包含格式或尺寸无效的节点图片`);
     }
     if (entry.node.task !== undefined) {
       if (!isRecord(entry.node.task) || !['todo', 'doing', 'done'].includes(String(entry.node.task.status)) ||

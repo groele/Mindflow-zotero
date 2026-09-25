@@ -10,6 +10,7 @@ import {
   setCollapseByLevel, replaceNodeText, replaceAllNodeText
 } from '../../core/model/treeOps';
 import { computeLayout } from '../../core/layout/layoutEngine';
+import { prepareNodeImage } from '../../core/model/nodeImage';
 import { getTheme } from '../../core/theme/themes';
 import { TemplateDefinition } from '../../core/model/templates';
 import { HistoryManager } from '../../core/history/historyManager';
@@ -501,6 +502,37 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     const newRoot = updateNode(doc.root, id, patch);
     commitRootChange(newRoot);
   }, [doc, commitRootChange]);
+
+  const handleImportNodeImage = useCallback(async (file: File, targetId?: string, createChild = false): Promise<void> => {
+    const sourceDocId = doc?.id;
+    if (!sourceDocId) throw new Error('请先打开导图');
+    const image = await prepareNodeImage(file);
+    const quota = await BackupService.getStorageQuota();
+    const latest = latestDocRef.current;
+    if (!latest || latest.id !== sourceDocId) throw new Error('导图已切换，请重新选择图片');
+    const parentId = targetId || selectedId || latest.root.id;
+    const target = findNode(latest.root, parentId);
+    if (!target) throw new Error('目标节点已删除，请重新选择');
+    const previousBytes = createChild ? 0 : (target.image?.dataUrl.length || 0);
+    if (quota.usedBytes + image.dataUrl.length - previousBytes + 100_000 > quota.maxBytes) {
+      throw new Error('本地存储空间不足。请先导出完整备份并清理旧快照，或选择更小的图片');
+    }
+    let newRoot: MindMapNode;
+    let nextSelectedId = parentId;
+    if (createChild) {
+      const added = addChildNode(latest.root, parentId, '');
+      nextSelectedId = added.newNodeId;
+      newRoot = updateNode(added.newRoot, nextSelectedId, { type: 'image', image });
+    } else {
+      newRoot = updateNode(latest.root, parentId, { image });
+    }
+    historyRef.current.push(latest.root);
+    syncHistoryState();
+    setDoc({ ...latest, root: newRoot, updatedAt: Date.now() });
+    setSelectedId(nextSelectedId);
+    setSelectedIds([]);
+    setIsPropertySidebarOpen(true);
+  }, [doc?.id, selectedId, syncHistoryState]);
 
   // Toggle Task Status (todo -> doing -> done -> todo)
   const handleToggleTaskStatus = useCallback((id: string) => {
@@ -1023,6 +1055,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
           onUndo={handleUndo}
           onRedo={handleRedo}
           onAddChild={handleAddChild}
+          onImportNodeImage={(file) => { void handleImportNodeImage(file, undefined, true).catch(error => alert(`图片导入失败：${error?.message || '未知错误'}`)); }}
           onAddSibling={() => handleAddSibling(false)}
           onDeleteNode={handleDeleteNode}
           hasSelection={!!selectedId && selectedId !== doc.root.id}
@@ -1062,7 +1095,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
           onOpenSettings={() => setIsSettingsOpen(true)}
           isPro={true}
           toolbarButtons={settings.toolbarButtons}
-          onExportPNG={() => exportToPNG(layout.nodes, layout.connections, layout.bounds, theme, doc.title, { watermark: false })}
+          onExportPNG={() => { void exportToPNG(layout.nodes, layout.connections, layout.bounds, theme, doc.title, { watermark: false }).catch(error => alert(`PNG 导出失败：${error?.message || '图片无法解码'}`)); }}
           onExportSVG={() => exportToSVG(layout.nodes, layout.connections, layout.bounds, theme, doc.title, { watermark: false })}
           onExportMarkdown={() => exportToMarkdown(doc.root, doc.title)}
           onExportJSON={() => exportToJSON({ ...doc, relationships })}
@@ -1206,6 +1239,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
             selectedNode={selectedNode}
             currentDoc={doc}
             onUpdateNode={handleUpdateNodePatch}
+            onImportImage={(id, file) => handleImportNodeImage(file, id)}
             onOpenInternalLink={(documentId, nodeId) => { void openDocumentAt(documentId, nodeId); }}
             onClose={() => setIsPropertySidebarOpen(false)}
             dockSide={inspectorDockSide}
@@ -1232,7 +1266,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
         onToggleZen={() => setIsZenMode(prev => !prev)}
         onChangeLayout={(l) => setDoc(prev => prev ? { ...prev, layoutType: l } : null)}
         onChangeTheme={(th) => setDoc(prev => prev ? { ...prev, themeId: th } : null)}
-        onExportPNG={() => exportToPNG(layout.nodes, layout.connections, layout.bounds, theme, doc.title, { watermark: false })}
+        onExportPNG={() => { void exportToPNG(layout.nodes, layout.connections, layout.bounds, theme, doc.title, { watermark: false }).catch(error => alert(`PNG 导出失败：${error?.message || '图片无法解码'}`)); }}
         onExportSVG={() => exportToSVG(layout.nodes, layout.connections, layout.bounds, theme, doc.title, { watermark: false })}
         onExportMarkdown={() => exportToMarkdown(doc.root, doc.title)}
         onExportPDF={printToPDF}

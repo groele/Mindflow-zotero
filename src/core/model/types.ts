@@ -18,6 +18,13 @@ export interface InternalNodeLink {
   nodeId?: string;
 }
 
+export interface NodeImage {
+  dataUrl: string;
+  width: number;
+  /** Intrinsic width divided by intrinsic height. */
+  aspectRatio: number;
+}
+
 export interface MindMapNode {
   id: string;
   text: string;
@@ -25,6 +32,7 @@ export interface MindMapNode {
   note?: string;
   link?: string;
   internalLink?: InternalNodeLink;
+  image?: NodeImage;
   tags?: string[];
   icons?: string[];
   task?: TaskInfo;

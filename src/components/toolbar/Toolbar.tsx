@@ -4,7 +4,7 @@ import {
   Palette, Layout, ListTree, Download, Upload,
   HelpCircle, Maximize2, ZoomIn, ZoomOut,
   Globe, ChevronDown, Check, Inbox, Sparkles, Command, Settings,
-  Presentation, Search as SearchIcon, Scan, Layers
+  Presentation, Search as SearchIcon, Scan, Layers, ImagePlus
 } from 'lucide-react';
 import { LayoutType, ThemeColors } from '../../core/model/types';
 import { THEMES } from '../../core/theme/themes';
@@ -19,6 +19,7 @@ interface ToolbarProps {
   onUndo: () => void;
   onRedo: () => void;
   onAddChild: () => void;
+  onImportNodeImage?: (file: File) => void;
   onAddSibling: () => void;
   onDeleteNode: () => void;
   hasSelection: boolean;
@@ -66,6 +67,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onUndo,
   onRedo,
   onAddChild,
+  onImportNodeImage,
   onAddSibling,
   onDeleteNode,
   hasSelection,
@@ -121,6 +123,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [isLevelMenuOpen, setIsLevelMenuOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const nodeImageInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -216,6 +219,16 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                 <span className="hidden md:inline">子主题</span>
                 <kbd className="hidden lg:inline text-[10px] text-slate-400 bg-slate-200/60 dark:bg-slate-700 px-1 rounded">Tab</kbd>
               </button>
+
+              {onImportNodeImage && <>
+                <button onClick={() => nodeImageInputRef.current?.click()} title="添加图片节点（可再编辑文字）"
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700 transition-colors">
+                  <ImagePlus className="w-3.5 h-3.5 text-violet-600" />
+                  <span className="hidden lg:inline">图片节点</span>
+                </button>
+                <input ref={nodeImageInputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" aria-label="选择节点图片"
+                  onChange={event => { const file = event.target.files?.[0]; if (file) onImportNodeImage(file); event.target.value = ''; }} />
+              </>}
 
               {/* Insert Sibling */}
               <button

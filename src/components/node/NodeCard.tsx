@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { LayoutNode } from '../../core/model/types';
 import { safeExternalUrl } from '../../core/model/links';
+import { imageDisplayHeight, isSafeNodeImage } from '../../core/model/nodeImage';
 import { ExternalLink, FileText, ChevronRight, Tag, Star, Flag, CheckCircle2, HelpCircle, Link2 } from 'lucide-react';
 
 interface NodeCardProps {
@@ -83,6 +84,7 @@ export const NodeCard: React.FC<NodeCardProps> = ({
 
   const hasChildren = node.children && node.children.length > 0;
   const externalUrl = safeExternalUrl(node.link);
+  const nodeImage = isSafeNodeImage(node.image) ? node.image : null;
   const isCollapsed = node.isExpanded === false;
 
   // Visual shape style
@@ -162,7 +164,8 @@ export const NodeCard: React.FC<NodeCardProps> = ({
         onStartEdit(node.id);
       }}
       className={`
-        absolute select-none flex items-center justify-between px-3 cursor-pointer transition-all duration-150
+        absolute select-none flex px-3 cursor-pointer transition-all duration-150
+        ${nodeImage ? 'flex-col items-center justify-center gap-1 py-2' : 'items-center justify-between'}
         ${shapeClasses}
         ${isRoot ? 'shadow-lg font-bold text-base' : 'text-sm font-medium border'}
         ${isDragOverTarget ? 'ring-2 ring-indigo-500 ring-offset-2 scale-[1.04] bg-indigo-50/40 dark:bg-indigo-950/50 shadow-xl z-40' : ''}
@@ -179,8 +182,17 @@ export const NodeCard: React.FC<NodeCardProps> = ({
           ➕ 移至此分支
         </div>
       )}
+      {nodeImage && (
+        <img
+          src={nodeImage.dataUrl}
+          alt={node.text || '导图节点图片'}
+          draggable={false}
+          style={{ width: nodeImage.width, height: imageDisplayHeight(nodeImage) }}
+          className="max-w-full object-contain rounded-md pointer-events-none"
+        />
+      )}
       {/* Content wrapper */}
-      <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden">
+      <div className={`flex items-center gap-1.5 min-w-0 overflow-hidden ${nodeImage ? 'w-full justify-center' : 'flex-1'}`}>
         {/* Node icons */}
         {node.icons && node.icons.length > 0 && (
           <div className="flex items-center gap-1 flex-shrink-0">
@@ -224,11 +236,11 @@ export const NodeCard: React.FC<NodeCardProps> = ({
             className="w-full bg-white/90 text-slate-900 px-1 py-0.5 rounded outline-none border border-blue-400 font-normal text-sm"
             onClick={(e) => e.stopPropagation()}
           />
-        ) : (
+        ) : node.text ? (
           <span className={`truncate flex-1 tracking-wide leading-tight ${node.task?.status === 'done' ? 'line-through opacity-60' : ''}`}>
             {node.text}
           </span>
-        )}
+        ) : null}
 
         {/* Tags */}
         {node.tags && node.tags.length > 0 && (
