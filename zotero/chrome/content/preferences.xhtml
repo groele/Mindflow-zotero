@@ -4,33 +4,53 @@
       class="mindflow-prefs-container"
       onload="MindFlow_Preferences.init(window)">
 
-  <!-- Group 1: 窗口展示与交互模式 -->
+  <!-- Header Banner -->
+  <html:div class="mindflow-pref-header-banner">
+    <html:div class="mindflow-header-title-box">
+      <html:span class="mindflow-logo-badge">M</html:span>
+      <html:div>
+        <html:h1 class="mindflow-header-title">MindFlow 思维导图与学术协同设置</html:h1>
+        <html:p class="mindflow-header-sub">为 Zotero 7 打造的深度文献脉络构思与伴读套件</html:p>
+      </html:div>
+    </html:div>
+    <html:button id="mindflow-btn-open-workspace" class="mindflow-btn-primary">
+      🚀 打开导图工作台
+    </html:button>
+  </html:div>
+
+  <!-- Group 1: 窗口展示与启动模式 -->
   <groupbox class="mindflow-pref-group">
-    <label class="mindflow-group-title"><html:h2>🖥️ 窗口与展示模式</html:h2></label>
+    <label class="mindflow-group-title"><html:h2>🖥️ 窗口模式与启动行为</html:h2></label>
     <vbox class="mindflow-pref-content">
       <html:p class="mindflow-pref-desc">
-        选择在 Zotero 中启动 MindFlow 时的界面呈现方式：
+        选择在 Zotero 中启动 MindFlow 时的界面呈现形式：
       </html:p>
       <radiogroup id="mindflow-pref-windowMode" preference="extensions.mindflow.windowMode">
         <radio value="tab" label="主窗口内嵌选项卡（Native Tab，推荐）" />
         <html:div class="mindflow-radio-desc">
-          直接在 Zotero 主界面顶部标签栏中开辟导图标签页，与文献库、PDF 阅读器无缝并列协同。
+          直接在 Zotero 顶部标签栏中开辟导图标签，与主文献库、PDF 阅读器无缝并列协同。
         </html:div>
         <radio value="window" label="独立桌面窗口（Standalone Window）" />
         <html:div class="mindflow-radio-desc">
-          开辟独立的桌面级大窗口，适合双屏/多显示器或需要超大独立画布研读的场景。
+          开辟独立的桌面级窗口，适合双屏/多显示器或需要超大独立画布研读的场景。
         </html:div>
       </radiogroup>
+
+      <html:div class="mindflow-divider"></html:div>
+
+      <checkbox id="mindflow-pref-showWelcomeOnStartup"
+                preference="extensions.mindflow.showWelcomeOnStartup"
+                label="启动时显示欢迎与新建起步中心（提供新建空白、文献成图与模板指引）" />
     </vbox>
   </groupbox>
 
   <!-- Group 2: 文献导入与导图生成偏好 -->
   <groupbox class="mindflow-pref-group">
-    <label class="mindflow-group-title"><html:h2>📚 文献导入与解析规则</html:h2></label>
+    <label class="mindflow-group-title"><html:h2>📚 文献协同与智能成图规则</html:h2></label>
     <vbox class="mindflow-pref-content">
       <checkbox id="mindflow-pref-includeAbstract"
                 preference="extensions.mindflow.includeAbstract"
-                label="自动提取文献核心摘要（生成独立二级摘要子分支）" />
+                label="导入文献时自动提取核心摘要（独立生成二级摘要子分支）" />
       <checkbox id="mindflow-pref-includeAnnotations"
                 preference="extensions.mindflow.includeAnnotations"
                 label="自动提取 PDF 阅读高亮批注与笔记（转为研读批注分支）" />
@@ -43,15 +63,15 @@
     </vbox>
   </groupbox>
 
-  <!-- Group 3: 默认布局与主题风格 -->
+  <!-- Group 3: 默认布局与视觉风格 -->
   <groupbox class="mindflow-pref-group">
-    <label class="mindflow-group-title"><html:h2>🎨 默认视觉风格与布局结构</html:h2></label>
+    <label class="mindflow-group-title"><html:h2>🎨 默认视觉风格与排版布局</html:h2></label>
     <vbox class="mindflow-pref-content">
       <hbox align="center" class="mindflow-field-row">
         <label value="默认导图布局：" class="mindflow-field-label" />
         <html:select id="mindflow-pref-defaultLayout" preference="extensions.mindflow.defaultLayout" class="mindflow-select">
           <html:option value="mindmap">经典思维导图（左右平衡扩展）</html:option>
-          <html:option value="logic-right">向右单向逻辑图（文献树结构推荐）</html:option>
+          <html:option value="logic-right">向右单向逻辑图（文献树推荐）</html:option>
           <html:option value="org-down">组织结构图（自顶向下展开）</html:option>
         </html:select>
       </hbox>
@@ -62,19 +82,100 @@
           <html:option value="classic-blue">现代明亮（经典科技蓝）</html:option>
           <html:option value="dark-night">暗色极客（深邃暗夜黑）</html:option>
           <html:option value="morandi">莫兰迪（柔和低饱和）</html:option>
+          <html:option value="forest">松柏青绿（自然水墨青）</html:option>
+        </html:select>
+      </hbox>
+      <hbox align="center" class="mindflow-field-row">
+        <label value="画布背景纹理：" class="mindflow-field-label" />
+        <html:select id="mindflow-pref-canvasBackground" preference="extensions.mindflow.canvasBackground" class="mindflow-select">
+          <html:option value="dots">点阵网格（Dots，细腻推荐）</html:option>
+          <html:option value="grid">细线坐标网格（Grid）</html:option>
+          <html:option value="blank">纯净空白画布（Blank）</html:option>
+        </html:select>
+      </hbox>
+      <hbox align="center" class="mindflow-field-row">
+        <label value="分支连线样式：" class="mindflow-field-label" />
+        <html:select id="mindflow-pref-curveStyle" preference="extensions.mindflow.curveStyle" class="mindflow-select">
+          <html:option value="bezier">平滑贝塞尔曲线（Bezier，圆润流线）</html:option>
+          <html:option value="straight">笔直折线（Straight，严谨几何）</html:option>
+          <html:option value="rounded">圆角折线（Rounded，工整圆角）</html:option>
+        </html:select>
+      </hbox>
+
+      <html:div class="mindflow-divider"></html:div>
+
+      <checkbox id="mindflow-pref-rainbowBranches"
+                preference="extensions.mindflow.rainbowBranches"
+                label="开启彩虹主分支（各大主分支采用独立协调色彩）" />
+      <checkbox id="mindflow-pref-soundEffects"
+                preference="extensions.mindflow.soundEffects"
+                label="开启视听交互音效反馈（添加/删除主题与任务完成时提示音）" />
+    </vbox>
+  </groupbox>
+
+  <!-- Group 4: 数据安全与快照备份 -->
+  <groupbox class="mindflow-pref-group">
+    <label class="mindflow-group-title"><html:h2>💾 数据安全与自动快照</html:h2></label>
+    <vbox class="mindflow-pref-content">
+      <checkbox id="mindflow-pref-autoSnapshotEnabled"
+                preference="extensions.mindflow.autoSnapshotEnabled"
+                label="启用编辑时自动历史快照备份（防止误删或误改）" />
+      <hbox align="center" class="mindflow-field-row">
+        <label value="自动快照间隔：" class="mindflow-field-label" />
+        <html:select id="mindflow-pref-autoSnapshotIntervalMinutes" preference="extensions.mindflow.autoSnapshotIntervalMinutes" class="mindflow-select">
+          <html:option value="5">每 5 分钟生成一次</html:option>
+          <html:option value="10">每 10 分钟生成一次（推荐）</html:option>
+          <html:option value="15">每 15 分钟生成一次</html:option>
+          <html:option value="30">每 30 分钟生成一次</html:option>
         </html:select>
       </hbox>
     </vbox>
   </groupbox>
 
-  <!-- Group 4: 快捷操作与穿梭说明 -->
+  <!-- Group 5: WebDAV 云端备份 -->
   <groupbox class="mindflow-pref-group">
-    <label class="mindflow-group-title"><html:h2>⚡ 快捷协同与穿梭</html:h2></label>
+    <label class="mindflow-group-title"><html:h2>☁️ WebDAV 云同步配置（可选）</html:h2></label>
+    <vbox class="mindflow-pref-content">
+      <checkbox id="mindflow-pref-webdavEnabled"
+                preference="extensions.mindflow.webdavEnabled"
+                label="启用 WebDAV 多端云端备份（支持坚果云、Nextcloud、Synology NAS 等）" />
+      <hbox align="center" class="mindflow-field-row">
+        <label value="服务器地址：" class="mindflow-field-label" />
+        <html:input id="mindflow-pref-webdavServerUrl" preference="extensions.mindflow.webdavServerUrl" class="mindflow-input" placeholder="https://dav.jianguoyun.com/dav/" />
+      </hbox>
+      <hbox align="center" class="mindflow-field-row">
+        <label value="云端目录：" class="mindflow-field-label" />
+        <html:input id="mindflow-pref-webdavBasePath" preference="extensions.mindflow.webdavBasePath" class="mindflow-input" placeholder="/MindFlow/" />
+      </hbox>
+      <hbox align="center" class="mindflow-field-row">
+        <label value="用户名 / 账号：" class="mindflow-field-label" />
+        <html:input id="mindflow-pref-webdavUsername" preference="extensions.mindflow.webdavUsername" class="mindflow-input" placeholder="用户账号或注册邮箱" />
+      </hbox>
+      <hbox align="center" class="mindflow-field-row">
+        <label value="应用密码 / 令牌：" class="mindflow-field-label" />
+        <html:input id="mindflow-pref-webdavPassword" type="password" preference="extensions.mindflow.webdavPassword" class="mindflow-input" placeholder="应用专用授权密码" />
+      </hbox>
+      <checkbox id="mindflow-pref-webdavAutoSync"
+                preference="extensions.mindflow.webdavAutoSync"
+                label="导图保存时自动同步备份至 WebDAV 云端" />
+    </vbox>
+  </groupbox>
+
+  <!-- Group 6: 快捷协同与系统状态 -->
+  <groupbox class="mindflow-pref-group">
+    <label class="mindflow-group-title"><html:h2>⚡ 快捷协同与快捷键备忘</html:h2></label>
     <vbox class="mindflow-pref-content">
       <html:div class="mindflow-pref-tip">
-        <html:p><html:strong>全局唤出热键：</html:strong><html:code>Ctrl + Alt + M</html:code>（macOS 下为 <html:code>Cmd + Alt + M</html:code>），随时快速打开或激活导图。</html:p>
-        <html:p><html:strong>双向穿梭：</html:strong>在导图中右键文献节点可选择“在文库中定位”或“打开 PDF 阅读器”直达 Zotero 7 内置阅读器。</html:p>
+        <html:p><html:strong>全局唤出热键：</html:strong><html:code>Ctrl + Alt + M</html:code>（macOS 下为 <html:code>Cmd + Alt + M</html:code>），随时一键呼出导图。</html:p>
+        <html:p><html:strong>导图内高频键：</html:strong><html:code>Tab</html:code> 添加子主题，<html:code>Enter</html:code> 添加同级主题，<html:code>Space</html:code> 编辑文字，<html:code>Ctrl+K</html:code> 命令面板。</html:p>
+        <html:p><html:strong>双向穿梭：</html:strong>导图中文献节点点击右上角 🎓 图标直接在文库中高亮定位，右键可选择“打开 PDF 阅读器”。</html:p>
       </html:div>
+
+      <hbox class="mindflow-actions-row">
+        <html:button id="mindflow-btn-reset-defaults" class="mindflow-btn-secondary">
+          🔄 恢复插件出厂默认设置
+        </html:button>
+      </hbox>
     </vbox>
   </groupbox>
 

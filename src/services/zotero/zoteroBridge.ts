@@ -638,3 +638,49 @@ export function getSampleAcademicItems(): ZoteroItemData[] {
     }
   ];
 }
+
+/**
+ * Open Zotero Preferences / Settings Window (Focusing on MindFlow Plugin Settings)
+ */
+export function openZoteroPreferences(): boolean {
+  // 1. Post message to host window if inside an iframe
+  if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
+    try {
+      window.parent.postMessage({ type: 'MINDFLOW_OPEN_PREFERENCES' }, '*');
+    } catch {
+      // ignore
+    }
+  }
+
+  // 2. Direct XPCOM invocation if accessible
+  const Zotero = getZoteroInstance();
+  if (Zotero) {
+    try {
+      if (typeof Zotero.openPreferences === 'function') {
+        Zotero.openPreferences('mindflow@groele.org');
+        return true;
+      }
+      const win =
+        (typeof window !== 'undefined' && window.parent !== window ? window.parent : null) ||
+        Zotero.getMainWindow?.();
+      if (win && typeof win.openDialog === 'function') {
+        win.openDialog(
+          'chrome://zotero/content/preferences/preferences.xhtml',
+          'preferences',
+          'chrome,titlebar,toolbar,centerscreen,resizable=yes',
+          { pane: 'mindflow@groele.org' }
+        );
+        return true;
+      }
+      if (win && typeof win.goDoCommand === 'function') {
+        win.goDoCommand('cmd_preferences');
+        return true;
+      }
+    } catch (e) {
+      console.warn('[MindFlow] openZoteroPreferences direct call note:', e);
+    }
+  }
+
+  return false;
+}
+

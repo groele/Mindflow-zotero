@@ -22,7 +22,7 @@ import {
 import {
   isZoteroEnvironment, getSelectedZoteroItems, convertZoteroItemToNode,
   saveMindMapToZoteroNote, getSampleAcademicItems, extractZoteroItemData,
-  locateItemInZotero, openItemPdfInZotero, ZoteroItemData
+  locateItemInZotero, openItemPdfInZotero, openZoteroPreferences, ZoteroItemData
 } from '../../services/zotero/zoteroBridge';
 import { playAddNode, playTaskComplete, playDeleteNode } from '../../services/audio/soundService';
 import { Canvas } from '../../components/canvas/Canvas';
@@ -989,6 +989,18 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     }, 50);
   }, [centerCanvas, flushCurrentDocument, syncHistoryState]);
 
+  // Open settings handler: directly opens Zotero Preferences in Zotero environment
+  const handleOpenSettings = useCallback(() => {
+    if (isZoteroMode) {
+      const opened = openZoteroPreferences();
+      if (!opened) {
+        setIsSettingsOpen(true);
+      }
+    } else {
+      setIsSettingsOpen(true);
+    }
+  }, [isZoteroMode]);
+
   // Global keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1072,7 +1084,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
 
       if ((e.ctrlKey || e.metaKey) && e.key === ',') {
         e.preventDefault();
-        setIsSettingsOpen(prev => !prev);
+        handleOpenSettings();
         return;
       }
 
@@ -1349,7 +1361,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
           onOpenTemplates={() => setIsTemplateModalOpen(true)}
           onToggleZen={() => setIsZenMode(true)}
           onOpenShortcuts={() => setIsShortcutsOpen(true)}
-          onOpenSettings={() => setIsSettingsOpen(true)}
+          onOpenSettings={handleOpenSettings}
           isPro={true}
           toolbarButtons={settings.toolbarButtons}
           onExportPNG={() => { void exportToPNG(layout.nodes, layout.connections, layout.bounds, theme, doc.title, { watermark: false }).catch(error => alert(`PNG 导出失败：${error?.message || '图片无法解码'}`)); }}
@@ -1391,6 +1403,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
             isOpen={isWorkbenchOpen}
             activeTab={workbenchTab}
             dockPosition={dockPosition}
+            isZoteroMode={isZoteroMode}
             onToggleOpen={() => setIsWorkbenchOpen(!isWorkbenchOpen)}
             onTabChange={(tab) => setWorkbenchTab(tab)}
             focusedTag={focusedTag}
@@ -1423,7 +1436,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
             }}
             onReloadWorkspace={reloadWorkspace}
             onFlushCurrentDocument={flushCurrentDocument}
-            onOpenSettings={() => setIsSettingsOpen(true)}
+            onOpenSettings={handleOpenSettings}
           />
         )}
 
@@ -1532,7 +1545,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
         onExportMarkdown={() => exportToMarkdown(doc.root, doc.title)}
         onExportPDF={printToPDF}
         onOpenShortcuts={() => setIsShortcutsOpen(true)}
-        onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenSettings={handleOpenSettings}
         onCreateBlank={handleCreateBlankDoc}
         onOpenWelcome={() => setIsWelcomeOpen(true)}
       />

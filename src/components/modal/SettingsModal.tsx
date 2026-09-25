@@ -4,7 +4,7 @@ import {
   Eye, EyeOff, Loader2, Upload, Download, RefreshCw, HardDrive, Trash2,
   Sparkles, CheckCircle2, GraduationCap, ExternalLink
 } from 'lucide-react';
-import { isZoteroEnvironment, setZoteroPref, requestZoteroWindowMode } from '../../services/zotero/zoteroBridge';
+import { isZoteroEnvironment, setZoteroPref, requestZoteroWindowMode, openZoteroPreferences } from '../../services/zotero/zoteroBridge';
 import { AppSettings, WebDAVConfig } from '../../core/model/settingsTypes';
 import { SettingsService } from '../../services/storage/settingsService';
 import { WebDAVService, WebDAVSyncResult, RemoteBackupVersion } from '../../services/sync/webdavService';
@@ -273,6 +273,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <X className="w-4 h-4" />
           </button>
         </div>
+
+        {isZoteroEnvironment() && (
+          <div className="bg-sky-50 dark:bg-sky-950/40 border-b border-sky-200 dark:border-sky-800 px-4 py-2.5 flex items-center justify-between text-xs text-sky-800 dark:text-sky-200 shrink-0">
+            <div className="flex items-center gap-2">
+              <GraduationCap className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0" />
+              <span>当前处于 Zotero 插件环境，MindFlow 设置已统一集中在 Zotero 原生设置页中。</span>
+            </div>
+            <button
+              onClick={() => {
+                openZoteroPreferences();
+                onClose();
+              }}
+              className="px-2.5 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded-md font-medium text-[11px] transition-colors shrink-0 flex items-center gap-1 cursor-pointer"
+            >
+              <span>打开 Zotero 插件设置页</span>
+              <ExternalLink className="w-3 h-3" />
+            </button>
+          </div>
+        )}
 
         {/* Modal Body: Left Tab Rail + Right Form Content */}
         <div className="flex flex-1 overflow-hidden">

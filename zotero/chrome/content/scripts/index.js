@@ -331,6 +331,11 @@
               this.openStandaloneWindow({ mode: 'open' }, window);
             }
           }
+
+          // F. Request opening Zotero Native Preferences Page (Plugin Settings Area)
+          if (data.type === 'MINDFLOW_OPEN_PREFERENCES') {
+            this.openPreferencesPane(window);
+          }
         } catch (e) {
           Zotero.log?.('[MindFlow] Message processing note: ' + e);
         }
@@ -602,6 +607,39 @@
         }
       } catch (err) {
         Zotero.logError?.('[MindFlow] Failed to open standalone window: ' + err);
+      }
+    },
+
+    openPreferencesPane(targetWindow) {
+      try {
+        const win =
+          targetWindow ||
+          (typeof window !== 'undefined' ? window : null) ||
+          (Zotero.getMainWindow ? Zotero.getMainWindow() : null);
+
+        // 1. Zotero.openPreferences API (Zotero 7+)
+        if (typeof Zotero.openPreferences === 'function') {
+          Zotero.openPreferences('mindflow@groele.org');
+          return;
+        }
+
+        // 2. Open preferences.xhtml dialog with pane selection
+        if (win && typeof win.openDialog === 'function') {
+          win.openDialog(
+            'chrome://zotero/content/preferences/preferences.xhtml',
+            'preferences',
+            'chrome,titlebar,toolbar,centerscreen,resizable=yes',
+            { pane: 'mindflow@groele.org' }
+          );
+          return;
+        }
+
+        // 3. Fallback via command dispatcher
+        if (win && typeof win.goDoCommand === 'function') {
+          win.goDoCommand('cmd_preferences');
+        }
+      } catch (e) {
+        Zotero.logError?.('[MindFlow] Error opening preferences pane: ' + e);
       }
     },
 

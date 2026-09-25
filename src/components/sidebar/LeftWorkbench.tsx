@@ -35,6 +35,7 @@ interface LeftWorkbenchProps {
   onRestoreSnapshot: (restoredDoc: MindMapDocument) => void;
   onReloadWorkspace: () => void;
   onFlushCurrentDocument: () => Promise<boolean>;
+  isZoteroMode?: boolean;
 }
 
 export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
@@ -59,6 +60,7 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
   onRestoreSnapshot,
   onReloadWorkspace,
   onFlushCurrentDocument,
+  isZoteroMode = false,
 }) => {
   const tagFacets = useMemo(() => collectTagFacets(currentDoc.root), [currentDoc.root]);
   const branchProgress = useMemo(() => summarizeBranchTasks(currentDoc.root), [currentDoc.root]);
@@ -409,8 +411,8 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
           {onOpenSettings && (
             <button
               onClick={onOpenSettings}
-              title="系统设置 (Ctrl+,)"
-              className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              title={isZoteroMode ? '打开 Zotero 插件功能设置 (Ctrl+,)' : '系统设置 (Ctrl+,)'}
+              className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
             >
               <Settings className="w-3.5 h-3.5" />
             </button>
