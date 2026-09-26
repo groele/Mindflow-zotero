@@ -16,6 +16,7 @@ interface ResearchClaim {
   verification?: 'matched' | 'no_quote' | 'no_source' | 'unknown_source' | 'ambiguous' | 'unmatched' | 'not_in_draft';
   quote: string;
   attemptedQuote?: string;
+  evidenceContext?: string;
   link?: string;
   pageLabel?: string;
 }
@@ -31,13 +32,33 @@ export interface ResearchInputPreview {
   quickCalls: number;
   deepCalls: number;
   estimatedCharacters: number;
+  sourceCharacters: ResearchSourceCharacters;
   sourceScope: ResearchAnalysis['sourceScope'] & {
     omittedNotes: number;
     omittedAnnotations: number;
     pdfCharacters: number;
     maxPages: number;
+    highlightCount: number;
+    commentCount: number;
+    abstractTruncated: boolean;
+    trimmedNotes: number;
+    trimmedHighlights: number;
+    trimmedComments: number;
+    noteReadErrors: number;
+    annotationReadErrors: number;
+    pdfAttachmentTitle: string;
   };
 }
+
+export interface ResearchSourceSelection {
+  abstract: boolean;
+  pdf: boolean;
+  notes: boolean;
+  highlights: boolean;
+  comments: boolean;
+}
+
+export type ResearchSourceCharacters = Record<keyof ResearchSourceSelection, number>;
 
 export interface ResearchProgress {
   phase: string;
@@ -48,6 +69,8 @@ export interface ResearchProgress {
 export interface ResearchRequestOptions {
   preparedId?: string;
   mode?: 'quick' | 'deep';
+  sources?: ResearchSourceSelection;
+  expectedCalls?: number;
   signal?: AbortSignal;
   onProgress?: (progress: ResearchProgress) => void;
 }
@@ -64,8 +87,20 @@ export interface ResearchAnalysis {
     annotationCount: number;
     analysisMode?: 'quick' | 'deep';
     quickSampled?: boolean;
+    deepCondensed?: boolean;
     model?: string;
     endpointHost?: string;
+    selectedSources?: ResearchSourceSelection;
+    sourceWarnings?: {
+      abstractTruncated: boolean;
+      trimmedNotes: number;
+      trimmedHighlights: number;
+      trimmedComments: number;
+      noteReadErrors: number;
+      annotationReadErrors: number;
+      omittedNotes: number;
+      omittedAnnotations: number;
+    };
   };
   sections: Record<SectionKey, ResearchClaim[]>;
 }
@@ -93,9 +128,8 @@ function requestFromHost<T>(type: 'MINDFLOW_PREPARE_PAPER' | 'MINDFLOW_ANALYZE_P
     const resultType = `${type}_RESULT`;
     let settled = false;
     const cancelHost = () => {
-      if (type === 'MINDFLOW_ANALYZE_PAPER') {
-        window.parent.postMessage({ type: 'MINDFLOW_CANCEL_PAPER', requestId }, '*');
-      }
+      try { window.parent.postMessage({ type: 'MINDFLOW_CANCEL_PAPER', requestId }, '*'); }
+      catch { /* The workspace may have been closed while cancelling. */ }
     };
     const finish = (error?: Error, result?: T) => {
       if (settled) return;
@@ -122,13 +156,18 @@ function requestFromHost<T>(type: 'MINDFLOW_PREPARE_PAPER' | 'MINDFLOW_ANALYZE_P
     };
     const timeout = window.setTimeout(() => {
       cancelHost();
-      finish(new Error('等待论文分析超时，请检查模型服务后重试。'));
-    }, type === 'MINDFLOW_ANALYZE_PAPER' ? 900000 : 180000);
+      finish(new Error(type === 'MINDFLOW_ANALYZE_PAPER'
+        ? '等待模型分析超时；当前请求已取消，可在预览中重试并恢复已完成的分段。'
+        : '准备论文资料超时；请检查 PDF 附件后重试。'));
+    }, type === 'MINDFLOW_ANALYZE_PAPER'
+      ? Math.min(30 * 60 * 1000, Math.max(3 * 60 * 1000,
+        (Math.max(1, Number(options.expectedCalls) || 1) * 125000) + 30000))
+      : 180000);
     window.addEventListener('message', onMessage);
     options.signal?.addEventListener('abort', onAbort, { once: true });
     if (options.signal?.aborted) { onAbort(); return; }
     try { window.parent.postMessage({ type, requestId, reference,
-      preparedId: options.preparedId, mode: options.mode }, '*'); }
+      preparedId: options.preparedId, mode: options.mode, sources: options.sources }, '*'); }
     catch { finish(new Error('无法向 Zotero 主窗口发送 AI 分析请求。')); }
   });
 }
@@ -141,7 +180,7 @@ export async function prepareResearchAnalysis(reference: string,
   const zotero = getZoteroInstance();
   if (zotero?.MindFlow?.preparePaperAnalysis) {
     if (signal?.aborted) throw new Error('AI 分析已取消。');
-    return zotero.MindFlow.preparePaperAnalysis(reference) as Promise<ResearchInputPreview>;
+    return zotero.MindFlow.preparePaperAnalysis(reference, { signal }) as Promise<ResearchInputPreview>;
   }
   return requestFromHost<ResearchInputPreview>('MINDFLOW_PREPARE_PAPER', reference, { signal });
 }
@@ -171,6 +210,19 @@ export function createResearchDocument(analysis: ResearchAnalysis, themeId: stri
   const allClaims = Object.values(analysis.sections).flatMap((entries) => Array.isArray(entries) ? entries : []);
   const evidenceCount = allClaims.filter((claim) => claim.basis === 'paper' && claim.verification === 'matched').length;
   const reviewCount = allClaims.length - evidenceCount;
+  const warningDescriptions = scope?.sourceWarnings ? [
+    scope.selectedSources?.abstract && scope.sourceWarnings.abstractTruncated ? '长摘要' : '',
+    scope.selectedSources?.notes && scope.sourceWarnings.trimmedNotes ? `${scope.sourceWarnings.trimmedNotes} 条长笔记` : '',
+    scope.selectedSources?.highlights && scope.sourceWarnings.trimmedHighlights ? `${scope.sourceWarnings.trimmedHighlights} 条长划线` : '',
+    scope.selectedSources?.comments && scope.sourceWarnings.trimmedComments ? `${scope.sourceWarnings.trimmedComments} 条长评论` : '',
+    scope.selectedSources?.notes && scope.sourceWarnings.omittedNotes ? `${scope.sourceWarnings.omittedNotes} 条其余笔记` : '',
+    (scope.selectedSources?.highlights || scope.selectedSources?.comments) && scope.sourceWarnings.omittedAnnotations
+      ? `${scope.sourceWarnings.omittedAnnotations} 条其余批注` : '',
+    scope.selectedSources?.notes && scope.sourceWarnings.noteReadErrors
+      ? `${scope.sourceWarnings.noteReadErrors} 处笔记读取异常` : '',
+    (scope.selectedSources?.highlights || scope.selectedSources?.comments) && scope.sourceWarnings.annotationReadErrors
+      ? `${scope.sourceWarnings.annotationReadErrors} 处批注读取异常` : '',
+  ].filter(Boolean) : [];
   const headline = (key: SectionKey, label: string) => {
     const claim = Array.isArray(analysis.sections[key]) ? analysis.sections[key][0] : null;
     if (!claim?.text) return `${label}：资料不足，待补充`;
@@ -187,8 +239,15 @@ export function createResearchDocument(analysis: ResearchAnalysis, themeId: stri
     '',
     `资料范围：${scope?.pdfState || 'PDF 状态未知'}；摘要${scope?.hasAbstract ? '可用' : '不可用'}；` +
       `笔记 ${scope?.noteCount || 0} 条；批注 ${scope?.annotationCount || 0} 条。`,
+    scope?.selectedSources ? `本次资料选择：${([
+      ['abstract', '摘要'], ['pdf', 'PDF 文字'], ['notes', '笔记'],
+      ['highlights', '批注划线'], ['comments', '读者评论'],
+    ] as const).filter(([key]) => scope.selectedSources?.[key]).map(([, label]) => label).join('、')}。` : '',
     scope?.pdfTruncated ? 'PDF 文字超出本次读取范围或经过跨区间采样，部分内容仍可能未纳入分析。' : '',
     scope?.quickSampled ? '本次为快速模式，PDF 文字仅取跨区间节选。' : '',
+    scope?.analysisMode === 'quick' ? '快速模式进一步限制摘要、笔记与批注的发送条数或长度。' : '',
+    scope?.deepCondensed ? '深入模式的最终整合只接收每栏最多 5 条分段候选及缩短的摘要、笔记和批注；其余分段候选未进入最终整合。' : '',
+    warningDescriptions.length ? `准备阶段截取或未纳入：${warningDescriptions.join('、')}。` : '',
     '【原文支持】仅表示短引文与指定摘要、PDF 片段或批注划线原文匹配，不等于结论已被独立验证。',
     'P 编号是本次分析的 PDF 文字片段序号，不是 PDF 页码。',
     '【推断/待核验】是分析线索，不能当成论文已证明的事实。',
@@ -226,7 +285,8 @@ export function createResearchDocument(analysis: ResearchAnalysis, themeId: stri
             claim.pageLabel && ['annotation', 'comment'].includes(claim.source) ? `Zotero 批注页码：${claim.pageLabel}` : '',
             claim.quote ? `${paper ? '原文片段' : '参考片段（不足以直接证明分析判断）'}：${claim.quote}`
               : claim.attemptedQuote ? `未匹配的模型引文（不能当作原文）：${claim.attemptedQuote}`
-                : '此条尚无可匹配的直接引文，请核对原文。']
+                : '此条尚无可匹配的直接引文，请核对原文。',
+            claim.evidenceContext ? `PDF 上下文节选（本次输入）：${claim.evidenceContext}` : '']
             .filter(Boolean).join('\n\n'),
           link: typeof claim.link === 'string' && claim.link.startsWith('zotero://')
             ? claim.link : analysis.zoteroUri,

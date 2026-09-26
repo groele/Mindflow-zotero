@@ -306,7 +306,7 @@ export class BackupService {
     const inboxItems = await InboxService.getItems();
 
     return {
-      version: '1.5.0',
+      version: '1.6.0',
       exportedAt: Date.now(),
       documents,
       inboxItems,

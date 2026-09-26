@@ -46,7 +46,7 @@ import { BackupService, MAX_BACKUP_BYTES, validateMindMapDocument } from '../../
 import { WebDAVService } from '../../services/sync/webdavService';
 import { safeStorage } from '../../services/storage/safeStorage';
 import { createResearchDocument, prepareResearchAnalysis, requestResearchAnalysis,
-  ResearchInputPreview, ResearchProgress } from '../../services/zotero/researchAnalysis';
+  ResearchInputPreview, ResearchProgress, ResearchSourceSelection } from '../../services/zotero/researchAnalysis';
 import { AIResearchModal, AIResearchStage } from '../../components/modal/AIResearchModal';
 import { Minimize2 } from 'lucide-react';
 
@@ -1544,15 +1544,16 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       setSaveStatus({ state: 'warning', message: '请先在 Zotero 文献列表选择一篇论文，或打开一份关联文献的导图。' });
       return;
     }
-    if (!(await flushCurrentDocument())) return;
     const token = ++aiRequestTokenRef.current;
     const controller = new AbortController();
     aiAbortRef.current = controller;
     aiAnalyzingRef.current = true;
     setIsAiAnalyzing(true);
     setAiWorkflow({ reference, stage: 'preparing', preview: null, progress: null, error: '' });
-    setSaveStatus({ state: 'saving', message: '正在本机整理 Zotero 论文资料…' });
+    setSaveStatus({ state: 'saving', message: '正在保存当前导图并整理 Zotero 论文资料…' });
     try {
+      if (!(await flushCurrentDocument())) throw new Error('当前导图尚未保存，暂不能开始论文分析。');
+      if (controller.signal.aborted || token !== aiRequestTokenRef.current) return;
       const preview = await prepareResearchAnalysis(reference, controller.signal);
       if (controller.signal.aborted || token !== aiRequestTokenRef.current) return;
       setAiWorkflow({ reference, stage: 'ready', preview, progress: null, error: '' });
@@ -1564,9 +1565,11 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       setSaveStatus({ state: 'error', message: `论文资料准备失败：${message}` });
       if (message.includes('MindFlow 设置')) handleOpenSettings();
     } finally {
-      if (aiAbortRef.current === controller) aiAbortRef.current = null;
-      aiAnalyzingRef.current = false;
-      setIsAiAnalyzing(false);
+      if (token === aiRequestTokenRef.current) {
+        if (aiAbortRef.current === controller) aiAbortRef.current = null;
+        aiAnalyzingRef.current = false;
+        setIsAiAnalyzing(false);
+      }
     }
   }, [flushCurrentDocument, handleOpenSettings, isZoteroMode]);
   analyzeRequestRef.current = handleAnalyzeZoteroPaper;
@@ -1581,7 +1584,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     setSaveStatus({ state: 'warning', message: 'AI 分析已取消；未创建或归档导图。' });
   }, []);
 
-  const handleStartAiAnalysis = useCallback(async (mode: 'quick' | 'deep') => {
+  const handleStartAiAnalysis = useCallback(async (mode: 'quick' | 'deep', sources: ResearchSourceSelection) => {
     const workflow = aiWorkflow;
     if (!workflow?.preview || aiAnalyzingRef.current) return;
     const token = ++aiRequestTokenRef.current;
@@ -1593,7 +1596,8 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     setSaveStatus({ state: 'saving', message: '正在分析论文；导图尚未创建。' });
     try {
       const analysis = await requestResearchAnalysis(workflow.reference, {
-        preparedId: workflow.preview.preparedId, mode, signal: controller.signal,
+        preparedId: workflow.preview.preparedId, mode, sources, signal: controller.signal,
+        expectedCalls: mode === 'deep' && sources.pdf ? workflow.preview.deepCalls : 1,
         onProgress: (progress) => {
           if (token === aiRequestTokenRef.current) {
             setAiWorkflow((current) => current ? { ...current, progress } : current);
@@ -1632,9 +1636,11 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       } : current);
       setSaveStatus({ state: 'error', message: `AI 论文分析失败：${message}` });
     } finally {
-      if (aiAbortRef.current === controller) aiAbortRef.current = null;
-      aiAnalyzingRef.current = false;
-      setIsAiAnalyzing(false);
+      if (token === aiRequestTokenRef.current) {
+        if (aiAbortRef.current === controller) aiAbortRef.current = null;
+        aiAnalyzingRef.current = false;
+        setIsAiAnalyzing(false);
+      }
     }
   }, [aiWorkflow, centerCanvas, flushCurrentDocument, settings.defaultThemeId, syncHistoryState]);
 
@@ -2158,13 +2164,14 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
         preview={aiWorkflow?.preview || null}
         progress={aiWorkflow?.progress || null}
         error={aiWorkflow?.error || ''}
-        onStart={(mode) => { void handleStartAiAnalysis(mode); }}
-        onRetry={(mode) => {
-          if (aiWorkflow?.preview) void handleStartAiAnalysis(mode);
+        onStart={(mode, sources) => { void handleStartAiAnalysis(mode, sources); }}
+        onRetry={(mode, sources) => {
+          if (aiWorkflow?.preview) void handleStartAiAnalysis(mode, sources);
           else if (aiWorkflow?.reference) void handleAnalyzeZoteroPaper(aiWorkflow.reference);
         }}
         onCancel={handleCancelAiAnalysis}
         onClose={() => setAiWorkflow(null)}
+        onRefresh={() => { if (aiWorkflow?.reference) void handleAnalyzeZoteroPaper(aiWorkflow.reference); }}
         onSettings={handleOpenSettings}
       />
 

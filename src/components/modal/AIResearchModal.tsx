@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AlertCircle, BookOpen, CheckCircle2, Loader2, ShieldCheck, Sparkles, X } from 'lucide-react';
-import { ResearchInputPreview, ResearchProgress } from '../../services/zotero/researchAnalysis';
+import { ResearchInputPreview, ResearchProgress, ResearchSourceSelection } from '../../services/zotero/researchAnalysis';
 
 export type AIResearchStage = 'preparing' | 'ready' | 'running' | 'saving' | 'error';
 
@@ -10,20 +10,44 @@ interface AIResearchModalProps {
   preview: ResearchInputPreview | null;
   progress: ResearchProgress | null;
   error: string;
-  onStart: (mode: 'quick' | 'deep') => void;
-  onRetry: (mode: 'quick' | 'deep') => void;
+  onStart: (mode: 'quick' | 'deep', sources: ResearchSourceSelection) => void;
+  onRetry: (mode: 'quick' | 'deep', sources: ResearchSourceSelection) => void;
   onCancel: () => void;
   onClose: () => void;
+  onRefresh: () => void;
   onSettings: () => void;
 }
 
 export const AIResearchModal: React.FC<AIResearchModalProps> = ({
-  isOpen, stage, preview, progress, error, onStart, onRetry, onCancel, onClose, onSettings,
+  isOpen, stage, preview, progress, error, onStart, onRetry, onCancel, onClose, onRefresh, onSettings,
 }) => {
   const [mode, setMode] = useState<'quick' | 'deep'>('deep');
+  const [sources, setSources] = useState<ResearchSourceSelection>({
+    abstract: true, pdf: true, notes: true, highlights: true, comments: true,
+  });
   const scope = preview?.sourceScope;
+  const sourceRows: Array<{ key: keyof ResearchSourceSelection; label: string; available: boolean }> = [
+    { key: 'abstract', label: '摘要', available: Boolean(scope?.hasAbstract) },
+    { key: 'pdf', label: 'PDF 文字', available: Boolean(scope?.pdfCharacters) },
+    { key: 'notes', label: `Zotero 笔记（${scope?.noteCount || 0} 条）`, available: Boolean(scope?.noteCount) },
+    { key: 'highlights', label: `批注划线（${scope?.highlightCount || 0} 条）`, available: Boolean(scope?.highlightCount) },
+    { key: 'comments', label: `读者评论（${scope?.commentCount || 0} 条）`, available: Boolean(scope?.commentCount) },
+  ];
+  const enabledSources: ResearchSourceSelection = {
+    abstract: sources.abstract && Boolean(scope?.hasAbstract),
+    pdf: sources.pdf && Boolean(scope?.pdfCharacters),
+    notes: sources.notes && Boolean(scope?.noteCount),
+    highlights: sources.highlights && Boolean(scope?.highlightCount),
+    comments: sources.comments && Boolean(scope?.commentCount),
+  };
+  const selectedCharacters = sourceRows.reduce((sum, row) => sum +
+    (enabledSources[row.key] ? preview?.sourceCharacters?.[row.key] || 0 : 0), 0);
+  const hasSelectedContent = Object.values(enabledSources).some(Boolean);
   const busy = stage === 'preparing' || stage === 'running' || stage === 'saving';
   const dialogRef = React.useRef<HTMLElement>(null);
+  React.useEffect(() => {
+    if (preview?.preparedId) setSources({ abstract: true, pdf: true, notes: true, highlights: true, comments: true });
+  }, [preview?.preparedId]);
   React.useEffect(() => {
     if (!isOpen) return;
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -92,14 +116,45 @@ export const AIResearchModal: React.FC<AIResearchModalProps> = ({
                 <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
                   <span>摘要：{scope?.hasAbstract ? '已纳入' : '缺失'}</span>
                   <span>PDF：{scope?.pdfState}</span>
+                  {scope?.pdfAttachmentTitle && <span className="min-w-0 break-words sm:col-span-2">读取附件：{scope.pdfAttachmentTitle}</span>}
                   <span>笔记：{scope?.noteCount || 0} 条{scope?.omittedNotes ? `，另有 ${scope.omittedNotes} 条未纳入` : ''}</span>
                   <span>批注：{scope?.annotationCount || 0} 条{scope?.omittedAnnotations ? `，另有 ${scope.omittedAnnotations} 条未纳入` : ''}</span>
                   <span className="sm:col-span-2">归档：{preview.archiveState}</span>
                 </div>
+                {(scope?.abstractTruncated || scope?.trimmedNotes || scope?.trimmedHighlights || scope?.trimmedComments) &&
+                  <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">
+                    长内容已截取：{[
+                      scope.abstractTruncated ? '摘要' : '',
+                      scope.trimmedNotes ? `${scope.trimmedNotes} 条笔记` : '',
+                      scope.trimmedHighlights ? `${scope.trimmedHighlights} 条划线` : '',
+                      scope.trimmedComments ? `${scope.trimmedComments} 条评论` : '',
+                    ].filter(Boolean).join('、')}。请对照原始资料核验。
+                  </p>}
+                {(scope?.noteReadErrors || scope?.annotationReadErrors) &&
+                  <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">
+                    读取异常：笔记 {scope.noteReadErrors || 0} 处，批注 {scope.annotationReadErrors || 0} 处；受影响的内容未进入本次预览。
+                  </p>}
                 {scope?.pdfTruncated && <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">
                   PDF 超出读取范围或已跨区间采样；导图会标注资料不完整。
                 </p>}
               </div>
+
+              {(stage === 'ready' || stage === 'error') && (
+                <fieldset className="rounded-xl border border-slate-200 p-4 dark:border-slate-700">
+                  <legend className="px-1 font-semibold text-slate-900 dark:text-white">本次发送的资料</legend>
+                  <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">取消勾选的来源不会发送给模型，也不会用于引文核对。调整范围后重新分析会使用独立的会话结果。</p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {sourceRows.map(({ key, label, available }) => (
+                      <label key={key} className="flex items-center gap-2 text-xs">
+                        <input type="checkbox" checked={available && sources[key]} disabled={!available || busy}
+                          onChange={(event) => setSources((current) => ({ ...current, [key]: event.target.checked }))} />
+                        <span className={!available ? 'text-slate-400' : ''}>{label}</span>
+                      </label>
+                    ))}
+                  </div>
+                  {!hasSelectedContent && <p role="alert" className="mt-3 text-xs text-amber-700 dark:text-amber-300">请至少选择一种有内容的资料。</p>}
+                </fieldset>
+              )}
 
               {stage === 'ready' && (
                 <fieldset className="space-y-2">
@@ -112,9 +167,9 @@ export const AIResearchModal: React.FC<AIResearchModalProps> = ({
                       <span><strong>{value === 'quick' ? '快速概览' : '深入分析'}</strong>
                         <small className="mt-1 block text-slate-600 dark:text-slate-400">
                           {value === 'quick'
-                            ? `${(scope?.pdfCharacters || 0) > 20000 ? '跨区间选取 PDF 节选' : '使用本次已准备的 PDF'}，并精简笔记与批注；约 ${preview.quickCalls} 次模型请求。`
-                            : preview.deepCalls > 1
-                              ? `分段阅读已提取 PDF 并整合，约 ${preview.deepCalls} 次模型请求。`
+                            ? `${enabledSources.pdf ? (scope?.pdfCharacters || 0) > 20000 ? '跨区间选取 PDF 节选' : '使用本次已准备的 PDF' : '不纳入 PDF'}，并精简选中的笔记与批注；约 ${preview.quickCalls} 次模型请求。`
+                            : enabledSources.pdf && preview.deepCalls > 1
+                              ? `分段阅读已提取 PDF；整合时压缩候选、笔记和批注，约 ${preview.deepCalls} 次模型请求。`
                               : '依据现有资料完成单次综合分析，约 1 次模型请求。'}
                         </small>
                       </span>
@@ -126,7 +181,7 @@ export const AIResearchModal: React.FC<AIResearchModalProps> = ({
               <div className="rounded-xl bg-slate-50 p-3 text-xs leading-5 dark:bg-slate-800">
                 <div className="flex items-center gap-2 font-semibold"><ShieldCheck size={15} />数据与费用</div>
                 <p className="mt-1">开始后将向 {preview.localModel ? '本机模型' : preview.endpointHost}（{preview.model}）发送资料，
-                  本次准备了约 {preview.estimatedCharacters.toLocaleString()} 字符。实际 token、费用和耗时由模型服务决定。
+                  本次选中资料约 {selectedCharacters.toLocaleString()} 字符（快速模式还会进一步节选）。实际 token、费用和耗时由模型服务决定。
                   仅有短引文与指定资料片段匹配的判断会标为“原文支持”，仍需回到原文核对。
                   PDF、笔记、批注划线和批注评论会分别编号；评论只作为读者材料。</p>
               </div>
@@ -151,16 +206,22 @@ export const AIResearchModal: React.FC<AIResearchModalProps> = ({
         </div>
 
         <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 px-5 py-4 dark:border-slate-700">
-          <button type="button" onClick={onSettings} disabled={busy}
-            className="rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 disabled:opacity-50 dark:text-slate-300 dark:hover:bg-slate-800">
-            MindFlow 设置
-          </button>
+          <div className="flex flex-wrap gap-1">
+            <button type="button" onClick={onSettings} disabled={busy}
+              className="rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 disabled:opacity-50 dark:text-slate-300 dark:hover:bg-slate-800">
+              MindFlow 设置
+            </button>
+            {preview && !busy && <button type="button" onClick={onRefresh}
+              className="rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">
+              重新读取资料
+            </button>}
+          </div>
           <div className="flex gap-2">
-            {stage === 'ready' && <button type="button" onClick={() => onStart(mode)}
-              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700">
+            {stage === 'ready' && <button type="button" onClick={() => onStart(mode, enabledSources)} disabled={!hasSelectedContent}
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
               <CheckCircle2 size={16} />开始分析</button>}
-            {stage === 'error' && <button type="button" onClick={() => onRetry(mode)}
-              className="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700">重试</button>}
+            {stage === 'error' && <button type="button" onClick={() => onRetry(mode, enabledSources)} disabled={Boolean(preview) && !hasSelectedContent}
+              className="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">重试</button>}
             {busy && stage !== 'saving' && <button type="button" onClick={onCancel}
               className="rounded-lg border border-slate-300 px-4 py-2 hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800">取消</button>}
             {!busy && <button type="button" onClick={onClose}

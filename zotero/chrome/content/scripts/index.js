@@ -76,6 +76,22 @@
     .flatMap((passage) => splitTextForAI(passage.trim(), maxLength))
     .filter((text) => text.trim())
     .map((text, index) => ({ id: `P${index + 1}`, text }));
+  const compactSegmentDrafts = (drafts) => Object.fromEntries(AI_SECTION_KEYS.map((key) => {
+    const primary = drafts.map((draft) => draft[key]?.[0]).filter(Boolean);
+    const selected = primary.length <= 5 ? primary : Array.from({ length: 5 }, (_, index) =>
+      primary[Math.round(index * (primary.length - 1) / 4)]);
+    if (selected.length < 5) {
+      for (const draft of drafts) {
+        if (selected.length >= 5) break;
+        if (draft[key]?.[1]) selected.push(draft[key][1]);
+      }
+    }
+    return [key, selected.map((entry) => ({
+      text: entry.text.slice(0, 180), detail: entry.detail.slice(0, 160),
+      basis: entry.basis, source: entry.source, sourceId: entry.sourceId,
+      quote: entry.quote.slice(0, 140),
+    }))];
+  }));
 
   const itemSelectUri = (item) => {
     const key = item.key || item.id;
@@ -720,13 +736,19 @@
               typeof data.requestId === 'string' && data.requestId.length < 100) {
             const source = event.source;
             const responseOrigin = event.origin && event.origin !== 'null' ? event.origin : '*';
+            const job = { cancelled: false, cancel() { this.cancelled = true; } };
+            if (!this._aiJobs) this._aiJobs = new Map();
+            this._aiJobs.set(data.requestId, job);
             const reply = (payload) => {
               try { source?.postMessage({ type: 'MINDFLOW_PREPARE_PAPER_RESULT', requestId: data.requestId, ...payload }, responseOrigin); }
               catch (error) { Zotero.log?.('[MindFlow] AI preparation result window closed: ' + error); }
             };
-            this.preparePaperAnalysis(data.reference)
+            this.preparePaperAnalysis(data.reference, {
+              registerCancel: (cancel) => { job.cancel = cancel; if (job.cancelled) cancel(); },
+            })
               .then((result) => reply({ result }))
-              .catch((error) => reply({ error: String(error?.message || error).slice(0, 300) }));
+              .catch((error) => reply({ error: String(error?.message || error).slice(0, 300) }))
+              .finally(() => this._aiJobs?.delete(data.requestId));
           }
 
           if (data.type === 'MINDFLOW_CANCEL_PAPER' && typeof data.requestId === 'string') {
@@ -751,6 +773,7 @@
             this.analyzePaperWithAI(data.reference, {
               preparedId: data.preparedId,
               mode: data.mode,
+              sources: data.sources,
               onProgress: progress,
               registerCancel: (cancel) => { job.cancel = cancel; if (job.cancelled) cancel(); },
             })
@@ -1333,48 +1356,55 @@
 
         const notes = [];
         const annotations = [];
-
+        let noteReadErrors = 0;
+        let annotationReadErrors = 0;
         try {
           if (typeof target.getNotes === 'function') {
             const noteIds = target.getNotes();
             if (Array.isArray(noteIds)) {
               for (const nId of noteIds) {
-                const n = Zotero.Items.get(nId);
-                if (n) {
-                  const t = noteHtmlToText(n.getNote ? n.getNote() : '');
-                  if (t && !t.includes('MindFlow 导图大纲')) {
-                    notes.push({ text: t, uri: itemSelectUri(n) });
+                try {
+                  const n = Zotero.Items.get(nId);
+                  if (n) {
+                    const t = noteHtmlToText(n.getNote ? n.getNote() : '');
+                    if (t && !t.includes('MindFlow 导图大纲')) {
+                      notes.push({ text: t, uri: itemSelectUri(n) });
+                    }
                   }
-                }
+                } catch (_) { noteReadErrors += 1; }
               }
             }
           }
+        } catch (_) { noteReadErrors += 1; }
 
+        try {
           if (typeof target.getAttachments === 'function') {
             const attIds = target.getAttachments();
             if (Array.isArray(attIds)) {
               for (const attId of attIds) {
-                const att = Zotero.Items.get(attId);
-                if (att && att.isPDFAttachment && att.isPDFAttachment()) {
-                  if (typeof att.getAnnotations === 'function') {
+                try {
+                  const att = Zotero.Items.get(attId);
+                  if (att?.isPDFAttachment?.() && typeof att.getAnnotations === 'function') {
                     const annos = att.getAnnotations();
                     for (const a of annos) {
-                      if (a.annotationText || a.annotationComment) {
-                        annotations.push({
-                          text: a.annotationText || '',
-                          comment: a.annotationComment,
-                          pageLabel: a.annotationPageLabel,
-                          color: a.annotationColor,
-                          uri: annotationLink(att, a),
-                        });
-                      }
+                      try {
+                        if (a.annotationText || a.annotationComment) {
+                          annotations.push({
+                            text: a.annotationText || '',
+                            comment: a.annotationComment,
+                            pageLabel: a.annotationPageLabel,
+                            color: a.annotationColor,
+                            uri: annotationLink(att, a),
+                          });
+                        }
+                      } catch (_) { annotationReadErrors += 1; }
                     }
                   }
-                }
+                } catch (_) { annotationReadErrors += 1; }
               }
             }
           }
-        } catch (_) {}
+        } catch (_) { annotationReadErrors += 1; }
 
         return {
           key: target.key || String(target.id),
@@ -1391,6 +1421,7 @@
           tags,
           notes,
           annotations,
+          sourceReadWarnings: { noteReadErrors, annotationReadErrors },
           zoteroUri: itemSelectUri(target),
         };
       } catch (e) {
@@ -1445,14 +1476,30 @@
       }
     },
 
-    async preparePaperAnalysis(reference) {
+    async preparePaperAnalysis(reference, options = {}) {
+      let cancelled = false;
+      const cancel = () => { cancelled = true; };
+      options.registerCancel?.(cancel);
+      if (options.signal) {
+        if (options.signal.aborted) cancel();
+        else options.signal.addEventListener('abort', cancel, { once: true });
+      }
+      const ensureActive = () => { if (cancelled) throw new Error(AI_CANCELLED); };
+      ensureActive();
       const item = resolveItemReference(reference);
       if (!item?.isRegularItem?.()) throw new Error('请选择一篇常规 Zotero 文献。');
       const config = this.getAIConfiguration();
 
       const itemData = this.serializeZoteroItem(item);
       if (!itemData) throw new Error('无法读取所选文献。');
-      const abstract = String(itemData.abstract || '').slice(0, 12000);
+      const rawAbstract = String(itemData.abstract || '');
+      const abstract = rawAbstract.slice(0, 12000);
+      const trimmedNotes = (itemData.notes || []).slice(0, 12)
+        .filter((entry) => String(entry.text || entry).length > 2500).length;
+      const trimmedHighlights = (itemData.annotations || []).slice(0, 80)
+        .filter((entry) => String(entry.text || '').length > 600).length;
+      const trimmedComments = (itemData.annotations || []).slice(0, 80)
+        .filter((entry) => String(entry.comment || '').length > 300).length;
       const notes = (itemData.notes || []).slice(0, 12).map((entry, index) => ({
         id: `N${index + 1}`, text: String(entry.text || entry).slice(0, 2500), uri: entry.uri || '',
       }));
@@ -1468,19 +1515,24 @@
       let pdfState = '无可用 PDF 文字';
       let pdfTruncated = false;
       let pdfURI = '';
+      let pdfAttachmentTitle = '';
       const requestedPages = Number(Zotero.Prefs.get('extensions.mindflow.aiMaxPdfPages', true));
       const maxPages = [50, 120, 200].includes(requestedPages) ? requestedPages : 120;
       let preferredAttachment = null;
       try { preferredAttachment = await item.getBestAttachment?.(); } catch (_) {}
+      ensureActive();
       const attachmentIDs = [...new Set([preferredAttachment?.id, ...(item.getAttachments?.() || [])].filter(Boolean))];
       for (const attachmentID of attachmentIDs) {
+        ensureActive();
         const attachment = Zotero.Items.get(attachmentID);
         if (!attachment?.isPDFAttachment?.()) continue;
         try {
           const path = await attachment.getFilePathAsync?.();
+          ensureActive();
           if (!path || !(await IOUtils.exists(path))) { pdfState = 'PDF 附件尚未下载到本机'; continue; }
           if (!Zotero.PDFWorker?.getFullText) { pdfState = '当前 Zotero 不支持 PDF 文字提取'; break; }
           const extracted = await Zotero.PDFWorker.getFullText(attachment.id, maxPages);
+          ensureActive();
           const raw = typeof extracted === 'string' ? extracted : String(extracted?.text || extracted?.content || '');
           if (!raw.trim()) { pdfState = 'PDF 未提取到文字（可能是扫描件）'; continue; }
           const pageLimited = Number(extracted?.totalPages) > Number(extracted?.extractedPages);
@@ -1492,11 +1544,14 @@
           pdfURI = groupID
             ? `zotero://open-pdf/groups/${groupID}/items/${attachment.key}`
             : `zotero://open-pdf/library/items/${attachment.key}`;
+          pdfAttachmentTitle = String(attachment.attachmentFilename || attachment.key);
           break;
-        } catch (_) {
+        } catch (error) {
+          ensureActive();
           pdfState = 'PDF 文字提取失败；已使用其他可用资料';
         }
       }
+      ensureActive();
       if (!abstract && !pdfText && !notes.length && !annotations.length) {
         throw new Error('这篇文献没有可分析的摘要、PDF 文字、笔记或批注。请先下载可读 PDF 或补充摘要。');
       }
@@ -1506,10 +1561,24 @@
         if (Date.now() - value.createdAt > AI_PREPARED_TTL) this._aiPrepared.delete(key);
       }
       while (this._aiPrepared.size >= 3) this._aiPrepared.delete(this._aiPrepared.keys().next().value);
+      ensureActive();
       this._aiPrepared.set(preparedId, { createdAt: Date.now(), reference, itemData, item,
-        abstract, notes, annotations, pdfText, pdfState, pdfTruncated, pdfURI, config });
+        abstract, notes, annotations, pdfText, pdfState, pdfTruncated, pdfURI, config, maxPages,
+        sourceWarnings: { abstractTruncated: rawAbstract.length > abstract.length,
+          trimmedNotes, trimmedHighlights, trimmedComments,
+          noteReadErrors: itemData.sourceReadWarnings?.noteReadErrors || 0,
+          annotationReadErrors: itemData.sourceReadWarnings?.annotationReadErrors || 0,
+          omittedNotes: Math.max(0, (itemData.notes || []).length - notes.length),
+          omittedAnnotations: Math.max(0, (itemData.annotations || []).length - annotations.length) } });
       const scope = { pdfState, pdfTruncated, hasAbstract: Boolean(abstract),
+        abstractTruncated: rawAbstract.length > abstract.length,
+        trimmedNotes, trimmedHighlights, trimmedComments,
+        noteReadErrors: itemData.sourceReadWarnings?.noteReadErrors || 0,
+        annotationReadErrors: itemData.sourceReadWarnings?.annotationReadErrors || 0,
+        pdfAttachmentTitle,
         noteCount: notes.length, annotationCount: annotations.length,
+        highlightCount: annotations.filter((entry) => entry.text).length,
+        commentCount: annotations.filter((entry) => entry.comment).length,
         omittedNotes: Math.max(0, (itemData.notes || []).length - notes.length),
         omittedAnnotations: Math.max(0, (itemData.annotations || []).length - annotations.length),
         pdfCharacters: pdfText.length, maxPages };
@@ -1520,6 +1589,10 @@
       return { preparedId, title: itemData.title, zoteroUri: itemData.zoteroUri,
         model: config.model, endpointHost: config.host, localModel: config.local,
         archiveState,
+        sourceCharacters: { abstract: abstract.length, pdf: pdfText.length,
+          notes: notes.reduce((sum, entry) => sum + entry.text.length, 0),
+          highlights: annotations.reduce((sum, entry) => sum + entry.text.length, 0),
+          comments: annotations.reduce((sum, entry) => sum + entry.comment.length, 0) },
         sourceScope: scope, quickCalls: 1,
         deepCalls: pdfText.length > 24000 ? pdfSegmentsForAI(pdfText, 24000).length + 1 : 1,
         estimatedCharacters: abstract.length + pdfText.length +
@@ -1538,12 +1611,27 @@
         prepared = this._aiPrepared.get(preview.preparedId);
       }
       const latestConfig = this.getAIConfiguration();
+      const latestPagePref = Number(Zotero.Prefs.get('extensions.mindflow.aiMaxPdfPages', true));
+      const latestMaxPages = [50, 120, 200].includes(latestPagePref) ? latestPagePref : 120;
       if (latestConfig.url !== prepared.config.url || latestConfig.model !== prepared.config.model ||
-          latestConfig.apiKey !== prepared.config.apiKey) {
+          latestConfig.apiKey !== prepared.config.apiKey || latestMaxPages !== prepared.maxPages) {
         throw new Error('模型配置已变化，请重新读取并确认分析范围。');
       }
-      const { item, itemData, abstract, notes, annotations, pdfText, pdfState,
-        pdfTruncated, pdfURI, config } = prepared;
+      const selectedSources = Object.fromEntries(['abstract', 'pdf', 'notes', 'highlights', 'comments']
+        .map((key) => [key, options.sources?.[key] !== false]));
+      const { item, itemData, pdfURI, config } = prepared;
+      const abstract = selectedSources.abstract ? prepared.abstract : '';
+      const pdfText = selectedSources.pdf ? prepared.pdfText : '';
+      const pdfState = selectedSources.pdf ? prepared.pdfState : 'PDF 未纳入本次分析（用户选择）';
+      const pdfTruncated = selectedSources.pdf && prepared.pdfTruncated;
+      const notes = selectedSources.notes ? prepared.notes : [];
+      const annotations = prepared.annotations.map((entry) => ({ ...entry,
+        text: selectedSources.highlights ? entry.text : '',
+        comment: selectedSources.comments ? entry.comment : '',
+      })).filter((entry) => entry.text || entry.comment);
+      if (!abstract && !pdfText && !notes.length && !annotations.length) {
+        throw new Error('未选择可分析的论文资料。请至少纳入一种有内容的来源。');
+      }
       let cancelled = false;
       let cancelRequest = null;
       const cancel = () => { cancelled = true; try { cancelRequest?.(); } catch (_) {} };
@@ -1555,10 +1643,11 @@
       const ensureActive = () => { if (cancelled) throw new Error(AI_CANCELLED); };
       const progress = (phase, completed, total) => options.onProgress?.(phase, completed, total);
       const mode = options.mode === 'quick' ? 'quick' : 'deep';
-      if (prepared.results?.[mode]) {
+      const scopeKey = `${mode}:${Object.values(selectedSources).map((value) => value ? '1' : '0').join('')}`;
+      if (prepared.results?.[scopeKey]) {
         ensureActive();
         progress('恢复本次会话结果', 1, 1);
-        return prepared.results[mode];
+        return prepared.results[scopeKey];
       }
       const sourceEntries = {
         abstract: abstract ? [{ id: 'AB', text: abstract, uri: itemData.zoteroUri }] : [],
@@ -1624,38 +1713,54 @@
       };
       let parsed;
       let allowedDeepPDFQuotes = null;
+      let progressTotal = 2;
+      let deepCondensed = false;
       if (mode === 'deep' && pdfText.length > 24000) {
         const segments = pdfSegmentsForAI(pdfText, 24000);
-        const drafts = Array.isArray(prepared.deepDrafts) ? prepared.deepDrafts.slice(0, segments.length) : [];
+        progressTotal = segments.length + 2;
+        const drafts = Array.isArray(prepared.deepDrafts?.[scopeKey])
+          ? prepared.deepDrafts[scopeKey].slice(0, segments.length) : [];
         sourceEntries.pdf = segments.map((segment) => ({ ...segment, uri: pdfURI }));
         for (let index = drafts.length; index < segments.length; index += 1) {
           ensureActive();
-          progress('阅读 PDF', index, segments.length + 1);
-          const draft = await requestModel({ ...commonPayload,
-            abstract: { id: 'AB', text: abstract }, pdfSegment: segments[index],
+          progress('阅读 PDF', index, progressTotal);
+          const draft = await requestModel({ ...commonPayload, pdfSegment: segments[index],
             segment: `${index + 1}/${segments.length}` },
-          '本轮只分析所给 PDF 区间。每个栏目最多 2 项；没有证据时留空。');
+          '本轮仅提供所给 PDF 区间。每个栏目最多 2 项；没有证据时留空。不要引用未提供的摘要、笔记或批注。');
           drafts.push(Object.fromEntries(AI_SECTION_KEYS.map((key) =>
             [key, Array.isArray(draft.sections[key]) ? draft.sections[key].slice(0, 2).map((entry) => ({
               text: String(entry?.text || '').slice(0, 230),
               detail: String(entry?.detail || '').slice(0, 300),
               basis: entry?.basis, source: entry?.source,
-              sourceId: entry?.source === 'pdf' ? segments[index].id
-                : entry?.source === 'abstract' ? 'AB' : '',
+              sourceId: entry?.source === 'pdf' ? segments[index].id : '',
               quote: String(entry?.quote || '').slice(0, 180),
             })) : []])));
-          prepared.deepDrafts = drafts;
+          if (!prepared.deepDrafts) prepared.deepDrafts = {};
+          prepared.deepDrafts[scopeKey] = drafts;
         }
         ensureActive();
-        allowedDeepPDFQuotes = new Set(drafts.flatMap((draft) => AI_SECTION_KEYS.flatMap((key) =>
-          (draft[key] || []).filter((entry) => entry.source === 'pdf' && entry.sourceId && entry.quote)
-            .map((entry) => `${entry.sourceId}:${normalizeEvidence(entry.quote)}`))));
-        progress('整合研究脉络', segments.length, segments.length + 1);
-        parsed = await requestModel({ ...commonPayload, abstract: { id: 'AB', text: abstract },
-          notes: notes.map(({ id, text }) => ({ id, text })),
-          annotations: annotations.map(({ id, commentId, text, comment, page }) => ({ id, commentId, text, comment, page })),
-          segmentDrafts: drafts },
-        '请仅整合候选条目与此轮摘要、笔记和批注；不得新增候选之外的 PDF 引文。PDF 条目必须原样保留候选的 sourceId 和 quote，不能改写、拼接或变更 P 编号。每个栏目最多 5 项，保留不同区间的关键证据及其限制。');
+        const synthesisDrafts = compactSegmentDrafts(drafts);
+        const sentAbstract = abstract.slice(0, 6000);
+        const sentNotes = notes.map((entry) => ({ ...entry, text: entry.text.slice(0, 700) }));
+        const sentAnnotations = annotations.map((entry) => ({ ...entry,
+          text: entry.text.slice(0, 200), comment: entry.comment.slice(0, 100),
+        }));
+        sourceEntries.abstract = sentAbstract ? [{ id: 'AB', text: sentAbstract, uri: itemData.zoteroUri }] : [];
+        sourceEntries.note = sentNotes;
+        sourceEntries.annotation = sentAnnotations;
+        sourceEntries.comment = sentAnnotations.filter((entry) => entry.comment).map((entry) => ({
+          id: entry.commentId, text: entry.comment, uri: entry.uri, page: entry.page,
+        }));
+        allowedDeepPDFQuotes = new Set(AI_SECTION_KEYS.flatMap((key) =>
+          synthesisDrafts[key].filter((entry) => entry.source === 'pdf' && entry.sourceId && entry.quote)
+            .map((entry) => `${entry.sourceId}:${normalizeEvidence(entry.quote)}`)));
+        deepCondensed = true;
+        progress('整合研究脉络', segments.length, progressTotal);
+        parsed = await requestModel({ ...commonPayload, abstract: { id: 'AB', text: sentAbstract },
+          notes: sentNotes.map(({ id, text }) => ({ id, text })),
+          annotations: sentAnnotations.map(({ id, commentId, text, comment, page }) => ({ id, commentId, text, comment, page })),
+          segmentDrafts: synthesisDrafts },
+        '请仅整合所给分段候选与此轮摘要、笔记和批注；不得新增候选之外的 PDF 引文。PDF 条目必须原样保留候选的 sourceId 和 quote，不能改写、拼接或变更 P 编号。每个栏目最多 5 项，保留不同区间的关键证据及其限制。');
       } else {
         const quickPdf = mode === 'quick' ? samplePreparedPDF(pdfText, 20000) : pdfText;
         const sentAbstract = mode === 'quick' ? abstract.slice(0, 8000) : abstract;
@@ -1683,11 +1788,18 @@
         '每个栏目最多 5 项。');
       }
       ensureActive();
-      progress('核对引文', 1, 1);
+      progress('核对引文', progressTotal - 1, progressTotal);
       const sections = {};
       for (const key of AI_SECTION_KEYS) {
-        sections[key] = (Array.isArray(parsed.sections[key]) ? parsed.sections[key] : []).slice(0, 5)
-          .filter((entry) => entry && typeof entry.text === 'string' && entry.text.trim())
+        const seenClaims = new Set();
+        sections[key] = (Array.isArray(parsed.sections[key]) ? parsed.sections[key] : [])
+          .filter((entry) => {
+            if (!entry || typeof entry.text !== 'string' || !entry.text.trim()) return false;
+            const normalized = normalizeEvidence(entry.text);
+            if (seenClaims.has(normalized)) return false;
+            seenClaims.add(normalized);
+            return true;
+          }).slice(0, 5)
           .map((entry) => {
             const text = entry.text.trim().slice(0, 230);
             const detail = String(entry.detail || '').trim().slice(0, 1200);
@@ -1710,10 +1822,15 @@
               : candidates.length > 1 ? 'ambiguous' : 'unmatched';
             const basis = entry.basis === 'unresolved' ? 'unresolved'
               : entry.basis === 'paper' && matchedEntry && !['note', 'comment'].includes(source) ? 'paper' : 'inference';
+            const contextIndex = matchedEntry && source === 'pdf'
+              ? matchedEntry.text.toLowerCase().indexOf(quote.toLowerCase()) : -1;
+            const evidenceContext = contextIndex >= 0 ? matchedEntry.text.slice(
+              Math.max(0, contextIndex - 70), Math.min(matchedEntry.text.length, contextIndex + quote.length + 70)) : '';
             return { text, detail, basis, source: matchedEntry ? source : 'none',
               sourceId: matchedEntry?.id || '', requestedSource: source,
               requestedSourceId: requestedId, verification,
               quote: matchedEntry ? quote : '', attemptedQuote: !matchedEntry ? quote : '',
+              evidenceContext,
               pageLabel: ['annotation', 'comment'].includes(source) && matchedEntry ? matchedEntry.page || '' : '',
               link: matchedEntry?.uri || itemData.zoteroUri };
           });
@@ -1726,11 +1843,13 @@
         sourceScope: { pdfState, pdfTruncated, hasAbstract: Boolean(abstract),
           noteCount: usedNoteCount, annotationCount: usedAnnotationCount, analysisMode: mode,
           quickSampled: mode === 'quick' && pdfText.length > 20000,
-          model: config.model, endpointHost: config.host },
+          deepCondensed,
+          model: config.model, endpointHost: config.host, selectedSources,
+          sourceWarnings: prepared.sourceWarnings },
         sections,
       };
       if (!prepared.results) prepared.results = {};
-      prepared.results[mode] = result;
+      prepared.results[scopeKey] = result;
       return result;
     },
 
