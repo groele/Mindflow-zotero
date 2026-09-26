@@ -38,6 +38,7 @@ import { Minimap } from '../../components/minimap/Minimap';
 import { SettingsModal } from '../../components/modal/SettingsModal';
 import { CanvasSearch } from '../../components/search/CanvasSearch';
 import { ContextMenu } from '../../components/menu/ContextMenu';
+import { CanvasContextMenu } from '../../components/menu/CanvasContextMenu';
 import { PresentationMode } from '../../components/presentation/PresentationMode';
 import { AppSettings, DEFAULT_SETTINGS } from '../../core/model/settingsTypes';
 import { createBlankDocument } from '../../core/model/sampleData';
@@ -108,6 +109,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   useEffect(() => { setFocusedTag(null); }, [doc?.id]);
   const [isPresentationOpen, setIsPresentationOpen] = useState(false);
   const [contextMenuState, setContextMenuState] = useState<{ x: number; y: number; node: MindMapNode } | null>(null);
+  const [canvasContextMenuState, setCanvasContextMenuState] = useState<{ x: number; y: number } | null>(null);
   const [relationships, setRelationships] = useState<RelationshipLink[]>([]);
 
   // Settings State
@@ -1310,9 +1312,16 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     const target = findNode(doc.root, nodeId);
     if (target) {
       setSelectedId(nodeId);
+      setCanvasContextMenuState(null);
       setContextMenuState({ x: clientX, y: clientY, node: target });
     }
   }, [doc]);
+
+  // Handle canvas background right click
+  const handleContextMenuCanvas = useCallback((clientX: number, clientY: number) => {
+    setContextMenuState(null);
+    setCanvasContextMenuState({ x: clientX, y: clientY });
+  }, []);
 
   // Relationships Handlers
   const handleCreateRelationship = useCallback((fromId: string, toId: string) => {
@@ -1587,6 +1596,10 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       if (e.key === 'Escape') {
         if (contextMenuState) {
           setContextMenuState(null);
+          return;
+        }
+        if (canvasContextMenuState) {
+          setCanvasContextMenuState(null);
           return;
         }
         if (isSearchOpen) {
@@ -2290,6 +2303,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
               searchMatchedIds={searchMatchedIds}
               focusedTag={focusedTag}
               onContextMenuNode={handleContextMenuNode}
+              onContextMenuCanvas={handleContextMenuCanvas}
               onAddChildNode={handleAddChild}
               onAddSiblingNode={() => handleAddSibling(false)}
               onImportNodeImage={(id, file) => handleImportNodeImage(file, id)}
@@ -2472,6 +2486,38 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
           onFocusSubtree={(id) => handleSelectAndCenterNode(id)}
           onLocateZoteroItem={(uri) => locateItemInZotero(uri)}
           onOpenZoteroPdf={(uri) => openItemPdfInZotero(uri)}
+        />
+      )}
+
+      {/* Canvas Context Menu (Right Click on Empty Canvas) */}
+      {canvasContextMenuState && (
+        <CanvasContextMenu
+          x={canvasContextMenuState.x}
+          y={canvasContextMenuState.y}
+          onClose={() => setCanvasContextMenuState(null)}
+          onCenterCanvas={() => centerCanvas(layout.bounds)}
+          onResetZoom={() => setViewport((v) => ({ ...v, scale: 1.0 }))}
+          onFitView={() => centerCanvas(layout.bounds)}
+          onAddRootChild={() => {
+            if (!doc) return;
+            const { newRoot, newNodeId } = addChildNode(doc.root, doc.root.id, '新分支主题');
+            commitRootChange(newRoot);
+            setSelectedId(newNodeId);
+            playAddNode(settings.soundEffects);
+          }}
+          onPasteSubtree={() => {
+            if (doc && clipboardSubtreeRef.current) {
+              handlePasteNode(doc.root.id);
+            }
+          }}
+          hasClipboardContent={!!clipboardSubtreeRef.current}
+          canvasBackground={settings.canvasBackground}
+          onChangeCanvasBackground={(bg) => setSettings((prev) => ({ ...prev, canvasBackground: bg }))}
+          onToggleTheme={() => {
+            const nextTheme = theme.isDark ? 'classic-blue' : 'dark-nebula';
+            setDoc((prev) => (prev ? { ...prev, themeId: nextTheme } : null));
+          }}
+          isDark={theme.isDark}
         />
       )}
 

@@ -28,6 +28,7 @@ interface CanvasProps {
   onOpenInternalLink?: (documentId: string, nodeId?: string) => void;
   onMoveNode: (sourceId: string, targetId: string) => void;
   onContextMenuNode?: (id: string, clientX: number, clientY: number) => void;
+  onContextMenuCanvas?: (clientX: number, clientY: number) => void;
   searchMatchedIds?: string[];
   focusedTag?: string | null;
   canvasBackground?: 'dots' | 'grid' | 'blank';
@@ -65,6 +66,7 @@ export const Canvas: React.FC<CanvasProps> = ({
   onOpenInternalLink,
   onMoveNode,
   onContextMenuNode,
+  onContextMenuCanvas,
   searchMatchedIds = [],
   focusedTag = null,
   canvasBackground = 'dots',
@@ -290,6 +292,18 @@ export const Canvas: React.FC<CanvasProps> = ({
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
+      onContextMenu={(e) => {
+        // If clicking on canvas background directly, trigger canvas context menu
+        const target = e.target as HTMLElement;
+        const isCanvasBg = target === containerRef.current ||
+          target.classList.contains('canvas-background') ||
+          target.tagName.toLowerCase() === 'svg' ||
+          target.id === 'canvas-svg-layer';
+        if (isCanvasBg) {
+          e.preventDefault();
+          onContextMenuCanvas?.(e.clientX, e.clientY);
+        }
+      }}
       className={`
         relative w-full h-full overflow-hidden select-none canvas-background
         ${theme.isDark ? 'bg-slate-950' : 'bg-slate-50'}

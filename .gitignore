@@ -5,6 +5,7 @@ node_modules/
 dist/
 dist-zip/
 dist-zotero/
+*.xpi
 
 # Logs
 logs

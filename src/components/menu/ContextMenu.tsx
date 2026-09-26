@@ -47,7 +47,10 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
 
   // Close when clicking outside or pressing Escape
   useEffect(() => {
+    let timerId: ReturnType<typeof setTimeout>;
     const handleClickOutside = (e: MouseEvent) => {
+      // Ignore right-click events; let contextmenu manage opening/closing
+      if (e.button === 2) return;
       if (menuRef.current && !menuRef.current.contains(e.target as HTMLElement)) {
         onClose();
       }
@@ -57,9 +60,15 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
         onClose();
       }
     };
-    window.addEventListener('mousedown', handleClickOutside);
-    window.addEventListener('keydown', handleKeyDown);
+
+    // Attach listeners on next tick to avoid being immediately closed by the initiating right-click event
+    timerId = setTimeout(() => {
+      window.addEventListener('mousedown', handleClickOutside);
+      window.addEventListener('keydown', handleKeyDown);
+    }, 16);
+
     return () => {
+      clearTimeout(timerId);
       window.removeEventListener('mousedown', handleClickOutside);
       window.removeEventListener('keydown', handleKeyDown);
     };
@@ -103,7 +112,11 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
     <div
       ref={menuRef}
       style={adjustedStyle}
-      className="fixed z-50 w-52 py-1.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 shadow-2xl rounded-xl text-xs text-slate-700 dark:text-slate-200 animate-in fade-in zoom-in-95 duration-100 select-none"
+      onContextMenu={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+      className="fixed z-[100] w-52 py-1.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 shadow-2xl rounded-xl text-xs text-slate-700 dark:text-slate-200 animate-in fade-in zoom-in-95 duration-100 select-none"
     >
       <div className="px-3 py-1 text-[11px] font-semibold text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-800/80 truncate mb-1">
         {node.text}

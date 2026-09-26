@@ -78,6 +78,118 @@
            name.includes('o1') || name.includes('o3') || name.includes('qwq');
   };
 
+  /**
+   * Dual-engine HTTP transport for LLM APIs (learned from llm-for-zotero architecture):
+   * 1. Preferred Engine: Native fetch with redirect: 'follow' (obtained from Zotero.getMainWindow()?.fetch || globalThis.fetch).
+   *    This properly handles campus reverse proxies (e.g. Central South University api.chat.csu.edu.cn),
+   *    gateway 301/302/307 redirects, and does not strip authentication.
+   * 2. Fallback Engine: Zotero.HTTP.request with followRedirects: true if fetch is unavailable.
+   */
+  const getFetchFn = () => {
+    try {
+      if (typeof Zotero !== 'undefined' && typeof Zotero.getMainWindow === 'function') {
+        const mainWin = Zotero.getMainWindow();
+        if (mainWin && typeof mainWin.fetch === 'function') return mainWin.fetch.bind(mainWin);
+      }
+    } catch (_) {}
+    if (typeof globalThis !== 'undefined' && typeof globalThis.fetch === 'function') return globalThis.fetch.bind(globalThis);
+    if (typeof window !== 'undefined' && typeof window.fetch === 'function') return window.fetch.bind(window);
+    return null;
+  };
+
+  const getAbortControllerClass = () => {
+    try {
+      if (typeof Zotero !== 'undefined' && typeof Zotero.getMainWindow === 'function') {
+        const mainWin = Zotero.getMainWindow();
+        if (mainWin && mainWin.AbortController) return mainWin.AbortController;
+      }
+    } catch (_) {}
+    if (typeof globalThis !== 'undefined' && globalThis.AbortController) return globalThis.AbortController;
+    if (typeof window !== 'undefined' && window.AbortController) return window.AbortController;
+    return null;
+  };
+
+  const sendLLMHttpRequest = async ({ url, method = 'POST', headers = {}, body, timeout = 60000, signal }) => {
+    const fetchFn = getFetchFn();
+    const AbortControllerClass = getAbortControllerClass();
+
+    if (fetchFn) {
+      let timeoutId = null;
+      let internalController = null;
+      let requestSignal = signal;
+
+      if (!requestSignal && AbortControllerClass && timeout > 0) {
+        internalController = new AbortControllerClass();
+        requestSignal = internalController.signal;
+        timeoutId = setTimeout(() => {
+          try { internalController.abort(); } catch (_) {}
+        }, timeout);
+      }
+
+      try {
+        const res = await fetchFn(url, {
+          method,
+          headers,
+          body: typeof body === 'string' ? body : JSON.stringify(body),
+          redirect: 'follow',
+          signal: requestSignal,
+        });
+
+        const status = res.status;
+        const statusText = res.statusText || '';
+        const resHeaders = {};
+        try {
+          if (res.headers && typeof res.headers.forEach === 'function') {
+            res.headers.forEach((v, k) => { resHeaders[k.toLowerCase()] = v; });
+          }
+        } catch (_) {}
+
+        const text = await res.text();
+        let json = null;
+        try { json = JSON.parse(text); } catch (_) {}
+
+        if (!res.ok) {
+          const err = new Error(`HTTP ${status} ${statusText}: ${text.slice(0, 300)}`);
+          err.status = status;
+          err.statusText = statusText;
+          err.response = json || text;
+          err.responseText = text;
+          throw err;
+        }
+
+        return {
+          status,
+          statusText,
+          headers: resHeaders,
+          response: json || text,
+          responseText: text,
+        };
+      } catch (err) {
+        if (err.name === 'AbortError') {
+          const timeoutErr = new Error(`请求超时（超过 ${Math.round(timeout / 1000)} 秒无响应），请检查网络连接或接口地址。`);
+          timeoutErr.status = 408;
+          throw timeoutErr;
+        }
+        throw err;
+      } finally {
+        if (timeoutId) clearTimeout(timeoutId);
+      }
+    }
+
+    // Fallback: Zotero.HTTP.request
+    return await Zotero.HTTP.request(method, url, {
+      body: typeof body === 'string' ? body : JSON.stringify(body),
+      headers,
+      timeout,
+      errorDelayMax: 0,
+      noRetryOnThrottle: true,
+      followRedirects: true,
+      logBodyLength: 0,
+      anon: false,
+      noCache: true,
+    });
+  };
+
   const extractJsonFromLlmOutput = (text) => {
     if (!text || typeof text !== 'string') return null;
     const trimmed = text.trim();
@@ -1998,106 +2110,166 @@
       }
     },
 
-    getAIConfiguration() {
-      const rawEndpoint = String(Zotero.Prefs.get('extensions.mindflow.aiEndpoint', true) || '').trim();
-      const model = String(Zotero.Prefs.get('extensions.mindflow.aiModel', true) || '').trim();
-      const apiKey = String(Zotero.Prefs.get('extensions.mindflow.aiApiKey', true) || '').trim();
-      if (!rawEndpoint || !model) throw new Error('请先在 Zotero 设置 → MindFlow → AI 论文研究导图中填写接口地址和模型名称。');
+    getAIConfiguration(overrides = {}) {
+      const rawEndpoint = String(overrides.endpoint ?? Zotero.Prefs.get('extensions.mindflow.aiEndpoint', true) ?? '').trim();
+      const model = String(overrides.model ?? Zotero.Prefs.get('extensions.mindflow.aiModel', true) ?? '').trim();
+      const apiKey = String(overrides.apiKey ?? Zotero.Prefs.get('extensions.mindflow.aiApiKey', true) ?? '').trim();
+      if (!rawEndpoint || !model) throw new Error('请先填写接口地址和模型名称。');
       const endpoint = resolveChatEndpoint(rawEndpoint);
       let url;
-      try { url = new URL(endpoint); } catch (_) { throw new Error('AI 接口地址无效。'); }
+      try { url = new URL(endpoint); } catch (_) { throw new Error('AI 接口地址格式无效，请检查 http:// 或 https:// 前缀。'); }
       const local = isPrivateOrLocalHost(url.hostname);
       if ((url.protocol !== 'https:' && !(local && url.protocol === 'http:')) ||
           url.username || url.password || url.hash) {
         throw new Error('AI 接口须使用 HTTPS；仅本机或局域网地址可使用 HTTP，地址不能携带账号认证信息。');
       }
-      if (!apiKey && !local) throw new Error('请先在 Zotero 的 MindFlow 设置中填写 AI API 密钥。');
-      return { url: url.href, rawEndpoint, model, apiKey, local, host: url.host };
+      if (!apiKey && !local) throw new Error('请填写 AI API 密钥。');
+      return { url: url.href, rawEndpoint, model, apiKey, local, host: url.host, hostname: url.hostname };
     },
 
-    async testAIConnection() {
-      const config = this.getAIConfiguration();
-      const sendTest = async (targetUrl) => {
+    async testAIConnection(overrides = {}) {
+      const startTime = Date.now();
+      let config;
+      try {
+        config = this.getAIConfiguration(overrides);
+      } catch (err) {
+        return {
+          success: false,
+          status: 0,
+          latencyMs: 0,
+          url: '',
+          model: overrides.model || '',
+          message: err.message,
+        };
+      }
+
+      // Check if campus network / webvpn tip is needed
+      const isCampusDomain = config.hostname.includes('.edu.cn') || config.hostname.includes('csu.edu.cn');
+
+      const sendProbe = async (targetUrl, useMaxCompletionTokens = false) => {
+        // Learned from llm-for-zotero: probe body NEVER includes temperature
         const testPayload = {
           model: config.model,
           messages: [
-            { role: 'user', content: 'Reply with OK.' },
+            { role: 'user', content: 'Say OK' },
           ],
           stream: false,
-          max_tokens: isReasoningModel(config.model) ? 50 : 20,
-          ...(isReasoningModel(config.model) ? {} : { temperature: 0.1 }),
+          ...(useMaxCompletionTokens ? { max_completion_tokens: 16 } : { max_tokens: 16 }),
         };
+        // Clean standard headers (no arbitrary headers that trigger strict CORS rejection)
         const testHeaders = {
           'Content-Type': 'application/json',
-          ...(config.apiKey ? {
-            'Authorization': `Bearer ${config.apiKey}`,
-            'api-key': config.apiKey,
-          } : {}),
-          'HTTP-Referer': 'https://github.com/groele/Mindflow-zotero',
-          'X-Title': 'MindFlow for Zotero',
+          ...(config.apiKey ? { 'Authorization': `Bearer ${config.apiKey}` } : {}),
         };
-        return await Zotero.HTTP.request('POST', targetUrl, {
-          body: JSON.stringify(testPayload),
+
+        return await sendLLMHttpRequest({
+          url: targetUrl,
+          method: 'POST',
           headers: testHeaders,
-          timeout: 20000, errorDelayMax: 0, noRetryOnThrottle: true, followRedirects: false,
-          logBodyLength: 0, anon: true, noCache: true,
+          body: testPayload,
+          timeout: 25000,
         });
       };
 
       try {
         let response;
         let usedUrl = config.url;
+        let tokenFallbackUsed = false;
+
         try {
-          response = await sendTest(config.url);
+          response = await sendProbe(config.url, false);
         } catch (firstErr) {
-          // If 404 and URL contained /v1/chat/completions, try fallback to /chat/completions without /v1
-          if (firstErr?.status === 404 && config.url.includes('/v1/chat/completions')) {
+          const firstStatus = Number(firstErr?.status || 0);
+          const firstText = String(firstErr?.responseText || firstErr?.message || '');
+
+          // Strategy 1 (from llm-for-zotero): If 400 error mentions max_tokens / max_completion_tokens, retry with max_completion_tokens
+          if (firstStatus === 400 && (firstText.includes('max_tokens') || firstText.includes('max_completion_tokens'))) {
+            try {
+              response = await sendProbe(config.url, true);
+              tokenFallbackUsed = true;
+            } catch (_) {}
+          }
+
+          // Strategy 2 (from llm-for-zotero): If 404 and URL contains /v1/chat/completions, try fallback to /chat/completions without /v1
+          if (!response && firstStatus === 404 && config.url.includes('/v1/chat/completions')) {
             const fallbackUrl = config.url.replace('/v1/chat/completions', '/chat/completions');
             try {
-              response = await sendTest(fallbackUrl);
+              response = await sendProbe(fallbackUrl, tokenFallbackUsed);
               usedUrl = fallbackUrl;
-            } catch (_) {
-              throw firstErr;
-            }
-          } else {
+            } catch (_) {}
+          }
+
+          // Strategy 3: If 404 and URL had no /v1, try adding /v1/chat/completions
+          if (!response && firstStatus === 404 && !config.url.includes('/v1/chat/completions') && config.url.endsWith('/chat/completions')) {
+            const fallbackUrl = config.url.replace(/\/chat\/completions$/, '/v1/chat/completions');
+            try {
+              response = await sendProbe(fallbackUrl, tokenFallbackUsed);
+              usedUrl = fallbackUrl;
+            } catch (_) {}
+          }
+
+          if (!response) {
             throw firstErr;
           }
         }
 
-        let body;
-        try {
-          body = typeof response.response === 'object' && response.response
-            ? response.response : JSON.parse(response.responseText || response.response);
-        } catch (_) {}
+        const latencyMs = Date.now() - startTime;
+        let body = response.response;
+        if (typeof body === 'string') {
+          try { body = JSON.parse(body); } catch (_) {}
+        }
 
         if (!Array.isArray(body?.choices) || !body.choices[0]?.message) {
           return {
             success: false,
-            message: `接口已响应（HTTP 200），但返回格式未包含标准的 choices 数组；请检查接口路径是否正确指向 /chat/completions（当前请求地址: ${usedUrl}）。`,
+            status: response.status || 200,
+            latencyMs,
+            url: usedUrl,
+            model: config.model,
+            message: `接口已响应（HTTP ${response.status || 200}），但返回格式未包含标准的 choices 数组；请检查接口路径是否正确（请求地址: ${usedUrl}）。`,
           };
         }
-        const replyText = String(body.choices[0].message.content || '').trim().slice(0, 30);
+
+        const replyContent = String(body.choices[0].message.content || '').trim().replace(/\s+/g, ' ');
+        const replyPreview = replyContent.slice(0, 40) || 'OK';
+
         return {
           success: true,
-          message: `连接成功！已连接 ${config.host}（请求路径: ${new URL(usedUrl).pathname}），模型 ${config.model} 响应正常${replyText ? `（模型回复: "${replyText}"）` : ''}。`,
+          status: response.status || 200,
+          latencyMs,
+          url: usedUrl,
+          model: config.model,
+          replyText: replyPreview,
+          message: `连接成功！耗时 ${latencyMs}ms，模型 ${config.model} 响应正常（回复: "${replyPreview}"）。`,
         };
       } catch (error) {
+        const latencyMs = Date.now() - startTime;
         const status = Number(error?.status || 0);
-        let errBody = null;
-        try {
-          errBody = typeof error?.response === 'object' && error?.response
-            ? error.response : JSON.parse(error?.responseText || error?.response || '{}');
-        } catch (_) {}
-        const serverMsg = errBody?.error?.message || errBody?.message || errBody?.detail || '';
-        const detail = status === 401 || status === 403 ? '密钥无效或缺少访问权限'
-          : status === 400 ? '请求格式或模型参数不兼容'
-          : status === 404 ? '接口路径不存在或模型不存在'
-          : status === 429 ? '模型服务限流或账户额度不足'
-          : status >= 500 ? '模型服务暂时不可用或内部错误' : '网络超时、证书或接口格式异常';
-        const extra = serverMsg ? `（服务商返回：${serverMsg}）` : '';
+        let errBody = error?.response;
+        if (typeof errBody === 'string') {
+          try { errBody = JSON.parse(errBody); } catch (_) {}
+        }
+        const serverMsg = errBody?.error?.message || errBody?.message || errBody?.detail || error?.message || '';
+        let detail = status === 401 || status === 403 ? '密钥无效或缺少访问权限'
+          : status === 400 ? '请求参数不兼容或模型不存在'
+          : status === 404 ? '接口路径不存在（404 Not Found）'
+          : status === 429 ? '服务商限流或账户额度已耗尽'
+          : status >= 500 ? '模型服务器内部错误或网关异常'
+          : status === 408 ? '网络连接超时（超过 25 秒无响应）'
+          : '网络未连通、SSL 证书验证失败或地址无法解析';
+
+        let campusTip = '';
+        if (isCampusDomain && (status === 0 || status === 408 || status === 502 || status === 504)) {
+          campusTip = '\n💡 校园网提示：检测到高校内网域名（' + config.hostname + '），若当前处于校外网络，需先连接学校 WebVPN 或 EasyConnect 校园网。';
+        }
+
         return {
           success: false,
-          message: `连接失败${status ? `（HTTP ${status}）` : ''}：${detail}${extra}。\n[调试信息: 请求地址 ${config.url}, 模型: ${config.model}]`,
+          status,
+          latencyMs,
+          url: config.url,
+          model: config.model,
+          message: `连接失败${status ? `（HTTP ${status}）` : ''}：${detail}。\n服务商响应: ${serverMsg || '无详细错误输出'}${campusTip}`,
         };
       }
     },
@@ -2311,45 +2483,47 @@
           'Content-Type': 'application/json',
           ...(config.apiKey ? {
             'Authorization': `Bearer ${config.apiKey}`,
-            'api-key': config.apiKey,
           } : {}),
-          'HTTP-Referer': 'https://github.com/groele/Mindflow-zotero',
-          'X-Title': 'MindFlow for Zotero',
         };
+        const AbortControllerClass = getAbortControllerClass();
+        const localController = AbortControllerClass ? new AbortControllerClass() : null;
+        if (localController) {
+          cancelRequest = () => { try { localController.abort(); } catch (_) {} };
+        }
         try {
-          response = await Zotero.HTTP.request('POST', config.url, {
-            body: JSON.stringify(reqPayload),
+          response = await sendLLMHttpRequest({
+            url: config.url,
+            method: 'POST',
             headers: reqHeaders,
-            timeout: 120000, errorDelayMax: 0, noRetryOnThrottle: true, followRedirects: false,
-            logBodyLength: 0, anon: true, noCache: true,
-            cancellerReceiver: (fn) => { cancelRequest = fn; if (cancelled) fn(); },
+            body: reqPayload,
+            timeout: 120000,
+            signal: localController?.signal,
           });
         } catch (error) {
           if (cancelled) throw new Error(AI_CANCELLED);
           const status = Number(error?.status || 0);
-          let errBody = null;
-          try {
-            errBody = typeof error?.response === 'object' && error?.response
-              ? error.response : JSON.parse(error?.responseText || error?.response || '{}');
-          } catch (_) {}
-          const serverMsg = errBody?.error?.message || errBody?.message || errBody?.detail || '';
+          let errBody = error?.response;
+          if (typeof errBody === 'string') {
+            try { errBody = JSON.parse(errBody); } catch (_) {}
+          }
+          const serverMsg = errBody?.error?.message || errBody?.message || errBody?.detail || error?.message || '';
           const detail = status === 401 || status === 403 ? '检查 API 密钥和访问权限'
             : status === 400 ? '请求格式或上下文长度不被模型接受，请尝试快速模式或兼容模型'
             : status === 413 ? '模型上下文不足，请改用快速模式或调低 PDF 页数'
             : status === 429 ? '模型服务限流或额度不足，请稍后重试'
             : status >= 500 ? '模型服务暂时不可用，请稍后重试'
-            : '检查网络、接口地址和模型名称';
+            : '检查网络连接、接口地址和模型名称';
           const extra = serverMsg ? `（服务商提示：${serverMsg}）` : '';
           throw new Error(`模型请求失败${status ? `（HTTP ${status}）` : ''}；${detail}${extra}。`);
         } finally { cancelRequest = null; }
         ensureActive();
-        if (response.status >= 300 && response.status < 400) {
-          throw new Error('模型接口返回重定向。请填写最终 HTTPS 地址，避免密钥被转发。');
+        let body = response.response;
+        if (typeof body === 'string') {
+          try { body = JSON.parse(body); } catch (_) {}
         }
-        let body;
-        try { body = typeof response.response === 'object' && response.response
-          ? response.response : JSON.parse(response.responseText || response.response); }
-        catch (_) { throw new Error('模型服务未返回有效 JSON 响应。'); }
+        if (!body || typeof body !== 'object') {
+          throw new Error('模型服务未返回有效 JSON 响应。');
+        }
         const content = body?.choices?.[0]?.message?.content;
         const output = typeof content === 'string' ? content
           : Array.isArray(content) ? content.map((part) => part.text || '').join('') : '';
