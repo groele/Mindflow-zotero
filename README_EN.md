@@ -9,14 +9,14 @@
 
 [简体中文](README.md) • **English** • [English Documentation](README_EN.md)
 
-[![Zotero Plugin Version](https://img.shields.io/badge/Zotero%20Plugin-v2.0.0-2563eb?style=flat-square&logo=zotero)](https://github.com/groele/Mindflow-zotero)
+[![Zotero Plugin Version](https://img.shields.io/badge/Zotero%20Plugin-v3.0.0-2563eb?style=flat-square&logo=zotero)](https://github.com/groele/Mindflow-zotero)
 [![Compatible Version](https://img.shields.io/badge/Zotero-10.0.x-c2410c?style=flat-square)](zotero/manifest.json)
 [![Frontend Stack](https://img.shields.io/badge/React-19.3-06b6d4?style=flat-square&logo=react)](package.json)
 [![Type Safety](https://img.shields.io/badge/TypeScript-7.0-3178c6?style=flat-square&logo=typescript)](tsconfig.json)
 [![Build Status](https://img.shields.io/badge/Build-Passing-10b981?style=flat-square)](scripts/build-zotero.mjs)
 [![License](https://img.shields.io/badge/License-MIT-15803d?style=flat-square)](LICENSE)
 
-[Quick Install](#-installation--quick-start) • [v200 Highlights](#-v200-major-release-milestones) • [Feature Matrix](#-core-feature-matrix) • [Workflows](#-scholarly-research-workflows) • [Storage Architecture](#-resilient-3-tier-storage-architecture) • [AI Literature Copilot](#-ai-literature-copilot) • [Shortcuts](#-keyboard-shortcuts) • [Build from Source](#-building-from-source)
+[Quick Install](#-installation--quick-start) • [v3.0 Highlights](#-v300-major-release-milestones) • [Feature Matrix](#-core-feature-matrix) • [Workflows](#-scholarly-research-workflows) • [Storage Architecture](#-resilient-3-tier-storage-architecture) • [AI Literature Copilot](#-ai-literature-copilot) • [Shortcuts](#-keyboard-shortcuts) • [Build from Source](#-building-from-source)
 
 </div>
 
@@ -30,11 +30,31 @@ In traditional scholarly research, bibliographic metadata, PDF highlights, and r
 - Mind map source files are securely archived as **direct child attachments** (`.mindflow` files, alongside PDFs) under the parent literature item;
 - Synchronizes clean, structured **outline notes (HTML Rich Text Notes)** without duplicate text;
 - Instant bidirectional navigation: click any annotation node to teleport directly to the corresponding page and highlighted quote in the Zotero PDF reader;
-- Built-in AI academic copilot to deconstruct complex arguments, claims, and experimental evidence chains.
+- Built-in AI academic copilot with resilient dual-engine transport to deconstruct complex arguments, claims, and experimental evidence chains.
 
 ---
 
-## 🚀 v2.0.0 Major Release Milestones
+## 🚀 v3.0.0 Major Release Milestones
+
+As a landmark release in MindFlow's evolution, **v3.0.0** introduces a deeply integrated LLM connection architecture and a full-featured desktop context menu system:
+
+### 1. 🤖 Next-Gen LLM Dual-Engine Architecture (Inspired by `llm-for-zotero`)
+- **Host-Native Dual-Engine Transport**: Adopts native browser `fetch` combined with `AbortController`, default `redirect: 'follow'`, and credential persistence. Transparently supports campus reverse proxies (e.g., Central South University `https://api.chat.csu.edu.cn/v1`) and cloud gateways;
+- **Zero-Conflict Probe & Reasoning Model Adaptation**: Strips `temperature` parameters during connection probes to prevent HTTP 400 errors with `o1`, `o3`, and `deepseek-reasoner`. Auto-detects and falls back between `max_tokens` and `max_completion_tokens`; auto-recovers on 404 paths;
+- **Inline Interactive Diagnostic Card**: Direct DOM value capture upon clicking test; displays real-time spinning animation, round-trip latency (`ms`), HTTP status badge, resolved endpoint URL, and campus WebVPN connectivity guidance.
+
+### 2. 🖱️ Desktop-Grade Context Menu System
+- **Node Context Menu Event Isolation**: Fixes context menu dismissal bug under Gecko/Firefox by isolating right-click events and delaying click-outside bindings;
+- **Brand New Canvas Context Menu (CanvasContextMenu)**: Right-click anywhere on empty canvas to center all nodes, reset to 100% zoom, fit view, add/paste center branches, toggle dot/grid/blank backgrounds, or switch between dark/light themes.
+
+### 3. 🎯 Pure Scholarly Focus & Polish
+- Completely strips todo/task status noise to concentrate on academic paper deconstruction and structural outline generation;
+- Robust PDF reader invocation with seamless attachment ID fallback;
+- Optimized toolbar optical icon sizes for high-DPI displays.
+
+---
+
+## 🚀 v2.0.0 Historical Milestones
 
 As a landmark release in MindFlow's evolution, **v2.0.0** introduces architectural overhauls and a polished visual identity:
 
@@ -84,11 +104,11 @@ As a landmark release in MindFlow's evolution, **v2.0.0** introduces architectur
 ### Installation Steps
 1. Navigate to GitHub [Releases](https://github.com/groele/Mindflow-zotero/releases) and download the latest release bundle:
    ```text
-   mindflow-zotero-2.0.0.xpi
+   mindflow-zotero-3.0.0.xpi
    ```
 2. Open Zotero 10 and select **Tools → Add-ons** from the top menu bar;
 3. Click the gear icon in the top-right corner of the Add-ons Manager and select **Install Add-on From File...**;
-4. Choose the downloaded `mindflow-zotero-2.0.0.xpi` file and confirm installation;
+4. Choose the downloaded `mindflow-zotero-3.0.0.xpi` file and confirm installation;
 5. **Restart Zotero** to activate the extension.
 
 ### Access Points
@@ -180,7 +200,7 @@ npm run build:zotero
 
 The compiled add-on will be available at:
 ```text
-dist-zip/mindflow-zotero-2.0.0.xpi
+dist-zip/mindflow-zotero-3.0.0.xpi
 ```
 
 ---
