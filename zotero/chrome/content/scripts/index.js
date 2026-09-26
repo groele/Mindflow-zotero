@@ -222,14 +222,141 @@
     const groupMatch = raw.match(/^zotero:\/\/(?:select|open-pdf)\/groups\/(\d+)\/items\/([A-Za-z0-9_]+)/);
     const key = groupMatch?.[2] || raw.match(/\/items\/([A-Za-z0-9_]+)(?:[?#]|$)/)?.[1] || raw;
     if (!/^[A-Za-z0-9_]+$/.test(key)) return null;
-    if (!raw.includes('/items/') && /^\d+$/.test(key)) return Zotero.Items.get(Number(key));
+    if (!raw.includes('/items/') && /^\d+$/.test(key)) {
+      try {
+        const direct = Zotero.Items?.get?.(Number(key));
+        if (direct) return direct;
+      } catch (_) {}
+    }
     let targetLibraryID = Number.isInteger(Number(libraryID)) && Number(libraryID) > 0
       ? Number(libraryID) : Zotero.Libraries?.userLibraryID || 1;
     if (groupMatch) {
-      targetLibraryID = Zotero.Groups?.getLibraryIDFromGroupID?.(Number(groupMatch[1]));
-      if (!targetLibraryID) return null;
+      targetLibraryID = Zotero.Groups?.getLibraryIDFromGroupID?.(Number(groupMatch[1])) || targetLibraryID;
     }
-    return Zotero.Items.getByLibraryAndKey?.(targetLibraryID, key) || null;
+    let item = null;
+    try {
+      item = Zotero.Items?.getByLibraryAndKey?.(targetLibraryID, key);
+    } catch (_) {}
+    if (!item && Zotero.Libraries?.userLibraryID && targetLibraryID !== Zotero.Libraries.userLibraryID) {
+      try {
+        item = Zotero.Items?.getByLibraryAndKey?.(Zotero.Libraries.userLibraryID, key);
+      } catch (_) {}
+    }
+    if (!item && Zotero.Libraries?.getAll) {
+      try {
+        for (const lib of Zotero.Libraries.getAll()) {
+          if (lib.libraryID === targetLibraryID) continue;
+          const candidate = Zotero.Items?.getByLibraryAndKey?.(lib.libraryID, key);
+          if (candidate) {
+            item = candidate;
+            break;
+          }
+        }
+      } catch (_) {}
+    }
+    return item;
+  };
+
+  const openPDFForItem = async (item) => {
+    if (!item) return false;
+    let target = item;
+    const isPdf = (att) => {
+      if (!att) return false;
+      try {
+        if (typeof att.isPDFAttachment === 'function' && att.isPDFAttachment()) return true;
+      } catch (_) {}
+      if (att.attachmentContentType === 'application/pdf') return true;
+      if (/\.pdf$/i.test(att.attachmentFilename || '')) return true;
+      if (/\.pdf$/i.test(att.getField ? (att.getField('title') || '') : (att.title || ''))) return true;
+      return false;
+    };
+
+    let pdfAtt = null;
+    if (isPdf(target)) {
+      pdfAtt = target;
+    } else {
+      try {
+        if (typeof target.getBestAttachment === 'function') {
+          const best = await target.getBestAttachment();
+          if (isPdf(best)) pdfAtt = best;
+        }
+      } catch (_) {}
+
+      if (!pdfAtt && typeof target.getAttachments === 'function') {
+        const attIds = target.getAttachments();
+        if (Array.isArray(attIds)) {
+          for (const attId of attIds) {
+            try {
+              const att = Zotero.Items.get(attId);
+              if (isPdf(att)) {
+                pdfAtt = att;
+                break;
+              }
+            } catch (_) {}
+          }
+        }
+      }
+    }
+
+    if (!pdfAtt) {
+      showMindFlowNotice('未检测到 PDF 附件', '所选文献尚未关联可读取的 PDF 附件，已在文献库中定位该条目。');
+      const tabs = window.Zotero_Tabs;
+      if (tabs && Array.isArray(tabs._tabs)) {
+        const libTab = tabs._tabs.find((t) => t && (t.type === 'library' || t.id === 'zotero-pane'));
+        if (libTab) tabs.select(libTab.id);
+      }
+      const pane = window.ZoteroPane || Zotero.getActiveZoteroPane?.();
+      if (pane && (target.id || item.id)) {
+        pane.selectItem(target.id || item.id);
+      }
+      return false;
+    }
+
+    const win = window;
+    const readerService = Zotero.Reader || win.Zotero?.Reader || (Zotero.getMainWindow?.()?.Zotero?.Reader);
+    let opened = false;
+
+    if (readerService && typeof readerService.open === 'function') {
+      try {
+        const res = readerService.open(pdfAtt.id);
+        if (res && typeof res.catch === 'function') {
+          res.catch(() => {
+            try { readerService.open({ itemID: pdfAtt.id }); } catch (_) {}
+          });
+        }
+        opened = true;
+      } catch (err) {
+        try {
+          readerService.open({ itemID: pdfAtt.id });
+          opened = true;
+        } catch (_) {}
+      }
+    }
+
+    if (!opened && typeof Zotero.launchURL === 'function') {
+      try {
+        const groupID = Zotero.Libraries?.get?.(pdfAtt.libraryID)?.groupID;
+        const pdfUri = groupID
+          ? `zotero://open-pdf/groups/${groupID}/items/${pdfAtt.key}`
+          : `zotero://open-pdf/library/items/${pdfAtt.key}`;
+        Zotero.launchURL(pdfUri);
+        opened = true;
+      } catch (err) {
+        Zotero.logError?.('[MindFlow] launchURL open-pdf error: ' + err);
+      }
+    }
+
+    if (!opened) {
+      const pane = window.ZoteroPane || Zotero.getActiveZoteroPane?.();
+      if (pane && typeof pane.viewItem === 'function') {
+        try {
+          pane.viewItem(pdfAtt.id);
+          opened = true;
+        } catch (_) {}
+      }
+    }
+
+    return opened;
   };
 
   // Track injected DOM nodes for clean shutdown
@@ -942,24 +1069,7 @@
           if (data.type === 'MINDFLOW_OPEN_PDF' && data.key) {
             const item = resolveItemReference(data.key, data.libraryID);
             if (item) {
-              let pdfAtt = null;
-              if (item.isAttachment && item.isAttachment() && item.isPDFAttachment && item.isPDFAttachment()) {
-                pdfAtt = item;
-              } else if (typeof item.getAttachments === 'function') {
-                const attIds = item.getAttachments();
-                for (const attId of attIds) {
-                  const att = Zotero.Items.get(attId);
-                  if (att && att.isPDFAttachment && att.isPDFAttachment()) {
-                    pdfAtt = att;
-                    break;
-                  }
-                }
-              }
-              if (pdfAtt && Zotero.Reader && typeof Zotero.Reader.open === 'function') {
-                Promise.resolve(Zotero.Reader.open({ itemID: pdfAtt.id })).catch((error) => {
-                  Zotero.logError?.('[MindFlow] PDF reader opening failed: ' + error);
-                });
-              }
+              void openPDFForItem(item);
             }
           }
 

@@ -49,6 +49,7 @@ export const PropertySidebar: React.FC<PropertySidebarProps> = ({
   const [targetNodes, setTargetNodes] = useState<Array<{ id: string; text: string; depth: number }>>([]);
   const [targetSearch, setTargetSearch] = useState('');
   const [isSyncingToZotero, setIsSyncingToZotero] = useState(false);
+  const [isOpeningPdf, setIsOpeningPdf] = useState(false);
   const [syncStatusMsg, setSyncStatusMsg] = useState<string | null>(null);
 
   useEffect(() => {
@@ -421,9 +422,26 @@ export const PropertySidebar: React.FC<PropertySidebarProps> = ({
         {(() => {
           const zoteroTargetKey =
             currentDoc.metadata?.zoteroItemKey ||
+            currentDoc.metadata?.zoteroUri ||
             (selectedNode.link && selectedNode.link.startsWith('zotero://') ? selectedNode.link : null);
 
           if (!zoteroTargetKey) return null;
+
+          const handleOpenPdf = async () => {
+            setIsOpeningPdf(true);
+            try {
+              const success = openItemPdfInZotero(zoteroTargetKey);
+              if (!success) {
+                setSyncStatusMsg('未检测到 PDF 附件，已在文库中定位文献');
+                setTimeout(() => setSyncStatusMsg(null), 3500);
+              }
+            } catch (err: any) {
+              setSyncStatusMsg('打开 PDF 失败: ' + (err?.message || err));
+              setTimeout(() => setSyncStatusMsg(null), 3500);
+            } finally {
+              setTimeout(() => setIsOpeningPdf(false), 800);
+            }
+          };
 
           const handleManualSync = async () => {
             setIsSyncingToZotero(true);
@@ -475,11 +493,12 @@ export const PropertySidebar: React.FC<PropertySidebarProps> = ({
                 </button>
                 <button
                   type="button"
-                  onClick={() => openItemPdfInZotero(zoteroTargetKey)}
-                  className="flex-1 py-1.5 px-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+                  onClick={handleOpenPdf}
+                  disabled={isOpeningPdf}
+                  className="flex-1 py-1.5 px-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-colors shadow-xs cursor-pointer disabled:opacity-75"
                 >
                   <BookOpen className="w-3.5 h-3.5" />
-                  <span>阅读 PDF</span>
+                  <span>{isOpeningPdf ? '正在打开...' : '阅读 PDF'}</span>
                 </button>
               </div>
 
