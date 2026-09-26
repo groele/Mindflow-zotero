@@ -266,8 +266,17 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
           revision: 0,
           createdAt: Date.now(),
         });
-        setSaveStatus({ state: 'warning', message: `原导图发生版本冲突；编辑已保存在「${copy.title}」。` });
-        return latestDocRef.current === latest && latestRelationshipsRef.current === latestRelationships;
+        if (currentDocIdRef.current !== latest.id) return false;
+        await StorageService.setActiveDocumentId(copy.id);
+        cleanDocRef.current = copy;
+        cleanRelationshipsRef.current = latestRelationships;
+        setDoc((previous) => previous?.id === latest.id ? {
+          ...previous, id: copy.id, title: copy.title,
+          revision: copy.revision, createdAt: copy.createdAt,
+        } : previous);
+        setSaveStatus({ state: 'warning', message: `原导图发生版本冲突；编辑已切换到「${copy.title}」。请核对副本，再重试刚才的操作。` });
+        // Stop the requested switch/archive so it cannot act on the stale original.
+        return false;
       }
     } catch (error: any) {
       setSaveStatus({ state: 'error', message: `切换已停止：当前导图保存失败：${error?.message || '存储不可用'}` });
