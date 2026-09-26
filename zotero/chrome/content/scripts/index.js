@@ -750,6 +750,12 @@
               width: 16px !important;
               height: 16px !important;
             }
+            #mindflow-toolbar-button .toolbarbutton-icon {
+              width: 16px !important;
+              height: 16px !important;
+              max-width: 16px !important;
+              max-height: 16px !important;
+            }
           `;
           (doc.head || doc.documentElement).appendChild(style);
           windowElements.push(style);
