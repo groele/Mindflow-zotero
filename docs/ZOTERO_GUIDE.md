@@ -1,10 +1,10 @@
 # MindFlow for Zotero 10：使用与开发指南
 
-本指南对应 Zotero 插件 v1.6.2。面向用户的完整功能与安装说明先看[项目 README](../README.md)。插件清单目前限定 Zotero 10.0.x。
+本指南对应 Zotero 插件 v1.6.9。面向用户的完整功能与安装说明先看[项目 README](../README.md)。插件清单目前限定 Zotero 10.0.x。
 
 ## 安装和升级
 
-从 [GitHub Releases](https://github.com/groele/Mindflow-zotero/releases/tag/v1.6.2) 下载 mindflow-zotero-1.6.2.xpi。在 Zotero 中打开“工具 → 插件”，将 XPI 拖入插件窗口安装；若提示则重启。升级前建议导出重要导图的工作区备份，并确认文献下的 .mindflow 附件已同步。
+从 [GitHub Releases](https://github.com/groele/Mindflow-zotero/releases) 下载 mindflow-zotero-1.6.9.xpi；若尚未发布，可使用本地 `dist-zip` 的同名构建包。在 Zotero 中打开“工具 → 插件”，将 XPI 拖入插件窗口安装；若提示则重启。升级前建议导出重要导图的工作区备份，并确认文献下的 .mindflow 附件已同步。
 
 插件 ID 为 mindflow@groele.org。版本由 zotero/manifest.json 声明；zotero/update.json 指向同版本的 GitHub Release XPI。
 
@@ -16,7 +16,9 @@
 4. src/pages/app/App.tsx 负责工作台编辑、本机保存和归档状态。
 5. 关联文献的导图可保存为 .mindflow 子附件，并可更新结构化大纲子笔记。
 
-zotero/bootstrap.js 管理插件启动、资源注册和关闭清理。src/services/storage/safeStorage.ts 在 Zotero 环境中通过本机首选项保存工作区数据。文献库跨设备同步的对象是条目下的附件和笔记，而非本机工作区缓存。
+zotero/bootstrap.js 管理插件启动、资源注册和关闭清理。导图正文通过 Zotero 宿主写到数据目录的 `mindflow/workspace/mindflow_doc_<导图 ID>.json`，写入后读取校验；旧首选项中的导图可读取并在下次保存时迁移。设置和快照仍使用本机首选项。文献库跨设备同步的对象是条目下的附件和笔记，而非本机工作区文件。
+
+每次覆盖工作区文件时，程序先写临时文件再替换，并保留上一版 `.json.bak`。如文献下没有 `.mindflow` 附件，先在工作台查看该导图的保存状态；本地文件存在不代表附件已归档。可以在 Zotero 设置中定位数据目录，在 `mindflow/workspace` 找到源 JSON；不要直接改写这些运行中的文件。若工作台仍能打开导图，返回 Zotero 仅选中目标文献，再用工作台 Zotero 菜单中的“存为文献条目附件 (.mindflow)”重试。若工作台无法打开，可先复制对应 `.json` 或 `.json.bak` 到其他位置（后者改名为 `.json`），再使用工作台“导入外部文件”恢复为新导图。
 
 ## 文献导入
 
@@ -26,11 +28,13 @@ zotero/bootstrap.js 管理插件启动、资源注册和关闭清理。src/servi
 
 同一文献可保存多份导图；右键菜单会列出已有的 .mindflow 附件。插件使用 Zotero 条目详情侧栏扩展接口，选中文献时还可在 MindFlow 导图区直接打开已有导图或新建；条目附件变化后会刷新列表。若只有云端附件记录、本机尚未下载文件，先通过 Zotero 下载；插件不会因读取失败自动创建另一份。
 
-分类导图及多篇文献专题导图没有唯一的文献父条目，因此不会自动挂到第一篇文献下。它们保存在本机工作区，原文献链接仍可从节点跳转。跨设备使用需要工作区备份，或者用户明确且仅选择一篇文献后手动归档。
+分类导图及多篇文献专题导图没有唯一的父文献，不会挂到第一篇文献下。新建后会归档到个人库的 `MindFlow｜独立导图` 集合中，以 `MindFlow 独立导图` 容器条目下的 `.mindflow` 子附件保存。未选中文献时创建的空白及模板导图也归档到这里；只选中一篇文献时，新导图作为该文献的子附件。打开已有独立导图后继续保存，会更新原位置；若归档失败，本机工作区仍保留导图并显示失败原因。
+
+如果旧版本将导图留在独立导图位置，可先打开该导图，再在 Zotero 文献列表选中目标文献，返回工作区的 Zotero 菜单点击“存为文献条目附件 (.mindflow)”。确认目标文献下出现新的 `.mindflow` 子附件后，再自行整理独立位置的旧附件；插件不会自动删除旧副本。
 
 ## 附件、笔记与权限
 
-归档时，宿主脚本将导图 JSON 作为 .mindflow 子附件导入 Zotero。它会尝试按导图 ID 找到并更新已有附件；若更新不可用，可能创建新附件。可选的大纲子笔记按导图 ID 关联并更新。
+归档时，宿主脚本将导图 JSON 作为 .mindflow 子附件导入 Zotero。它会尝试按导图 ID 找到并更新已有附件；若更新不可用，可能创建新附件。归档完成前还会检查父子关系、Zotero 附件文件及本次内容。可选的大纲子笔记按导图 ID 关联并更新。
 
 “归档导图附件时更新结构化大纲子笔记”只控制笔记。文献附件能否写入取决于所属库权限；只读群组库或禁止上传附件的群组库会返回失败原因。本机工作区保存成功，不等于 Zotero 附件或跨设备同步已经成功。
 
@@ -55,9 +59,9 @@ zotero/chrome/content/preferences.xhtml 是 Zotero 注册的设置页；对应�
     npm ci
     npm run build:zotero
 
-构建脚本检查 TypeScript，生成 Zotero 用 IIFE 前端资源，检查宿主脚本语法，然后打包 dist-zip/mindflow-zotero-1.6.2.xpi。版本号取自 zotero/manifest.json。dist-zotero 和 dist-zip 是生成目录，不进入源码提交。
+构建脚本检查 TypeScript，生成 Zotero 用 IIFE 前端资源，检查宿主脚本语法，然后打包 dist-zip/mindflow-zotero-1.6.9.xpi。版本号取自 zotero/manifest.json。dist-zotero 和 dist-zip 是生成目录，不进入源码提交。
 
-本仓库另有 Chrome 扩展构建，版本为 3.2.0。Zotero 的 v1.6.2 与 Chrome 的 v3.2.0 属于两条版本线。发布时核对 Zotero 清单、更新清单、XPI 文件名、标签和 Release 资产的版本一致。
+本仓库另有 Chrome 扩展构建，版本为 3.2.1。Zotero 的 v1.6.9 与 Chrome 的 v3.2.1 属于两条版本线。发布时核对 Zotero 清单、更新清单、XPI 文件名、标签和 Release 资产的版本一致。
 
 ## 排查顺序
 

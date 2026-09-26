@@ -1,7 +1,9 @@
 /* MindFlow settings pane for Zotero 10. The workspace and this pane share one
  * AppSettings JSON preference; legacy native preferences remain mirrored for
  * host-side actions such as opening a tab and archiving a note. */
-var MindFlow_Preferences = (() => {
+// Zotero 10 loads preference scripts in a pane sandbox. Inline fragment
+// handlers resolve names on the preferences window, not sandbox globals.
+window.MindFlow_Preferences = (() => {
   const ROOT = 'mindflow.mindflow_app_settings';
   const PREFIX = 'extensions.mindflow.';
   const HTML = 'http://www.w3.org/1999/xhtml';
@@ -175,10 +177,12 @@ var MindFlow_Preferences = (() => {
     const [path, title, type, options, native] = field;
     const row = element(doc, 'div', type === 'check' ? 'mindflow-check-row' : 'mindflow-control-row');
     if (path === 'customSavePath') row.classList.add('mindflow-folder-row');
-    const label = element(doc, 'label', 'mindflow-control-label');
+    if (path === 'aiEndpoint' || path === 'webdav.serverUrl') row.classList.add('mindflow-wide-row');
+    const label = element(doc, 'label', 'mindflow-control-label', title);
     const input = element(doc, type === 'check' || type === 'text' || type === 'url' || type === 'password' ? 'input' : 'select', 'mindflow-control');
     input.id = 'mindflow-pref-' + path.replace(/\./g, '-');
     input.dataset.setting = path;
+    label.htmlFor = input.id;
     if (type === 'check') input.type = 'checkbox';
     else if (type === 'text' || type === 'url' || type === 'password') input.type = type;
     if (options) {
@@ -191,9 +195,13 @@ var MindFlow_Preferences = (() => {
     const value = native ? prefGet(PREFIX + path, NATIVE_DEFAULTS[path]) : getPath(settings, path);
     if (type === 'check') input.checked = Boolean(value);
     else input.value = String(value ?? '');
-    label.appendChild(element(doc, 'span', '', title));
-    label.appendChild(input);
-    row.appendChild(label);
+    if (type === 'check') {
+      row.appendChild(input);
+      row.appendChild(label);
+    } else {
+      row.appendChild(label);
+      row.appendChild(input);
+    }
     container.appendChild(row);
     input.addEventListener('change', () => {
       const next = type === 'check' ? input.checked
@@ -232,7 +240,7 @@ var MindFlow_Preferences = (() => {
       }
     });
     if (path === 'customSavePath') {
-      const button = element(doc, 'button', 'mindflow-btn-secondary', '选择文件夹');
+      const button = element(doc, 'button', '', '选择文件夹');
       button.type = 'button';
       button.addEventListener('click', () => {
         try {
@@ -277,8 +285,8 @@ var MindFlow_Preferences = (() => {
           '附件和笔记保存在文献所属库；群组库写入取决于权限，跨设备附件同步取决于 Zotero 文件同步设置。');
         if (group === 'ai') {
           appendDescription(doc, container,
-            '在工作台确认资料范围并点击开始后，题录、摘要、最多 12 条笔记、80 条批注及可读取的 PDF 文字会发送给您配置的模型服务。长 PDF 会跨区间采样；扫描件若无文字需先处理。深入分析会分段发送，调用次数和费用可能增加。草稿由您审阅后再归档。密钥不会写入导图或工作区备份。');
-          const button = element(doc, 'button', 'mindflow-btn-secondary', '测试 AI 连接');
+            '仅在工作台确认资料范围并点击开始后，选中内容才会发送给模型。长 PDF 可能分段调用并增加费用；扫描件需先提取文字。生成结果须审阅后归档，密钥只保存在本机 Zotero 设置中。');
+          const button = element(doc, 'button', '', '测试 AI 连接');
           button.type = 'button';
           button.addEventListener('click', async () => {
             button.disabled = true;
@@ -325,6 +333,7 @@ var MindFlow_Preferences = (() => {
           paneObservers.delete(doc);
         }, { once: true });
       }
+      status(doc, '更改会立即保存；已打开的导图工作台在重新获得焦点后更新。');
     } catch (error) {
       Zotero.logError?.('[MindFlow] Preference pane error: ' + error);
       status(win.document, '设置面板加载失败：' + error, true);

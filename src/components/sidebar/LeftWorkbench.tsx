@@ -8,7 +8,7 @@ import { collectTagFacets } from '../../core/model/tagUtils';
 import {
   FolderOpen, ListTree, Inbox, ShieldCheck, Plus, Search,
   Trash2, Check, Download, Upload, History, RotateCcw,
-  FileText, PanelLeftClose, PanelLeftOpen, ArrowRight, HardDrive, ArrowLeftRight, X, Settings, ListTodo, Tag
+  FileText, PanelLeftClose, PanelLeftOpen, ArrowRight, HardDrive, ArrowLeftRight, X, Settings, ListTodo, Tag, GraduationCap
 } from 'lucide-react';
 
 export type WorkbenchTab = 'docs' | 'outline' | 'tags' | 'tasks' | 'inbox' | 'backup';
@@ -262,7 +262,7 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
               className="flex-1 truncate text-xs leading-relaxed"
               title="双击可编辑文本"
             >
-              {node.text || (node.image ? '🖼️ 图片节点' : '未命名主题')}
+              {node.text || (node.image ? '图片节点' : '未命名主题')}
             </span>
           )}
           {node.task && (
@@ -326,7 +326,7 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
               if (isOpen && activeTab === 'docs') onToggleOpen();
               else { onTabChange('docs'); if (!isOpen) onToggleOpen(); }
             }}
-            title="📑 文档库 (Documents)"
+            title="文档库 (Documents)"
             className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors ${
               isOpen && activeTab === 'docs'
                 ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400 font-bold shadow-xs'
@@ -341,7 +341,7 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
               if (isOpen && activeTab === 'outline') onToggleOpen();
               else { onTabChange('outline'); if (!isOpen) onToggleOpen(); }
             }}
-            title="📝 结构大纲 (Outline)"
+            title="结构大纲 (Outline)"
             className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors ${
               isOpen && activeTab === 'outline'
                 ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400 font-bold shadow-xs'
@@ -358,7 +358,7 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
             }}
             title="任务总览与筛选"
             aria-label="任务总览与筛选"
-            className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors ${isOpen && activeTab === 'tasks' ? 'bg-violet-50 text-violet-600 dark:bg-violet-900/40' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+            className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors ${isOpen && activeTab === 'tasks' ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
           >
             <ListTodo className="w-4 h-4" />
           </button>
@@ -370,7 +370,7 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
             }}
             title="标签聚焦与主题筛选"
             aria-label="标签聚焦与主题筛选"
-            className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors ${isOpen && activeTab === 'tags' ? 'bg-teal-50 text-teal-600 dark:bg-teal-900/40' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+            className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors ${isOpen && activeTab === 'tags' ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
           >
             <Tag className="w-4 h-4" />
           </button>
@@ -380,10 +380,10 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
               if (isOpen && activeTab === 'inbox') onToggleOpen();
               else { onTabChange('inbox'); if (!isOpen) onToggleOpen(); }
             }}
-            title="📥 灵感与收集箱 (Inbox)"
+            title="灵感与收集箱 (Inbox)"
             className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors relative ${
               isOpen && activeTab === 'inbox'
-                ? 'bg-amber-50 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400 font-bold shadow-xs'
+                ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400 font-bold shadow-xs'
                 : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
             }`}
           >
@@ -395,10 +395,10 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
               if (isOpen && activeTab === 'backup') onToggleOpen();
               else { onTabChange('backup'); if (!isOpen) onToggleOpen(); }
             }}
-            title="💾 数据安全与备份 (Security & Snapshots)"
+            title="数据安全与备份 (Security & Snapshots)"
             className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors ${
               isOpen && activeTab === 'backup'
-                ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400 font-bold shadow-xs'
+                ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400 font-bold shadow-xs'
                 : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
             }`}
           >
@@ -442,12 +442,12 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
           {/* Header */}
           <div className="h-12 px-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
             <span className="text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 uppercase tracking-wider">
-              {activeTab === 'docs' && <><FolderOpen className="w-4 h-4 text-blue-600" /> 我的导图文档</>}
-              {activeTab === 'outline' && <><ListTree className="w-4 h-4 text-blue-600" /> 结构化大纲</>}
-              {activeTab === 'tasks' && <><ListTodo className="w-4 h-4 text-violet-600" /> 任务总览</>}
-              {activeTab === 'tags' && <><Tag className="w-4 h-4 text-teal-600" /> 标签聚焦</>}
-              {activeTab === 'inbox' && <><Inbox className="w-4 h-4 text-amber-500" /> 灵感与收集箱</>}
-              {activeTab === 'backup' && <><ShieldCheck className="w-4 h-4 text-emerald-600" /> 数据安全与备份</>}
+              {activeTab === 'docs' && <><FolderOpen className="w-4 h-4 text-slate-500" /> 我的导图文档</>}
+              {activeTab === 'outline' && <><ListTree className="w-4 h-4 text-slate-500" /> 结构化大纲</>}
+              {activeTab === 'tasks' && <><ListTodo className="w-4 h-4 text-slate-500" /> 任务总览</>}
+              {activeTab === 'tags' && <><Tag className="w-4 h-4 text-slate-500" /> 标签聚焦</>}
+              {activeTab === 'inbox' && <><Inbox className="w-4 h-4 text-slate-500" /> 灵感与收集箱</>}
+              {activeTab === 'backup' && <><ShieldCheck className="w-4 h-4 text-slate-500" /> 数据安全与备份</>}
             </span>
             <button
               onClick={onToggleOpen}
@@ -503,7 +503,7 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
                                 className="shrink-0 text-[9px] px-1.5 py-0.5 rounded-full bg-sky-100 dark:bg-sky-900/60 text-sky-700 dark:text-sky-300 font-medium leading-none"
                                 title={d.zoteroItemTitle ? `已关联 Zotero 文献: ${d.zoteroItemTitle}` : '已关联 Zotero 文献'}
                               >
-                                🎓 Zotero
+                                <GraduationCap className="mr-0.5 h-2.5 w-2.5" />Zotero
                               </span>
                             )}
                           </div>
@@ -579,7 +579,7 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
                 {filteredTasks.length === 0 && <p className="py-5 text-center text-slate-500">没有符合条件的任务</p>}
                 {filteredTasks.map(task => (
                   <button key={task.nodeId} onClick={() => onSelectNode(task.nodeId)} className={`w-full text-left p-2 rounded-lg border hover:border-violet-400 hover:bg-violet-50 dark:hover:bg-slate-800 ${selectedId === task.nodeId ? 'border-violet-400 bg-violet-50 dark:bg-violet-900/30' : 'border-slate-200 dark:border-slate-700'}`}>
-                    <span className="flex items-center gap-1 font-medium min-w-0">{task.priority && <span className={`px-1 rounded text-[10px] ${task.priority === 1 ? 'bg-red-100 text-red-700' : task.priority === 2 ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>P{task.priority}</span>}<span className="truncate" title={task.text}>{task.text}</span></span>
+                  <span className="flex items-center gap-1 font-medium min-w-0">{task.priority && <span className="px-1 rounded text-[10px] bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300">P{task.priority}</span>}<span className="truncate" title={task.text}>{task.text}</span></span>
                     <span className={task.overdue ? 'text-red-600' : 'text-slate-500'}>{task.status === 'done' ? '已完成' : task.status === 'doing' ? '进行中' : '待办'}{task.dueDate ? ` · 截止 ${task.dueDate}` : ''}{task.overdue ? ' · 已逾期' : ''}</span>
                   </button>
                 ))}
@@ -676,7 +676,7 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
               {quota && (
                 <div className="p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200/80 dark:border-slate-700/80 space-y-1.5">
                   <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium">
-                    <span className="flex items-center gap-1"><HardDrive className="w-3 h-3 text-blue-500" /> 本地存储配额</span>
+                    <span className="flex items-center gap-1"><HardDrive className="w-3 h-3 text-slate-500" /> 本地存储配额</span>
                     <span>{formatSize(quota.usedBytes)} / {formatSize(quota.maxBytes)}</span>
                   </div>
                   <div className="w-full h-1 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
@@ -688,7 +688,7 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
               {/* Full Workspace Actions */}
               <div className="space-y-1.5">
                 <label className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1">
-                  <Download className="w-3.5 h-3.5 text-blue-600" /> 全量工作区备份
+                  <Download className="w-3.5 h-3.5 text-slate-500" /> 全量工作区备份
                 </label>
                 <p className="text-[10px] text-slate-400">将全部导图、收集箱与快照打包备份为 JSON：</p>
                 <div className="grid grid-cols-2 gap-1.5 pt-1">
@@ -702,7 +702,7 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
                     onClick={() => backupFileRef.current?.click()}
                     className="py-1.5 px-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-lg font-semibold flex items-center justify-center gap-1"
                   >
-                    <Upload className="w-3 h-3 text-blue-500" /> 还原备份
+                    <Upload className="w-3 h-3 text-slate-500" /> 还原备份
                   </button>
                   <input ref={backupFileRef} type="file" accept=".json" onChange={handleImportWorkspace} className="hidden" />
                 </div>
@@ -714,7 +714,7 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1">
-                    <History className="w-3.5 h-3.5 text-purple-600" /> 版本快照历史
+                    <History className="w-3.5 h-3.5 text-slate-500" /> 版本快照历史
                   </label>
                   <button
                     onClick={handleCreateSnapshot}

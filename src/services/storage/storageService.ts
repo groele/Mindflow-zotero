@@ -1,5 +1,6 @@
 import { MindMapDocument } from '../../core/model/types';
 import { createDefaultDocument } from '../../core/model/sampleData';
+import { isZoteroWorkspace, zoteroWorkspaceStorage } from '../zotero/zoteroBridge';
 
 const STORAGE_KEYS = {
   DOC_PREFIX: 'mindflow_doc_',
@@ -17,6 +18,7 @@ function isChromeStorage(): boolean {
 
 // Storage wrapper
 async function getItem(key: string): Promise<string | null> {
+  if (isZoteroWorkspace()) return await zoteroWorkspaceStorage('get', { key }) as string | null;
   if (isChromeStorage()) {
     return new Promise((resolve, reject) => {
       chrome.storage.local.get([key], (res) => {
@@ -37,6 +39,20 @@ async function setItem(key: string, value: string): Promise<void> {
 }
 
 async function setItems(items: Record<string, unknown>): Promise<void> {
+  if (isZoteroWorkspace()) {
+    const strings = Object.fromEntries(Object.entries(items).map(([key, value]) =>
+      [key, typeof value === 'string' ? value : JSON.stringify(value)]));
+    try {
+      await zoteroWorkspaceStorage('setMany', { items: strings });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.startsWith('MINDFLOW_REVISION_CONFLICT:')) {
+        throw new DocumentConflictError(message.slice('MINDFLOW_REVISION_CONFLICT:'.length).trim());
+      }
+      throw error;
+    }
+    return;
+  }
   if (isChromeStorage()) {
     return new Promise((resolve, reject) => {
       chrome.storage.local.set(items, () => {
@@ -55,6 +71,10 @@ async function setItems(items: Record<string, unknown>): Promise<void> {
 }
 
 async function removeItem(key: string): Promise<void> {
+  if (isZoteroWorkspace()) {
+    await zoteroWorkspaceStorage('remove', { key });
+    return;
+  }
   if (isChromeStorage()) {
     return new Promise((resolve, reject) => {
       chrome.storage.local.remove([key], () => {
@@ -71,6 +91,7 @@ async function removeItem(key: string): Promise<void> {
 }
 
 async function getAllItems(): Promise<Record<string, unknown>> {
+  if (isZoteroWorkspace()) return await zoteroWorkspaceStorage('getAll') as Record<string, unknown>;
   if (isChromeStorage()) {
     return new Promise((resolve, reject) => {
       chrome.storage.local.get(null, (items) => {
@@ -249,7 +270,26 @@ export class StorageService {
           const existing = (await Promise.all(valid.map(async (summary) => (
             await getItem(STORAGE_KEYS.DOC_PREFIX + summary.id) !== null ? summary : null
           )))).filter((summary): summary is DocumentSummary => summary !== null);
-          if (existing.length === valid.length) return existing;
+          if (isZoteroWorkspace()) {
+            // A previous crash may have written a document before its index.
+            // Discover that durable orphan instead of hiding it from the UI.
+            const keys = await zoteroWorkspaceStorage('keys') as string[];
+            const indexed = new Set(existing.map((summary) => summary.id));
+            for (const key of keys) {
+              if (!key.startsWith(STORAGE_KEYS.DOC_PREFIX)) continue;
+              const id = key.slice(STORAGE_KEYS.DOC_PREFIX.length);
+              if (indexed.has(id) || await getItem(STORAGE_KEYS.DELETED_PREFIX + id)) continue;
+              const recovered = await this.getDocument(id, { trackRevision: false });
+              if (!recovered) continue;
+              existing.push({ id: recovered.id, title: recovered.title,
+                updatedAt: recovered.updatedAt || 0,
+                zoteroItemKey: recovered.metadata?.zoteroItemKey,
+                zoteroItemTitle: recovered.metadata?.zoteroItemTitle });
+              indexed.add(id);
+            }
+            existing.sort((a, b) => b.updatedAt - a.updatedAt);
+          }
+          if (existing.length === valid.length && existing.every((item, i) => item.id === valid[i].id)) return existing;
           await setItem(STORAGE_KEYS.DOC_INDEX, JSON.stringify(existing));
           return existing;
         }

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   Sparkles, Plus, BookOpen, LayoutTemplate, Upload,
-  Clock, ArrowRight, X
+  Clock, ArrowRight, X, Lightbulb
 } from 'lucide-react';
 import { DocumentSummary, StorageService } from '../../services/storage/storageService';
 import { getSelectedZoteroItems, ZoteroItemData } from '../../services/zotero/zoteroBridge';
@@ -49,7 +49,7 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({
         setRecentDocs(filtered.slice(0, 4));
       })
       .catch(() => setRecentDocs([]));
-  }, [isOpen]);
+  }, [isOpen, isZoteroMode]);
 
   if (!isOpen) return null;
 
@@ -67,118 +67,125 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs animate-in fade-in duration-150 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 animate-in fade-in duration-150 p-3 sm:p-6"
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-2xl overflow-hidden select-none flex flex-col max-h-[90vh] transition-all"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="mindflow-welcome-title"
+        className="mindflow-welcome-modal bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-300 dark:border-slate-700 w-full max-w-[760px] min-w-0 overflow-hidden flex flex-col max-h-[min(92vh,760px)]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 flex items-start justify-between bg-linear-to-r from-blue-50/50 via-white to-indigo-50/30 dark:from-slate-800/40 dark:via-slate-900 dark:to-blue-950/20">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-linear-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
-              <Sparkles className="w-5 h-5" />
+        <div className="px-5 sm:px-7 py-5 border-b border-slate-200 dark:border-slate-700 flex items-start justify-between gap-4 bg-slate-50 dark:bg-slate-800/50">
+          <div className="flex items-start gap-3 min-w-0">
+            <div className="mindflow-welcome-brand w-11 h-11 shrink-0 rounded-xl bg-blue-600 flex items-center justify-center shadow-sm">
+              <Sparkles className="w-5 h-5" aria-hidden="true" />
             </div>
-            <div>
-              <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            <div className="min-w-0">
+              <h2 id="mindflow-welcome-title" className="text-lg sm:text-xl leading-snug font-bold text-slate-950 dark:text-white flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span>欢迎使用 MindFlow 思维导图</span>
-                <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300">
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200">
                   {isZoteroMode ? 'Zotero 10 伴读版' : '工作台'}
                 </span>
               </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                为学术研究、文献梳理与系统思考而生的思维画布
+              <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-300 mt-1">
+                整理文献、梳理研究思路，或从空白导图开始。
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
             title="关闭 (Esc)"
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            aria-label="关闭欢迎页面"
+            className="shrink-0 p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 transition-colors"
           >
-            <X className="w-5 h-5" />
+            <X className="w-5 h-5" aria-hidden="true" />
           </button>
         </div>
 
         {/* Content Body */}
-        <div className="px-6 py-5 overflow-y-auto flex-1 space-y-6">
+        <div className="px-5 sm:px-7 py-5 overflow-y-auto flex-1 min-h-0 space-y-6">
           {/* Quick-Action Grid */}
           <div>
-            <div className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">
+            <div className="text-sm font-bold text-slate-800 dark:text-slate-100 mb-3">
               开始创作
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {/* 1. Blank Map */}
               <button
                 onClick={() => {
                   onClose();
                   onCreateBlank();
                 }}
-                className="group relative p-4 rounded-xl border-2 border-blue-500/20 hover:border-blue-500 dark:border-blue-500/30 dark:hover:border-blue-400 bg-blue-50/30 hover:bg-blue-50/70 dark:bg-blue-950/20 dark:hover:bg-blue-950/40 text-left transition-all duration-150 flex flex-col justify-between shadow-xs hover:shadow-md cursor-pointer"
+                className="mindflow-welcome-action group min-h-[166px] p-4 sm:p-[18px] rounded-xl border border-blue-300 dark:border-blue-700 bg-blue-50/45 dark:bg-blue-950/25 hover:border-blue-500 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-left flex flex-col justify-between gap-4 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 transition-colors"
               >
                 <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center shadow-xs">
-                      <Plus className="w-4 h-4" />
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <div className="mindflow-welcome-action-icon w-9 h-9 rounded-lg bg-blue-600 flex items-center justify-center">
+                      <Plus className="w-[18px] h-[18px]" aria-hidden="true" />
                     </div>
-                    <span className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/60 px-2 py-0.5 rounded-md">
+                    <span className="text-xs font-semibold text-blue-800 dark:text-blue-200 bg-blue-100 dark:bg-blue-900/60 px-2 py-0.5 rounded-md">
                       推荐
                     </span>
                   </div>
-                  <h3 className="font-bold text-slate-900 dark:text-white text-sm group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                  <h3 className="font-bold text-slate-950 dark:text-white text-base leading-snug">
                     新建空白导图
                   </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
-                    从中心主题开始自由发散，聚焦当下灵感与创作
+                  <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-200 mt-1.5">
+                    从中心主题开始，自由梳理研究思路。
                   </p>
                 </div>
-                <div className="mt-3 flex items-center text-xs font-medium text-blue-600 dark:text-blue-400 group-hover:translate-x-0.5 transition-transform">
-                  <span>立即开启空白画布</span>
-                  <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                <div className="flex items-center text-sm font-semibold text-blue-800 dark:text-blue-200">
+                  <span>新建空白导图</span>
+                  <ArrowRight className="w-4 h-4 ml-1.5 group-hover:translate-x-0.5 transition-transform" aria-hidden="true" />
                 </div>
               </button>
 
               {/* 2. Zotero Selection */}
               <button
+                disabled={selectedZoteroItems.length !== 1}
                 onClick={() => {
                   onClose();
                   onImportZotero();
                 }}
-                className={`group relative p-4 rounded-xl border transition-all duration-150 flex flex-col justify-between shadow-xs hover:shadow-md cursor-pointer text-left ${
-                  selectedZoteroItems.length > 0
-                    ? 'border-indigo-500/40 hover:border-indigo-600 bg-indigo-50/40 hover:bg-indigo-50/70 dark:bg-indigo-950/30 dark:hover:bg-indigo-950/50'
-                    : 'border-slate-200 hover:border-indigo-500 dark:border-slate-800 dark:hover:border-indigo-400 bg-slate-50/50 hover:bg-indigo-50/40 dark:bg-slate-800/30 dark:hover:bg-indigo-950/20'
-                }`}
+                className={`mindflow-welcome-action group min-h-[166px] p-4 sm:p-[18px] rounded-xl border flex flex-col justify-between gap-4 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 transition-colors ${
+                  selectedZoteroItems.length === 1
+                    ? 'border-blue-300 hover:border-blue-500 bg-blue-50/45 hover:bg-blue-50 dark:border-blue-700 dark:hover:border-blue-400 dark:bg-blue-950/25'
+                    : 'border-slate-300 hover:border-blue-500 dark:border-slate-600 dark:hover:border-blue-400 bg-white dark:bg-slate-800/55'
+                } ${selectedZoteroItems.length === 1 ? 'cursor-pointer' : 'cursor-not-allowed'}`}
               >
                 <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center shadow-xs">
-                      <BookOpen className="w-4 h-4" />
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-700 flex items-center justify-center">
+                      <BookOpen className="w-[18px] h-[18px]" aria-hidden="true" />
                     </div>
                     {selectedZoteroItems.length > 0 ? (
-                      <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/60 px-2 py-0.5 rounded-md flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                      <span className="text-xs font-semibold text-emerald-800 dark:text-emerald-200 bg-emerald-100 dark:bg-emerald-900/60 px-2 py-0.5 rounded-md flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" aria-hidden="true"></span>
                         已选 {selectedZoteroItems.length} 篇文献
                       </span>
                     ) : (
-                      <span className="text-[11px] font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/40 px-2 py-0.5 rounded-md">
+                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-md">
                         文献协同
                       </span>
                     )}
                   </div>
-                  <h3 className="font-bold text-slate-900 dark:text-white text-sm group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                    从选中文献成图
+                  <h3 className="font-bold text-slate-950 dark:text-white text-base leading-snug">
+                    从所选论文生成研究导图
                   </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
+                  <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-200 mt-1.5 break-words">
                     {selectedZoteroItems.length > 0
-                      ? `已就绪：【${selectedZoteroItems[0].title}】${selectedZoteroItems.length > 1 ? ` 等共 ${selectedZoteroItems.length} 篇` : ''}`
-                      : '一键提取 Zotero 选中的论文题录、摘要与笔记'}
+                      ? selectedZoteroItems.length === 1
+                        ? `已就绪：【${selectedZoteroItems[0].title}】将读取可用 PDF、摘要、笔记与批注`
+                        : `当前选中 ${selectedZoteroItems.length} 篇；请只保留一篇论文以生成专属研究导图`
+                      : '请先在 Zotero 中选中一篇论文或 PDF 附件，再打开此页面。'}
                   </p>
                 </div>
-                <div className="mt-3 flex items-center text-xs font-medium text-indigo-600 dark:text-indigo-400 group-hover:translate-x-0.5 transition-transform">
-                  <span>{selectedZoteroItems.length > 0 ? '直接转换并自动归档' : '生成文献脉络'}</span>
-                  <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                <div className={`flex items-center text-sm font-semibold ${selectedZoteroItems.length === 1 ? 'text-blue-800 dark:text-blue-200' : 'text-slate-600 dark:text-slate-300'}`}>
+                  <span>{selectedZoteroItems.length === 1 ? '分析所选论文' : '选中文献后可使用'}</span>
+                  {selectedZoteroItems.length === 1 && <ArrowRight className="w-4 h-4 ml-1.5 group-hover:translate-x-0.5 transition-transform" aria-hidden="true" />}
                 </div>
               </button>
 
@@ -188,27 +195,27 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({
                   onClose();
                   onOpenTemplates();
                 }}
-                className="group relative p-4 rounded-xl border border-slate-200 hover:border-emerald-500 dark:border-slate-800 dark:hover:border-emerald-400 bg-slate-50/50 hover:bg-emerald-50/40 dark:bg-slate-800/30 dark:hover:bg-emerald-950/20 text-left transition-all duration-150 flex flex-col justify-between shadow-xs hover:shadow-md cursor-pointer"
+                className="mindflow-welcome-action group min-h-[166px] p-4 sm:p-[18px] rounded-xl border border-slate-300 hover:border-blue-500 dark:border-slate-600 dark:hover:border-blue-400 bg-white dark:bg-slate-800/55 text-left flex flex-col justify-between gap-4 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 transition-colors"
               >
                 <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shadow-xs">
-                      <LayoutTemplate className="w-4 h-4" />
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-700 flex items-center justify-center">
+                      <LayoutTemplate className="w-[18px] h-[18px]" aria-hidden="true" />
                     </div>
-                    <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/40 px-2 py-0.5 rounded-md">
+                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-md">
                       模板库
                     </span>
                   </div>
-                  <h3 className="font-bold text-slate-900 dark:text-white text-sm group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                  <h3 className="font-bold text-slate-950 dark:text-white text-base leading-snug">
                     精选学术与思维模板
                   </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
-                    文献综述、SWOT 模型、开题规划、读书笔记等
+                  <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-200 mt-1.5">
+                    文献综述、开题规划、读书笔记等常用结构。
                   </p>
                 </div>
-                <div className="mt-3 flex items-center text-xs font-medium text-emerald-600 dark:text-emerald-400 group-hover:translate-x-0.5 transition-transform">
+                <div className="flex items-center text-sm font-semibold text-blue-800 dark:text-blue-200">
                   <span>选择模板</span>
-                  <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                  <ArrowRight className="w-4 h-4 ml-1.5 group-hover:translate-x-0.5 transition-transform" aria-hidden="true" />
                 </div>
               </button>
 
@@ -218,27 +225,27 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({
                   onClose();
                   onTriggerImportFile();
                 }}
-                className="group relative p-4 rounded-xl border border-slate-200 hover:border-amber-500 dark:border-slate-800 dark:hover:border-amber-400 bg-slate-50/50 hover:bg-amber-50/40 dark:bg-slate-800/30 dark:hover:bg-amber-950/20 text-left transition-all duration-150 flex flex-col justify-between shadow-xs hover:shadow-md cursor-pointer"
+                className="mindflow-welcome-action group min-h-[166px] p-4 sm:p-[18px] rounded-xl border border-slate-300 hover:border-blue-500 dark:border-slate-600 dark:hover:border-blue-400 bg-white dark:bg-slate-800/55 text-left flex flex-col justify-between gap-4 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 transition-colors"
               >
                 <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="w-8 h-8 rounded-lg bg-amber-600 text-white flex items-center justify-center shadow-xs">
-                      <Upload className="w-4 h-4" />
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-700 flex items-center justify-center">
+                      <Upload className="w-[18px] h-[18px]" aria-hidden="true" />
                     </div>
-                    <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/40 px-2 py-0.5 rounded-md">
+                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-md">
                       导入
                     </span>
                   </div>
-                  <h3 className="font-bold text-slate-900 dark:text-white text-sm group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
+                  <h3 className="font-bold text-slate-950 dark:text-white text-base leading-snug">
                     导入外部文件
                   </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
-                    支持 Markdown (.md)、JSON 工程文件或 OPML
+                  <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-200 mt-1.5">
+                    支持 MindFlow 附件 (.mindflow)、JSON、Markdown 或 OPML
                   </p>
                 </div>
-                <div className="mt-3 flex items-center text-xs font-medium text-amber-600 dark:text-amber-400 group-hover:translate-x-0.5 transition-transform">
+                <div className="flex items-center text-sm font-semibold text-blue-800 dark:text-blue-200">
                   <span>浏览本地文件</span>
-                  <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                  <ArrowRight className="w-4 h-4 ml-1.5 group-hover:translate-x-0.5 transition-transform" aria-hidden="true" />
                 </div>
               </button>
             </div>
@@ -247,63 +254,64 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({
           {/* Recent Maps / Tips */}
           {recentDocs.length > 0 ? (
             <div>
-              <div className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2.5 flex items-center justify-between">
+              <div className="text-sm font-bold text-slate-800 dark:text-slate-100 mb-3 flex items-center justify-between gap-3">
                 <span>最近编辑导图</span>
-                <span className="text-[11px] font-normal text-slate-400">点击直接打开</span>
+                <span className="text-xs font-normal text-slate-600 dark:text-slate-300">点击打开</span>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {recentDocs.map((item) => (
                   <button
                     key={item.id}
+                    title={item.title}
                     onClick={() => {
                       onClose();
                       onOpenDocument(item.id);
                     }}
-                    className="p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 hover:border-blue-400 dark:hover:border-blue-600 bg-white dark:bg-slate-800/40 hover:bg-blue-50/30 dark:hover:bg-blue-900/20 text-left transition-colors flex items-center justify-between group cursor-pointer"
+                    className="p-3 rounded-lg border border-slate-300 dark:border-slate-600 hover:border-blue-500 dark:hover:border-blue-400 bg-white dark:bg-slate-800/55 text-left transition-colors flex items-center justify-between group cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
                   >
                     <div className="min-w-0 pr-2">
-                      <div className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                      <div className="text-sm font-semibold leading-snug text-slate-900 dark:text-white line-clamp-2">
                         {item.title}
                       </div>
-                      <div className="text-[11px] text-slate-400 flex items-center gap-1.5 mt-0.5">
-                        <Clock className="w-3 h-3" />
+                      <div className="text-xs text-slate-600 dark:text-slate-300 flex items-center gap-1.5 mt-1">
+                        <Clock className="w-3.5 h-3.5" aria-hidden="true" />
                         <span>{formatRelativeTime(item.updatedAt)}</span>
                         <span>·</span>
                         <span>{item.nodeCount} 节点</span>
                       </div>
                     </div>
-                    <ArrowRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-all shrink-0" />
+                    <ArrowRight className="w-4 h-4 text-slate-500 dark:text-slate-300 group-hover:text-blue-700 transition-colors shrink-0" aria-hidden="true" />
                   </button>
                 ))}
               </div>
             </div>
           ) : (
-            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800/80 flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
-              <span className="text-base">💡</span>
+            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/55 border border-slate-300 dark:border-slate-600 flex items-start gap-3 text-sm leading-relaxed text-slate-700 dark:text-slate-200">
+              <Lightbulb className="h-4 w-4 shrink-0 mt-0.5" aria-hidden="true" />
               <div>
-                快捷提示：按 <kbd className="px-1.5 py-0.5 rounded bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 font-mono text-[10px]">Tab</kbd> 添加子主题，
-                按 <kbd className="px-1.5 py-0.5 rounded bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 font-mono text-[10px]">Enter</kbd> 添加同级主题，
-                按 <kbd className="px-1.5 py-0.5 rounded bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 font-mono text-[10px]">Space</kbd> 或双击编辑文字。
+                快捷提示：按 <kbd className="px-1.5 py-0.5 rounded bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-500 text-slate-800 dark:text-white font-mono text-xs">Tab</kbd> 添加子主题，
+                按 <kbd className="px-1.5 py-0.5 rounded bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-500 text-slate-800 dark:text-white font-mono text-xs">Enter</kbd> 添加同级主题，
+                按 <kbd className="px-1.5 py-0.5 rounded bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-500 text-slate-800 dark:text-white font-mono text-xs">Space</kbd> 或双击编辑文字。
               </div>
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3.5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 flex items-center justify-between">
-          <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200">
+        <div className="px-5 sm:px-7 py-3.5 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex flex-wrap items-center justify-between gap-3">
+          <label className="flex items-center gap-2 cursor-pointer select-none text-sm text-slate-700 dark:text-slate-200">
             <input
               type="checkbox"
               checked={showOnStartup}
               onChange={(e) => onToggleShowOnStartup(e.target.checked)}
-              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5"
+              className="rounded border-slate-400 text-blue-600 focus-visible:ring-2 focus-visible:ring-blue-600 w-4 h-4"
             />
             <span>启动时显示此欢迎页面</span>
           </label>
 
           <button
             onClick={onClose}
-            className="px-4 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-lg shadow-2xs transition-colors"
+            className="px-4 py-2 text-sm font-semibold text-slate-800 dark:text-white hover:text-blue-800 dark:hover:text-blue-200 bg-white dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
           >
             直接进入画布
           </button>

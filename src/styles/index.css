@@ -69,3 +69,44 @@
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(51, 65, 85, 0.8);
 }
+
+/* MindFlow icon system: quiet slate strokes, consistent weight, color reserved for control state. */
+.mindflow-app {
+  --mf-icon-color: #647789;
+  --mf-icon-color-dark: #a4b1bc;
+}
+
+.mindflow-app svg.lucide {
+  color: var(--mf-icon-color);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.mindflow-app.dark svg.lucide {
+  color: var(--mf-icon-color-dark);
+}
+
+.mindflow-app button:hover svg.lucide,
+.mindflow-app button[aria-pressed="true"] svg.lucide,
+.mindflow-app button[aria-current="page"] svg.lucide,
+.mindflow-app button[class*="text-blue-"] svg.lucide,
+.mindflow-app button[class*="text-sky-"] svg.lucide,
+.mindflow-app button[class*="text-emerald-"] svg.lucide {
+  color: inherit;
+}
+
+/* The welcome dialog uses white glyphs on its two blue icon tiles. */
+.mindflow-welcome-modal .mindflow-welcome-brand svg.lucide,
+.mindflow-welcome-modal .mindflow-welcome-action-icon svg.lucide {
+  color: #fff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mindflow-welcome-modal *,
+  .mindflow-welcome-modal *::before,
+  .mindflow-welcome-modal *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

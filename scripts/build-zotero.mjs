@@ -75,7 +75,9 @@ async function main() {
     },
     build: {
       outDir: assetsDir,
-      emptyOutDir: true,
+      // dist-zotero was recreated above; keep static assets copied from zotero/.
+      // Clearing this directory here removes preferences.css from the XPI.
+      emptyOutDir: false,
       lib: {
         entry: path.resolve(projectRoot, 'src/main.tsx'),
         name: 'MindFlowApp',
@@ -85,6 +87,13 @@ async function main() {
       },
     },
   });
+
+  // The pane is registered separately from the React bundle. Keep its CSS in
+  // the XPI even when the Vite output configuration changes later.
+  const preferenceCSS = path.join(assetsDir, 'preferences.css');
+  if (!fs.existsSync(preferenceCSS)) {
+    throw new Error('Missing Zotero preference pane stylesheet: ' + preferenceCSS);
+  }
 
   // Post-process app.iife.js to eliminate any lingering process.env references
   const iifePath = path.join(assetsDir, 'app.iife.js');
@@ -142,13 +151,26 @@ async function main() {
         console.error('[MindFlow Unhandled Rejection]', e.reason);
       });
 
-      // 3. Immediately bind Zotero instance from window.arguments if available
+      // 3. Immediately bind Zotero instance from window.arguments or parent if available
       try {
         if (window.arguments && window.arguments[0] && window.arguments[0].Zotero) {
           window.Zotero = window.arguments[0].Zotero;
+        } else if (window.parent && window.parent !== window && window.parent.Zotero) {
+          window.Zotero = window.parent.Zotero;
         }
       } catch (e) {
         console.warn('[MindFlow] Note on Zotero arguments:', e);
+      }
+
+      // 4. Synchronously bind initial action from frameElement or arguments
+      try {
+        if (window.arguments && window.arguments[0]) {
+          window._mindflowInitialAction = window.arguments[0];
+        } else if (window.frameElement && window.frameElement._mindflowInitialAction) {
+          window._mindflowInitialAction = window.frameElement._mindflowInitialAction;
+        }
+      } catch (e) {
+        console.warn('[MindFlow] Note on initial action:', e);
       }
     </script>
   </head>

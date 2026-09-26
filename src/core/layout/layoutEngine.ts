@@ -39,14 +39,14 @@ export function measureNode(node: MindMapNode, level: number): { width: number; 
   }
 
   if (level === 0) {
-    const w = Math.max(120, estimatedTextWidth + 48 + extraWidth);
-    return { width: Math.min(w, 360), height: 46 };
+    const w = Math.max(140, estimatedTextWidth + 48 + extraWidth);
+    return { width: Math.min(w, 520), height: 46 };
   } else if (level === 1) {
     const w = Math.max(90, estimatedTextWidth + 36 + extraWidth);
-    return { width: Math.min(w, 320), height: 38 };
+    return { width: Math.min(w, 360), height: 38 };
   } else {
     const w = Math.max(70, estimatedTextWidth + 28 + extraWidth);
-    return { width: Math.min(w, 280), height: 32 };
+    return { width: Math.min(w, 300), height: 32 };
   }
 }
 

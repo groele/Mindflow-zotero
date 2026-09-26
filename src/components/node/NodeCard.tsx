@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { LayoutNode } from '../../core/model/types';
 import { safeExternalUrl } from '../../core/model/links';
 import { imageDisplayHeight, isSafeNodeImage } from '../../core/model/nodeImage';
-import { ExternalLink, FileText, ChevronRight, ChevronDown, Tag, Star, Flag, CheckCircle2, HelpCircle, Link2, GraduationCap } from 'lucide-react';
+import { ExternalLink, FileText, ChevronRight, ChevronDown, Tag, Star, Flag, CheckCircle2, HelpCircle, Link2, GraduationCap, Plus } from 'lucide-react';
 import { openZoteroUri } from '../../services/zotero/zoteroBridge';
 
 interface NodeCardProps {
@@ -183,7 +183,7 @@ export const NodeCard: React.FC<NodeCardProps> = ({
       {/* Visual Drop Target Badge */}
       {isDragOverTarget && (
         <div className="absolute -top-6 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-indigo-600 text-white text-[10px] font-bold rounded-full shadow-md whitespace-nowrap animate-bounce pointer-events-none z-50">
-          ➕ 移至此分支
+          <Plus className="mr-1 inline h-3 w-3" />移至此分支
         </div>
       )}
       {nodeImage && (
@@ -243,19 +243,19 @@ export const NodeCard: React.FC<NodeCardProps> = ({
         ) : node.text ? (
           <span
             title={node.text}
-            className={`truncate flex-1 tracking-wide leading-tight ${node.task?.status === 'done' ? 'line-through opacity-60' : ''}`}
+            className={`truncate flex-1 tracking-wide leading-tight ${isRoot ? 'font-semibold text-sm' : ''} ${node.task?.status === 'done' ? 'line-through opacity-60' : ''}`}
           >
             {node.text}
           </span>
         ) : null}
 
-        {/* Tags */}
-        {node.tags && node.tags.length > 0 && (
-          <div className="flex items-center gap-1 flex-shrink-0">
+        {/* Tags (do not render tags inside root node to prevent cluttering literature title) */}
+        {!isRoot && node.tags && node.tags.length > 0 && (
+          <div className="flex items-center gap-1 flex-shrink-0 max-w-[45%] overflow-hidden">
             {node.tags.slice(0, 2).map((t) => (
-              <span key={t} className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded-md border border-slate-200">
-                <Tag className="w-2.5 h-2.5 opacity-60" />
-                {t}
+              <span key={t} title={t} className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-md border border-slate-200 dark:border-slate-700 max-w-[100px] truncate">
+                <Tag className="w-2.5 h-2.5 opacity-60 flex-shrink-0" />
+                <span className="truncate">{t}</span>
               </span>
             ))}
           </div>

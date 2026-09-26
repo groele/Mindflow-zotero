@@ -1,13 +1,13 @@
-import { getZoteroInstance } from '../zotero/zoteroBridge';
+import { getZoteroInstance, isZoteroWorkspace } from '../zotero/zoteroBridge';
 
 /**
  * Universal Safe Storage Abstraction
  * Supports:
  * 1. Chrome Extension (chrome.storage.local)
- * 2. Zotero 10 Client (Zotero.Prefs + in-memory store)
+ * 2. Zotero 10 Client preferences (Zotero.Prefs; fail closed if disconnected)
  * 3. Browser / Dev Server (localStorage with safe fallbacks)
  *
- * Guarantees zero uncaught exceptions when localStorage is blocked or throws SecurityError in Gecko.
+ * Document bodies use StorageService's durable Zotero host files instead.
  */
 
 // Memory fallback store when localStorage or native storage is restricted
@@ -73,6 +73,10 @@ export const safeStorage = {
       }
     }
 
+    if (isZoteroWorkspace()) {
+      throw new Error('Zotero 首选项存储未连接；数据未写入磁盘');
+    }
+
     // Keep memoryStore updated for browser/dev fallbacks.
     memoryStore.set(key, strVal);
 
@@ -93,10 +97,13 @@ export const safeStorage = {
     if (zotero && zotero.Prefs) {
       try {
         zotero.Prefs.clear('mindflow.' + key, true);
-      } catch {
-        // ignore
+        return;
+      } catch (error) {
+        throw new Error(`Zotero 首选项删除失败：${error instanceof Error ? error.message : String(error)}`);
       }
     }
+
+    if (isZoteroWorkspace()) throw new Error('Zotero 首选项存储未连接；数据未删除');
 
     if (isLocalStorageAvailable) {
       try {

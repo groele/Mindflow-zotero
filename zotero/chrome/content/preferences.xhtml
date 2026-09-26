@@ -2,39 +2,40 @@
       xmlns:html="http://www.w3.org/1999/xhtml"
       id="mindflow-preferences-pane" class="mindflow-prefs-container"
       onload="MindFlow_Preferences.init(window)">
-  <html:div class="mindflow-pref-header-banner">
-    <html:div class="mindflow-header-title-box">
-      <html:span class="mindflow-logo-badge">M</html:span>
-      <html:div>
-        <html:h1 class="mindflow-header-title">MindFlow · Zotero 10 设置</html:h1>
-        <html:p class="mindflow-header-sub">文献导图、阅读协同、工作台与备份的统一设置</html:p>
-      </html:div>
-    </html:div>
-    <html:button id="mindflow-btn-open-workspace" class="mindflow-btn-primary" type="button">打开导图工作台</html:button>
-  </html:div>
-  <html:p id="mindflow-pref-status" class="mindflow-pref-status" role="status" aria-live="polite">更改会立即保存；已打开的导图工作台在重新获得焦点后更新。</html:p>
-  <groupbox class="mindflow-pref-group"><label class="mindflow-group-title"><html:h2>文献与 PDF 阅读协同</html:h2></label>
+  <html:header class="mindflow-pref-header">
+    <html:h1>MindFlow</html:h1>
+    <html:button id="mindflow-btn-open-workspace" type="button">打开导图工作台</html:button>
+  </html:header>
+  <html:p id="mindflow-pref-status" class="mindflow-pref-status" role="status" aria-live="polite">正在加载设置项…</html:p>
+  <groupbox id="mindflow-group-literature" class="mindflow-pref-group">
+    <html:h2 class="mindflow-group-title">文献与 PDF 阅读协同</html:h2>
     <html:div id="mindflow-pref-literature" class="mindflow-pref-content" />
   </groupbox>
-  <groupbox class="mindflow-pref-group"><label class="mindflow-group-title"><html:h2>AI 论文研究导图（可选）</html:h2></label>
+  <groupbox id="mindflow-group-ai" class="mindflow-pref-group">
+    <html:h2 class="mindflow-group-title">AI 论文研究导图（可选）</html:h2>
     <html:div id="mindflow-pref-ai" class="mindflow-pref-content" />
   </groupbox>
-  <groupbox class="mindflow-pref-group"><label class="mindflow-group-title"><html:h2>工作台界面与工具栏</html:h2></label>
+  <groupbox id="mindflow-group-interface" class="mindflow-pref-group">
+    <html:h2 class="mindflow-group-title">工作台界面与工具栏</html:h2>
     <html:div id="mindflow-pref-interface" class="mindflow-pref-content" />
   </groupbox>
-  <groupbox class="mindflow-pref-group"><label class="mindflow-group-title"><html:h2>新建导图与节点编辑</html:h2></label>
+  <groupbox id="mindflow-group-editing" class="mindflow-pref-group">
+    <html:h2 class="mindflow-group-title">新建导图与节点编辑</html:h2>
     <html:div id="mindflow-pref-editing" class="mindflow-pref-content" />
   </groupbox>
-  <groupbox class="mindflow-pref-group"><label class="mindflow-group-title"><html:h2>本地保存与历史快照</html:h2></label>
+  <groupbox id="mindflow-group-backup" class="mindflow-pref-group">
+    <html:h2 class="mindflow-group-title">本地保存与历史快照</html:h2>
     <html:div id="mindflow-pref-backup" class="mindflow-pref-content" />
   </groupbox>
-  <groupbox class="mindflow-pref-group"><label class="mindflow-group-title"><html:h2>WebDAV 备份（可选）</html:h2></label>
+  <groupbox id="mindflow-group-webdav" class="mindflow-pref-group">
+    <html:h2 class="mindflow-group-title">WebDAV 备份（可选）</html:h2>
     <html:div id="mindflow-pref-webdav" class="mindflow-pref-content" />
   </groupbox>
-  <groupbox class="mindflow-pref-group"><label class="mindflow-group-title"><html:h2>快捷操作与重置</html:h2></label>
+  <groupbox id="mindflow-group-shortcuts" class="mindflow-pref-group mindflow-pref-group-last">
+    <html:h2 class="mindflow-group-title">快捷操作与重置</html:h2>
     <html:div class="mindflow-pref-content">
       <html:p class="mindflow-pref-desc">在工作台按 Tab 添加子节点，Enter 添加同级节点。更多快捷键可在工作台内查看。</html:p>
-      <html:button id="mindflow-btn-reset-defaults" class="mindflow-btn-secondary" type="button">恢复 MindFlow 默认设置</html:button>
+      <html:button id="mindflow-btn-reset-defaults" type="button">恢复 MindFlow 默认设置</html:button>
       <html:p class="mindflow-pref-desc">只重置插件设置，不删除导图、附件或历史快照。</html:p>
     </html:div>
   </groupbox>

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   X, Sliders, Cloud, ShieldCheck, Settings, Info, Check, AlertCircle,
   Eye, EyeOff, Loader2, Upload, Download, RefreshCw, HardDrive, Trash2,
-  Sparkles, CheckCircle2, GraduationCap, ExternalLink
+  Sparkles, CheckCircle2, GraduationCap, ExternalLink, Monitor, Pin, AppWindow, BookOpen
 } from 'lucide-react';
 import { isZoteroEnvironment, setZoteroPref, requestZoteroWindowMode, openZoteroPreferences } from '../../services/zotero/zoteroBridge';
 import { AppSettings, WebDAVConfig } from '../../core/model/settingsTypes';
@@ -940,7 +940,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                     <label className="flex items-center justify-between p-2.5 rounded-xl border border-slate-200 dark:border-slate-800">
                       <div>
-                        <div className="font-semibold text-slate-800 dark:text-slate-200">🌈 彩虹分支色彩 (Rainbow Branches)</div>
+                        <div className="font-semibold text-slate-800 dark:text-slate-200">彩虹分支色彩 (Rainbow Branches)</div>
                         <div className="text-[10px] text-slate-400">第一层各大主分支自动分配色彩缤纷的谱系颜色，子级自动继承</div>
                       </div>
                       <input
@@ -953,7 +953,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                     <label className="flex items-center justify-between p-2.5 rounded-xl border border-slate-200 dark:border-slate-800">
                       <div>
-                        <div className="font-semibold text-slate-800 dark:text-slate-200">🔊 交互音效反馈 (Sound Effects)</div>
+                        <div className="font-semibold text-slate-800 dark:text-slate-200">交互音效反馈 (Sound Effects)</div>
                         <div className="text-[10px] text-slate-400">新增节点、完成任务打勾、删除时播放原生合成的高质感微音效</div>
                       </div>
                       <input
@@ -1020,8 +1020,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className="space-y-4">
                 {/* 1. Window Mode */}
                 <div>
-                  <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider mb-2">
-                    🖥️ 导图展示与窗口协同模式
+                  <h3 className="mb-2 flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">
+                    <Monitor className="h-4 w-4" />导图展示与窗口协同模式
                   </h3>
                   <div className="grid grid-cols-2 gap-3">
                     <button
@@ -1038,7 +1038,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     >
                       <div className="flex items-center justify-between mb-1">
                         <span className="font-bold flex items-center gap-1.5 text-xs">
-                          📌 内嵌窗口（原生选项卡）
+                          <Pin className="h-3.5 w-3.5" />内嵌窗口（原生选项卡）
                         </span>
                         {currentSettings.zoteroWindowMode === 'tab' && (
                           <Check className="w-3.5 h-3.5 text-sky-600" />
@@ -1063,7 +1063,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     >
                       <div className="flex items-center justify-between mb-1">
                         <span className="font-bold flex items-center gap-1.5 text-xs">
-                          🪟 独立窗口（独立应用浮窗）
+                          <AppWindow className="h-3.5 w-3.5" />独立窗口（独立应用浮窗）
                         </span>
                         {currentSettings.zoteroWindowMode === 'window' && (
                           <Check className="w-3.5 h-3.5 text-sky-600" />
@@ -1096,8 +1096,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                 {/* 2. Extraction & Parsing Rules */}
                 <div>
-                  <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider mb-2">
-                    📚 文献导入与导图生成偏好
+                  <h3 className="mb-2 flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">
+                    <BookOpen className="h-4 w-4" />文献导入与导图生成偏好
                   </h3>
                   <div className="space-y-2.5">
                     <label className="flex items-center justify-between p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
@@ -1172,7 +1172,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <div className="p-4 rounded-2xl border bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-transparent border-emerald-500/30 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-md bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-emerald-500/30">
-                      <Sparkles className="w-5 h-5 fill-current" />
+                      <Sparkles className="w-5 h-5" />
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
@@ -1237,7 +1237,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-slate-900 dark:text-white">MindFlow 思维导图与伴读笔记</h3>
-                    <p className="text-[11px] text-blue-600 dark:text-blue-400 font-medium">{isZoteroEnvironment() ? 'Zotero 10 插件版 1.6.0' : '浏览器扩展版 3.2.0'}</p>
+                    <p className="text-[11px] text-blue-600 dark:text-blue-400 font-medium">{isZoteroEnvironment() ? 'Zotero 10 插件版 1.6.6' : '浏览器扩展版 3.2.1'}</p>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
                       基于 Chrome 浏览器的模块化、离线优先、全键盘盲操思维导图引擎。
                     </p>
@@ -1245,7 +1245,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
 
                 <div className="space-y-2">
-                  <h4 className="font-semibold text-slate-800 dark:text-slate-200">🛡️ 本地优先与隐私原则</h4>
+                  <h4 className="flex items-center gap-2 font-semibold text-slate-800 dark:text-slate-200"><ShieldCheck className="h-4 w-4" />本地优先与隐私原则</h4>
                   <ul className="list-disc pl-4 space-y-1 text-[11px] text-slate-500 dark:text-slate-400">
                     <li>思维导图、收集箱与版本快照默认保存在本地；启用 WebDAV 后，工作区备份会发送到您配置的 HTTPS 服务器。</li>
                     <li>无任何追踪脚本、无第三方数据收集。WebDAV 授权密码仅存于本机，直接与您的网盘建立点对点通信。</li>

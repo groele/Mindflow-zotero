@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { MindMapNode } from '../../core/model/types';
 import {
   X, ChevronRight, ChevronDown, Plus, Trash2,
-  ExternalLink, FileText
+  ExternalLink, FileText, ListTree
 } from 'lucide-react';
 
 interface OutlineViewProps {
@@ -28,8 +28,8 @@ export const OutlineView: React.FC<OutlineViewProps> = ({
     <aside className="w-80 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-l border-slate-200 dark:border-slate-800 flex flex-col h-full z-20 select-none shadow-xl">
       {/* Header */}
       <div className="h-14 px-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-        <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 uppercase tracking-wider">
-          📑 大纲视图 (Outline)
+        <span className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-200 uppercase tracking-wider">
+          <ListTree className="h-4 w-4" />大纲视图 (Outline)
         </span>
         <button
           onClick={onClose}

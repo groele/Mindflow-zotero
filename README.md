@@ -1,16 +1,16 @@
 # MindFlow for Zotero
 
-[![Zotero 插件版本](https://img.shields.io/badge/Zotero%20插件-v1.6.2-2563eb)](https://github.com/groele/Mindflow-zotero/releases/tag/v1.6.2)
+[![Zotero 插件版本](https://img.shields.io/badge/Zotero%20插件-v1.6.9-2563eb)](https://github.com/groele/Mindflow-zotero)
 [![兼容版本](https://img.shields.io/badge/Zotero-10.0.x-c2410c)](zotero/manifest.json)
 [![许可证](https://img.shields.io/badge/License-MIT-15803d)](LICENSE)
 
 **在 Zotero 10 中把文献、PDF 批注和阅读笔记整理成可编辑思维导图。** MindFlow 在文献列表和 PDF 阅读场景提供入口；导图可归档为文献下的 `.mindflow` 附件，并可写回结构化大纲笔记。
 
-> **版本说明：**本仓库同时保留 Chrome 扩展源码（版本 3.2.0）。本 README 和 GitHub `v1.6.2` 标签针对 **Zotero 插件**；下载 Zotero 安装包时请选择 `mindflow-zotero-1.6.2.xpi`，不要选择 Chrome ZIP。
+> **版本说明：**本仓库同时保留 Chrome 扩展源码（版本 3.2.1）。本 README 介绍 **Zotero 插件 v1.6.9**；下载 Zotero 安装包时请选择 `mindflow-zotero-1.6.9.xpi`，不要选择 Chrome ZIP。
 
 ## 下载与安装
 
-1. 从 [v1.6.2 发布页](https://github.com/groele/Mindflow-zotero/releases/tag/v1.6.2)的 Assets 下载 `mindflow-zotero-1.6.2.xpi`。
+1. 从本仓库的 [Releases](https://github.com/groele/Mindflow-zotero/releases) 下载 `mindflow-zotero-1.6.9.xpi`；若该版本尚未发布，可使用本地 `dist-zip` 中的同名构建包。
 2. 在 **Zotero 10** 打开 **工具 → 插件**，将 XPI 拖入插件窗口并按提示安装。Zotero 的[官方插件安装说明](https://www.zotero.org/support/plugins)也介绍了这一入口。
 3. 如 Zotero 提示重启，请重启。安装后可从工具菜单、主工具栏、文献右键菜单或条目详情侧栏打开 MindFlow；`Ctrl/Cmd+Alt+M` 也可调用入口。
 4. 在 **编辑 → 设置 → MindFlow** 调整导入规则、窗口模式、编辑默认值和备份配置。
@@ -26,8 +26,8 @@
 | 正在阅读一篇文献的 PDF | 打开其唯一的已有导图；没有导图时从该文献新建。 |
 | 只选中一篇文献 | 打开其唯一的已有导图；没有导图时新建。 |
 | 同一文献已有多份导图 | 请在文献右键菜单的“打开已有 MindFlow 导图”中选定一份，或从条目详情侧栏选择。 |
-| 选中多篇文献 | 创建专题导图，保存在本机工作区。 |
-| 未选中文献 | 打开 MindFlow 工作台。 |
+| 选中多篇文献 | 创建专题导图，并归档到个人库的 MindFlow 独立导图位置。 |
+| 未选中文献 | 打开 MindFlow 工作台；新建导图时归档到个人库的 MindFlow 独立导图位置。 |
 
 在文献右键菜单中，已有一份导图时“生成/打开”入口会打开它；已有多份时可明确选择其中一份，也可新建另一份。PDF 阅读器调用入口遇到多份导图时，会提示回到文献右键菜单选择。
 
@@ -48,7 +48,7 @@
 
 ### 按分类整理专题
 
-在 Zotero 左侧分类上使用 MindFlow 入口，可将分类中的文献生成为专题导图；也可选择多篇文献创建一张主题导图。导入的内容保留与原条目的关联，适合继续整理研究方向和证据链。**分类和多篇文献导图保存在本机工作区，不会自动挂到第一篇文献下**：Zotero 分类本身不能拥有子附件，专题导图也没有唯一的文献父条目。需要跨设备使用时，请导出工作区备份，或明确且仅选择一篇文献进行手动归档。
+在 Zotero 左侧分类上使用 MindFlow 入口，可将分类中的文献生成为专题导图；也可选择多篇文献创建一张主题导图。导入的内容保留与原条目的关联，适合继续整理研究方向和证据链。分类和多篇文献导图没有唯一的父文献，因此会归档到**个人库 → MindFlow｜独立导图 → MindFlow 独立导图**条目下。该条目用于容纳 `.mindflow` 附件，不会把专题导图误挂到第一篇参考文献。未选中文献时新建的空白或模板导图也使用此位置；若仅选中一篇常规文献，则直接存为该文献的子附件。归档失败时仍保留本机导图并显示原因。
 
 ## Zotero 协同能力
 
@@ -94,16 +94,18 @@ PDF 默认最多读取前 120 页（可选 50/120/200 页）；文字过长会�
 
 ## 保存与同步：三个位置的区别
 
-1. **本机工作区**：编辑中的导图、快照和设置保存在本机 Zotero 配置环境。工作区状态本身不是 Zotero 数据同步服务中的独立对象。
+1. **本机工作区**：导图正文写在 Zotero 数据目录的 `mindflow/workspace/mindflow_doc_<导图 ID>.json`，覆盖时保留同目录 `.bak` 副本；快照与设置保存在本机 Zotero 配置环境。这些工作区文件本身不经 Zotero 附件同步。旧版首选项中的导图可继续读取，在下一次保存时迁移。
 2. **Zotero 文献子附件和笔记**：关联文献的 `.mindflow` 附件与大纲子笔记由 Zotero 管理。子笔记属于数据同步；附件文件能否跨设备到达，取决于 Zotero 文件同步配置、所属文献库及权限。**Zotero WebDAV 仅用于个人库附件；群组库附件需要 Zotero Storage。** 详见 [Zotero 同步说明](https://www.zotero.org/support/sync)。
 3. **MindFlow 可选备份**：额外保存文件夹会在本机写出一份 `.mindflow` 文件；MindFlow 面板中的 WebDAV 则用于上传工作区备份。两者都不代替 Zotero 的数据同步或附件同步。
+
+**找不到新建附件时**：先看工作台保存状态。如果显示“本地文件已保存，Zotero 附件归档失败”，导图仍在 Zotero 数据目录的 `mindflow/workspace`，可在 Zotero 文献列表仅选中目标条目，回到工作台通过 Zotero 菜单重新归档。成功后 `.mindflow` 应与该文献的 PDF 同为**文献条目的子附件**；PDF 附件本身不能再容纳子附件。若本地文件读取失败，可复制其 `.json.bak` 副本并按[恢复步骤](docs/ZOTERO_GUIDE.md)处理。请在 Zotero 中确认附件文件已下载和同步后再清理本机副本。
 
 建议首次换设备时确认 Zotero 已下载所需的 `.mindflow` 附件，再从文献右键菜单打开。重要导图也可定期导出工作区备份。WebDAV 账号配置保存在本机插件设置中；请使用 HTTPS 和服务商提供的应用密码。
 
 ### 备份与恢复步骤
 
 1. 在导图工作台的备份工具中导出**完整工作区备份 JSON**，另存到自己管理的位置；它包含导图、收集箱和历史快照。单篇导图 JSON 只用于该导图，不能充当完整工作区备份。
-2. 换设备后，如文献已通过 Zotero 同步，先在 Zotero 中确认 `.mindflow` 附件文件已下载，再从文献入口打开。专题导图没有唯一文献父项，应导入完整工作区备份，或从已配置的 MindFlow WebDAV 备份恢复。
+2. 换设备后，如文献已通过 Zotero 同步，先在 Zotero 中确认 `.mindflow` 附件文件已下载，再从文献入口打开。独立导图可在个人库的 `MindFlow｜独立导图` 集合中找到；本机未归档草稿仍需从完整工作区备份或 MindFlow WebDAV 备份恢复。
 3. 导入工作区备份时先看预览中的“新增/覆盖”数量。同 ID 的本机导图会被覆盖，插件会先为被覆盖的导图建立本地恢复快照；收集箱和快照按 ID 合并。导入前仍建议另导出一份当前工作区备份。
 
 打开同步来的 `.mindflow` 附件时，如果同 ID 本机版本更新，工作台保留本机导图并给出提示；如果附件版本更新，原本机导图会另存为独立副本。跨设备编辑同一导图后，请检查这类提示和副本，再决定保留哪一版；插件不提供实时协作或逐节点自动合并。
@@ -142,7 +144,7 @@ npm ci
 npm run build:zotero
 ```
 
-安装文件为 `dist-zip/mindflow-zotero-1.6.2.xpi`；已解压的构建目录在 `dist-zotero/`。这两个目录是生成物，不提交到 Git。Chrome 扩展另用 `npm run build` 构建到 `dist/`，其版本仍为 3.2.0。
+安装文件为 `dist-zip/mindflow-zotero-1.6.9.xpi`；已解压的构建目录在 `dist-zotero/`。这两个目录是生成物，不提交到 Git。Chrome 扩展另用 `npm run build` 构建到 `dist/`，其版本仍为 3.2.1。
 
 | 路径 | 用途 |
 | --- | --- |
@@ -164,7 +166,7 @@ npm run build:zotero
 | --- | --- |
 | 找不到 MindFlow 入口 | 确认使用 Zotero 10.0.x、插件已启用并在安装后重启；文献入口需选中常规文献，或其有父文献的附件/笔记。 |
 | 看到导图附件却打不开 | 在 Zotero 中先下载该 `.mindflow` 附件的文件，再重新打开。 |
-| 工作台显示已保存，但其他设备没有导图 | 检查是否为只保存在本机的专题导图；单篇导图还需确认附件归档成功，并检查 Zotero 附件文件同步及库权限。 |
+| 工作台显示已保存，但其他设备没有导图 | 检查单篇文献下或个人库 `MindFlow｜独立导图` 集合中的附件是否归档成功，并检查 Zotero 附件文件同步及库权限。 |
 | 文献下没有结构化大纲笔记 | 检查 MindFlow 设置中的“归档导图附件时更新结构化大纲子笔记”，再查看归档状态；该开关不控制 `.mindflow` 附件。 |
 | WebDAV 备份失败 | 检查 MindFlow 设置中的 HTTPS 地址、账户和应用密码；在工作台执行连接测试，并确认它与 Zotero 自身的附件同步设置分开配置。 |
 

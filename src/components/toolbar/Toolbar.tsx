@@ -4,11 +4,13 @@ import {
   Palette, Layout, ListTree, Download, Upload,
   HelpCircle, Maximize2, Minimize2, ZoomIn, ZoomOut,
   ChevronDown, Check, Inbox, Sparkles, Command, Settings,
-  Presentation, Search as SearchIcon, Scan, Layers, ImagePlus, GraduationCap
+  Presentation, Search as SearchIcon, Scan, Layers, ImagePlus, GraduationCap,
+  Expand, GitBranch, Image, Shapes, FileText, Braces, ListTree as ListTreeIcon, Globe, Paperclip
 } from 'lucide-react';
 import { LayoutType, ThemeColors } from '../../core/model/types';
 import { THEMES } from '../../core/theme/themes';
 import { ToolbarButtonsConfig } from '../../core/model/settingsTypes';
+import { MindFlowMark } from '../brand/MindFlowMark';
 
 interface ToolbarProps {
   title: string;
@@ -168,9 +170,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       {/* Left: App Logo & Document Title */}
       <div className="flex items-center gap-3 min-w-0">
         <div className="flex items-center gap-2 flex-shrink-0">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-blue-600 to-cyan-500 flex items-center justify-center text-white font-bold shadow-md shadow-blue-500/20">
-            <span className="text-base tracking-tighter">M</span>
-          </div>
+          <MindFlowMark className="w-8 h-8 flex-shrink-0" />
           {!isSidepanelMode && (
             <span className="font-bold text-slate-800 dark:text-slate-100 text-sm hidden sm:inline">
               MindFlow
@@ -210,7 +210,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
       {/* Center: Core Action Buttons */}
       {(buttons.history || buttons.insert) && (
-        <div className="flex items-center gap-1 bg-slate-100/80 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200/60 dark:border-slate-700/60">
+        <div className="flex w-max flex-nowrap shrink-0 items-center gap-1 whitespace-nowrap bg-slate-100/80 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200/60 dark:border-slate-700/60">
           {/* Undo / Redo */}
           {buttons.history && (
             <>
@@ -243,18 +243,19 @@ export const Toolbar: React.FC<ToolbarProps> = ({
               <button
                 onClick={onAddChild}
                 title="插入子主题 (Tab)"
-                className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700 transition-colors"
+                className="flex shrink-0 flex-nowrap items-center gap-1 px-2 py-1 rounded-lg whitespace-nowrap text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700 transition-colors"
               >
-                <Plus className="w-3.5 h-3.5 text-blue-600" />
-                <span className="hidden md:inline">子主题</span>
-                <kbd className="hidden lg:inline text-[10px] text-slate-400 bg-slate-200/60 dark:bg-slate-700 px-1 rounded">Tab</kbd>
+                <Plus className="w-3.5 h-3.5 shrink-0 text-slate-500 dark:text-slate-400" />
+                <span className="hidden md:inline whitespace-nowrap">子主题</span>
+                <kbd className="hidden 2xl:inline shrink-0 text-[10px] text-slate-400 bg-slate-200/60 dark:bg-slate-700 px-1 rounded">Tab</kbd>
               </button>
 
               {onImportNodeImage && <>
                 <button onClick={() => nodeImageInputRef.current?.click()} title="添加图片节点（可再编辑文字）"
-                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700 transition-colors">
-                  <ImagePlus className="w-3.5 h-3.5 text-violet-600" />
-                  <span className="hidden lg:inline">图片节点</span>
+                  aria-label="添加图片节点"
+                  className="flex shrink-0 flex-nowrap items-center gap-1 px-2 py-1 rounded-lg whitespace-nowrap text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700 transition-colors">
+                  <ImagePlus className="w-3.5 h-3.5 shrink-0 text-slate-500 dark:text-slate-400" />
+                  <span className="hidden md:inline whitespace-nowrap">图片节点</span>
                 </button>
                 <input ref={nodeImageInputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" aria-label="选择节点图片"
                   onChange={event => { const file = event.target.files?.[0]; if (file) onImportNodeImage(file); event.target.value = ''; }} />
@@ -264,11 +265,11 @@ export const Toolbar: React.FC<ToolbarProps> = ({
               <button
                 onClick={onAddSibling}
                 title="插入同级主题 (Enter)"
-                className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700 transition-colors"
+                className="flex shrink-0 flex-nowrap items-center gap-1 px-2 py-1 rounded-lg whitespace-nowrap text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700 transition-colors"
               >
-                <CornerDownRight className="w-3.5 h-3.5 text-emerald-600" />
-                <span className="hidden md:inline">同级主题</span>
-                <kbd className="hidden lg:inline text-[10px] text-slate-400 bg-slate-200/60 dark:bg-slate-700 px-1 rounded">Enter</kbd>
+                <CornerDownRight className="w-3.5 h-3.5 shrink-0 text-slate-500 dark:text-slate-400" />
+                <span className="hidden md:inline whitespace-nowrap">同级主题</span>
+                <kbd className="hidden 2xl:inline shrink-0 text-[10px] text-slate-400 bg-slate-200/60 dark:bg-slate-700 px-1 rounded">Enter</kbd>
               </button>
             </>
           )}
@@ -380,7 +381,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             title="全局命令面板与搜索 (Ctrl+K)"
             className="flex items-center gap-1 px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-300 rounded-lg text-xs font-medium transition-colors"
           >
-            <Command className="w-3.5 h-3.5 text-blue-600" />
+            <Command className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
             <span className="hidden xl:inline text-[11px]">命令</span>
             <kbd className="hidden lg:inline text-[10px] text-slate-400 bg-white dark:bg-slate-700 px-1 rounded border border-slate-200 dark:border-slate-600">⌘K</kbd>
           </button>
@@ -408,7 +409,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             title="模版库 (SWOT/读书笔记/敏捷规划)"
             className="p-1.5 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           >
-            <Sparkles className="w-4 h-4 text-amber-500" />
+            <Sparkles className="w-4 h-4 text-slate-500 dark:text-slate-400" />
           </button>
         )}
 
@@ -425,7 +426,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
               title="分支层级折叠与展开"
               className={`p-1.5 rounded-lg transition-colors ${isLevelMenuOpen ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
             >
-              <Layers className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <Layers className="w-4 h-4 text-slate-500 dark:text-slate-400" />
             </button>
             {isLevelMenuOpen && (
               <div className="absolute left-0 mt-1 w-44 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
@@ -436,19 +437,19 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                   onClick={() => { onCollapseByLevel(99); setIsLevelMenuOpen(false); }}
                   className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center justify-between"
                 >
-                  <span>🌟 展开全部节点</span>
+                  <span className="flex items-center gap-2"><Expand className="w-3.5 h-3.5" />展开全部节点</span>
                 </button>
                 <button
                   onClick={() => { onCollapseByLevel(2); setIsLevelMenuOpen(false); }}
                   className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center justify-between"
                 >
-                  <span>🌿 展开至 2 级分支</span>
+                  <span className="flex items-center gap-2"><GitBranch className="w-3.5 h-3.5" />展开至 2 级分支</span>
                 </button>
                 <button
                   onClick={() => { onCollapseByLevel(1); setIsLevelMenuOpen(false); }}
                   className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center justify-between"
                 >
-                  <span>🌲 仅显示 1 级主干</span>
+                  <span className="flex items-center gap-2"><ListTreeIcon className="w-3.5 h-3.5" />仅显示 1 级主干</span>
                 </button>
               </div>
             )}
@@ -473,7 +474,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             title="开启禅模式 (Zen Focus Mode)"
             className="p-1.5 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           >
-            <Maximize2 className="w-4 h-4 text-purple-600" />
+            <Maximize2 className="w-4 h-4 text-slate-500 dark:text-slate-400" />
           </button>
         )}
 
@@ -484,7 +485,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             title="在导图中搜索 (Ctrl+F)"
             className="p-1.5 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           >
-            <SearchIcon className="w-4 h-4 text-sky-500" />
+            <SearchIcon className="w-4 h-4 text-slate-500 dark:text-slate-400" />
           </button>
         )}
 
@@ -524,50 +525,50 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                   onClick={() => { onExportPNG(); setIsExportMenuOpen(false); }}
                   className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
                 >
-                  🖼️ 高清图片 (PNG)
+                  <Image className="mr-2 w-4 h-4" />高清图片 (PNG)
                 </button>
                 <button
                   onClick={() => { onExportSVG(); setIsExportMenuOpen(false); }}
                   className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
                 >
-                  📐 矢量图形 (SVG)
+                  <Shapes className="mr-2 w-4 h-4" />矢量图形 (SVG)
                 </button>
                 <button
                   onClick={() => { onExportMarkdown(); setIsExportMenuOpen(false); }}
                   className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
                 >
-                  📝 Markdown 大纲 (.md)
+                  <FileText className="mr-2 w-4 h-4" />Markdown 大纲 (.md)
                 </button>
                 <button
                   onClick={() => { onExportJSON(); setIsExportMenuOpen(false); }}
                   className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
                 >
-                  💾 JSON 工程备份
+                  <Braces className="mr-2 w-4 h-4" />JSON 工程备份
                 </button>
                 <button
                   onClick={() => { onExportOPML?.(); setIsExportMenuOpen(false); }}
                   className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
                 >
-                  📑 OPML 2.0 大纲 (.opml)
+                  <ListTreeIcon className="mr-2 w-4 h-4" />OPML 2.0 大纲 (.opml)
                 </button>
                 <button
                   onClick={() => { onExportHTML?.(); setIsExportMenuOpen(false); }}
                   className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
                 >
-                  🌐 独立离线交互网页 (.html)
+                  <Globe className="mr-2 w-4 h-4" />独立离线交互网页 (.html)
                 </button>
                 <button
                   onClick={() => { onExportPDF?.(); setIsExportMenuOpen(false); }}
                   className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
                 >
-                  📄 矢量 PDF 打印排版 (PDF)
+                  <FileText className="mr-2 w-4 h-4" />矢量 PDF 打印排版 (PDF)
                 </button>
                 {onSaveToZoteroNote && (
                   <button
                     onClick={() => { onSaveToZoteroNote(); setIsExportMenuOpen(false); }}
                     className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-sky-600 dark:text-sky-400 font-medium"
                   >
-                    🎓 存为 Zotero 导图笔记
+                    <GraduationCap className="mr-2 w-4 h-4" />存为 Zotero 导图笔记
                   </button>
                 )}
 
@@ -605,7 +606,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                 : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
             }`}
           >
-            <GraduationCap className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+            <GraduationCap className="w-4 h-4 text-slate-500 dark:text-slate-400" />
             <span className="hidden xl:inline text-xs font-medium text-sky-600 dark:text-sky-400">Zotero</span>
             <ChevronDown className="w-3 h-3 opacity-60 text-sky-600 dark:text-sky-400" />
           </button>
@@ -645,7 +646,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                   }}
                   className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-2 cursor-pointer"
                 >
-                  <span className="text-base">📄</span>
+                  <FileText className="w-4 h-4 shrink-0" />
                   <div>
                     <div className="font-semibold text-slate-800 dark:text-slate-200">从选中文献新建导图</div>
                     <div className="text-[10px] text-slate-400">独立导图文件，专属归档至该文献附件</div>
@@ -661,7 +662,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                   }}
                   className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-2 cursor-pointer"
                 >
-                  <span className="text-base">📥</span>
+                  <Download className="w-4 h-4 shrink-0" />
                   <div>
                     <div className="font-medium text-slate-800 dark:text-slate-200">追加文献至当前分支</div>
                     <div className="text-[10px] text-slate-400">作为参考引用节点追加进当前导图</div>
@@ -677,7 +678,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                   }}
                   className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-2"
                 >
-                  <span className="text-base">📎</span>
+                  <Paperclip className="w-4 h-4 shrink-0" />
                   <div>
                     <div className="font-medium text-slate-800 dark:text-slate-200">存为文献条目附件 (.mindflow)</div>
                     <div className="text-[10px] text-slate-400">作为源文件附件挂载，本地存储 + 云同步</div>
@@ -693,7 +694,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                   }}
                   className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-2"
                 >
-                  <span className="text-base">📝</span>
+                  <FileText className="w-4 h-4 shrink-0" />
                   <div>
                     <div className="font-medium text-slate-800 dark:text-slate-200">存为 Zotero 大纲笔记</div>
                     <div className="text-[10px] text-slate-400">生成富文本大纲存入文献库</div>
@@ -715,7 +716,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <input
           ref={fileInputRef}
           type="file"
-          accept=".json,.md,.markdown,.opml"
+          accept=".mindflow,.json,.md,.markdown,.opml"
           onChange={handleFileInputChange}
           className="hidden"
         />
@@ -747,7 +748,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           className="p-1.5 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
         >
           {isFullscreen ? (
-            <Minimize2 className="w-4 h-4 text-blue-600" />
+            <Minimize2 className="w-4 h-4 text-slate-500 dark:text-slate-400" />
           ) : (
             <Maximize2 className="w-4 h-4 text-slate-500" />
           )}
@@ -762,7 +763,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                 title="自适应全屏居中 (Ctrl+1)"
                 className="p-1 rounded text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700"
               >
-                <Scan className="w-3.5 h-3.5 text-blue-500" />
+                <Scan className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
               </button>
             )}
             <button

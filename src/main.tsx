@@ -1,5 +1,6 @@
 import React, { Component, ReactNode } from 'react';
 import ReactDOM from 'react-dom/client';
+import { AlertTriangle } from 'lucide-react';
 import { App } from './pages/app/App';
 import './styles/index.css';
 
@@ -50,7 +51,7 @@ class RootErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState
             padding: '1.75rem'
           }}>
             <h1 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#dc2626', margin: '0 0 0.75rem 0' }}>
-              ⚠️ MindFlow 启动发生异常
+              <AlertTriangle className="mr-2 inline h-4 w-4" />MindFlow 启动发生异常
             </h1>
             <p style={{ fontSize: '0.875rem', color: '#64748b', margin: '0 0 1rem 0', lineHeight: 1.5 }}>
               工作区在初始化时捕获到运行时错误，请检查以下错误信息：
