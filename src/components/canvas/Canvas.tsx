@@ -1,11 +1,11 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import {
   LayoutNode, ConnectionCurve, ViewportTransform, ThemeColors,
-  RelationshipLink, TaskStatus
+  RelationshipLink
 } from '../../core/model/types';
 import { NodeCard } from '../node/NodeCard';
 import {
-  Plus, ArrowDown, Edit3, ImagePlus, Link2, Palette, CheckSquare, Trash2, X, Check
+  Plus, ArrowDown, Edit3, ImagePlus, Link2, Palette, Trash2, X
 } from 'lucide-react';
 
 interface CanvasProps {
@@ -25,7 +25,6 @@ interface CanvasProps {
   onCommitEditNode: (id: string, text: string) => void;
   onCancelEditNode: () => void;
   onToggleCollapse: (id: string) => void;
-  onToggleTaskStatus?: (id: string) => void;
   onOpenInternalLink?: (documentId: string, nodeId?: string) => void;
   onMoveNode: (sourceId: string, targetId: string) => void;
   onContextMenuNode?: (id: string, clientX: number, clientY: number) => void;
@@ -44,7 +43,6 @@ interface CanvasProps {
   onEditRelationshipLabel?: (id: string, label: string) => void;
   // Multi-selection batch actions
   onBatchColor?: (color: string) => void;
-  onBatchTaskStatus?: (status: TaskStatus) => void;
   onBatchDelete?: () => void;
 }
 
@@ -64,7 +62,6 @@ export const Canvas: React.FC<CanvasProps> = ({
   onCommitEditNode,
   onCancelEditNode,
   onToggleCollapse,
-  onToggleTaskStatus,
   onOpenInternalLink,
   onMoveNode,
   onContextMenuNode,
@@ -81,7 +78,6 @@ export const Canvas: React.FC<CanvasProps> = ({
   onDeleteRelationship,
   onEditRelationshipLabel,
   onBatchColor,
-  onBatchTaskStatus,
   onBatchDelete,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -500,7 +496,6 @@ export const Canvas: React.FC<CanvasProps> = ({
               onCommitEdit={(id, text) => onCommitEditNode(id, text)}
               onCancelEdit={onCancelEditNode}
               onToggleCollapse={onToggleCollapse}
-              onToggleTaskStatus={onToggleTaskStatus}
               onOpenInternalLink={onOpenInternalLink}
               onDragStart={handleNodeDragStart}
               onDragEnd={() => setDraggedNodeId(null)}
@@ -562,14 +557,6 @@ export const Canvas: React.FC<CanvasProps> = ({
                 className="p-1.5 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-950/40 text-purple-600 transition-colors"
               >
                 <Link2 className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => onToggleTaskStatus?.(activeMicroNode.id)}
-                title="任务状态 (待办 / 进行中 / 完成)"
-                className="p-1.5 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-emerald-600 transition-colors"
-              >
-                <CheckSquare className="w-3.5 h-3.5" />
               </button>
               <div className="relative">
                 <button
@@ -643,13 +630,6 @@ export const Canvas: React.FC<CanvasProps> = ({
             ))}
           </div>
           <div className="w-px h-3.5 bg-slate-700" />
-          <button
-            type="button"
-            onClick={() => onBatchTaskStatus?.('done')}
-            className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[11px] text-emerald-400 font-medium flex items-center gap-1 transition-colors"
-          >
-            <Check className="w-3 h-3" /> 批量标记完成
-          </button>
           <button
             type="button"
             onClick={() => onBatchDelete?.()}

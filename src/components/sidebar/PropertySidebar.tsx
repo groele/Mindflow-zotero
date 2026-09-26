@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MindMapDocument, MindMapNode, NodeShape, TaskStatus } from '../../core/model/types';
+import { MindMapDocument, MindMapNode, NodeShape } from '../../core/model/types';
 import { safeExternalUrl } from '../../core/model/links';
 import { imageDisplayHeight, isSafeNodeImage } from '../../core/model/nodeImage';
 import { DocumentSummary, StorageService } from '../../services/storage/storageService';
 import {
   X, Tag, Link, FileText, Palette, Shapes,
-  Star, Flag, CheckCircle2, HelpCircle, Plus, ListTodo, Link2, ImagePlus, Trash2,
+  Star, Flag, CheckCircle2, HelpCircle, Plus, Link2, ImagePlus, Trash2,
   MapPin, BookOpen, GraduationCap, RefreshCw, Check
 } from 'lucide-react';
 import { locateItemInZotero, openItemPdfInZotero, saveMindMapToZoteroAttachment } from '../../services/zotero/zoteroBridge';
@@ -18,7 +18,6 @@ interface PropertySidebarProps {
   onOpenInternalLink?: (documentId: string, nodeId?: string) => void;
   onClose: () => void;
   dockSide?: 'left' | 'right';
-  defaultTaskPriority?: 1 | 2 | 3;
 }
 
 const COLOR_PRESETS = [
@@ -35,7 +34,6 @@ export const PropertySidebar: React.FC<PropertySidebarProps> = ({
   onOpenInternalLink,
   onClose,
   dockSide = 'right',
-  defaultTaskPriority = 2,
 }) => {
   const [noteText, setNoteText] = useState('');
   const [nodeText, setNodeText] = useState('');
@@ -328,79 +326,6 @@ export const PropertySidebar: React.FC<PropertySidebarProps> = ({
           </div>
         </div>
 
-        {/* Task Management */}
-        <div className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 space-y-2">
-          <div className="flex items-center justify-between">
-            <label className="flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-200">
-              <ListTodo className="w-3.5 h-3.5 text-blue-600" /> 任务待办 (Task)
-            </label>
-            <button
-              onClick={() => {
-                if (selectedNode.task) {
-                  onUpdateNode(selectedNode.id, { task: undefined });
-                } else {
-                  onUpdateNode(selectedNode.id, { task: { status: 'todo', priority: defaultTaskPriority } });
-                }
-              }}
-              className={`px-2 py-0.5 rounded text-[11px] font-medium border transition-colors ${
-                selectedNode.task
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:border-blue-400'
-              }`}
-            >
-              {selectedNode.task ? '开启中' : '设为任务'}
-            </button>
-          </div>
-
-          {selectedNode.task && (
-            <div className="space-y-2 pt-1">
-              <div className="grid grid-cols-3 gap-1">
-                {(['todo', 'doing', 'done'] as TaskStatus[]).map((st) => (
-                  <button
-                    key={st}
-                    onClick={() => {
-                      onUpdateNode(selectedNode.id, {
-                        task: { ...selectedNode.task!, status: st }
-                      });
-                    }}
-                    className={`py-1 text-center rounded text-[11px] font-medium border transition-colors ${
-                      selectedNode.task?.status === st
-                        ? st === 'done' ? 'bg-emerald-500 text-white border-emerald-500'
-                          : st === 'doing' ? 'bg-amber-500 text-white border-amber-500'
-                          : 'bg-blue-600 text-white border-blue-600'
-                        : 'bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600'
-                    }`}
-                  >
-                    {st === 'todo' ? '待办' : st === 'doing' ? '进行中' : '已完成'}
-                  </button>
-                ))}
-              </div>
-
-              {/* Due Date */}
-              <div>
-                <label htmlFor="task-priority" className="text-[11px] text-slate-400 block mb-1">优先级</label>
-                <select id="task-priority" value={selectedNode.task.priority || ''}
-                  onChange={event => onUpdateNode(selectedNode.id, { task: { ...selectedNode.task!, priority: event.target.value ? Number(event.target.value) as 1 | 2 | 3 : undefined } })}
-                  className="w-full px-2 py-1 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded text-[11px]">
-                  <option value="">未指定</option><option value="1">高</option><option value="2">中</option><option value="3">低</option>
-                </select>
-              </div>
-              <div>
-                <span className="text-[11px] text-slate-400 block mb-1">截止日期:</span>
-                <input
-                  type="date"
-                  value={selectedNode.task.dueDate || ''}
-                  onChange={(e) => {
-                    onUpdateNode(selectedNode.id, {
-                      task: { ...selectedNode.task!, dueDate: e.target.value || undefined }
-                    });
-                  }}
-                  className="w-full px-2 py-1 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded text-[11px] outline-none"
-                />
-              </div>
-            </div>
-          )}
-        </div>
 
         {/* Hyperlink */}
         <div>
@@ -634,7 +559,7 @@ export const PropertySidebar: React.FC<PropertySidebarProps> = ({
           <textarea
             rows={noteRows}
             value={noteText}
-            placeholder="为该主题添加长文本备注或待办细节..."
+            placeholder="为该主题添加长文本备注、文献摘要或深度批注..."
             onChange={(e) => setNoteText(e.target.value)}
             onBlur={handleNoteBlur}
             className="w-full min-h-24 max-h-[55vh] overflow-y-auto px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 outline-none focus:border-blue-400 text-xs resize-y"

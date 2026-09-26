@@ -109,7 +109,6 @@ window.MindFlow_Preferences = (() => {
       ['defaultThemeId', '新建导图主题', 'select', THEMES],
       ['defaultLayout', '新建导图布局', 'select', [['mindmap', '左右平衡'], ['logic-right', '向右逻辑图'], ['org-down', '向下组织图']]],
       ['curveStyle', '分支连线', 'select', [['bezier', '平滑曲线'], ['straight', '直线'], ['rounded', '圆角折线']]],
-      ['defaultTaskPriority', '新任务优先级', 'number-select', [['1', 'P1 高'], ['2', 'P2 中'], ['3', 'P3 普通']]],
       ['rainbowBranches', '为主分支使用不同颜色', 'check'],
       ['soundEffects', '播放节点操作音效', 'check'],
       ['autoExpandOnAddChild', '添加子节点时展开父节点', 'check'],

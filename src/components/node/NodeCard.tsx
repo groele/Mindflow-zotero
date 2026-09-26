@@ -18,7 +18,6 @@ interface NodeCardProps {
   onCommitEdit: (id: string, newText: string) => void;
   onCancelEdit: () => void;
   onToggleCollapse: (id: string) => void;
-  onToggleTaskStatus?: (id: string) => void;
   onOpenInternalLink?: (documentId: string, nodeId?: string) => void;
   onDragStart?: (id: string, e: React.DragEvent) => void;
   onDragEnd?: () => void;
@@ -39,7 +38,6 @@ export const NodeCard: React.FC<NodeCardProps> = ({
   onCommitEdit,
   onCancelEdit,
   onToggleCollapse,
-  onToggleTaskStatus,
   onOpenInternalLink,
   onDragStart,
   onDragEnd,
@@ -204,28 +202,6 @@ export const NodeCard: React.FC<NodeCardProps> = ({
           </div>
         )}
 
-        {/* Task Checkbox */}
-        {node.task && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleTaskStatus && onToggleTaskStatus(node.id);
-            }}
-            title={`任务状态: ${node.task.status === 'done' ? '已完成' : node.task.status === 'doing' ? '进行中' : '待办'} (点击切换)`}
-            className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 transition-colors border ${
-              node.task.status === 'done'
-                ? 'bg-emerald-500 border-emerald-500 text-white'
-                : node.task.status === 'doing'
-                ? 'bg-amber-100 border-amber-500 text-amber-600'
-                : 'bg-white/80 dark:bg-slate-700 border-slate-300 dark:border-slate-600 hover:border-blue-400'
-            }`}
-          >
-            {node.task.status === 'done' && <span className="text-[10px] font-bold">✓</span>}
-            {node.task.status === 'doing' && <span className="text-[9px] font-bold leading-none">◐</span>}
-          </button>
-        )}
-
         {/* Text or Input */}
         {isEditing ? (
           <input
@@ -243,7 +219,7 @@ export const NodeCard: React.FC<NodeCardProps> = ({
         ) : node.text ? (
           <span
             title={node.text}
-            className={`truncate flex-1 tracking-wide leading-tight ${isRoot ? 'font-semibold text-sm' : ''} ${node.task?.status === 'done' ? 'line-through opacity-60' : ''}`}
+            className={`truncate flex-1 tracking-wide leading-tight ${isRoot ? 'font-semibold text-sm' : ''}`}
           >
             {node.text}
           </span>

@@ -3,15 +3,14 @@ import { MindMapDocument, MindMapNode, InboxItem } from '../../core/model/types'
 import { StorageService, DocumentSummary } from '../../services/storage/storageService';
 import { InboxService } from '../../services/storage/inboxService';
 import { BackupService, DocSnapshot, StorageQuotaInfo } from '../../services/storage/backupService';
-import { collectMapTasks, summarizeBranchTasks } from '../../core/model/taskUtils';
 import { collectTagFacets } from '../../core/model/tagUtils';
 import {
   FolderOpen, ListTree, Inbox, ShieldCheck, Plus, Search,
   Trash2, Check, Download, Upload, History, RotateCcw,
-  FileText, PanelLeftClose, PanelLeftOpen, ArrowRight, HardDrive, ArrowLeftRight, X, Settings, ListTodo, Tag, GraduationCap
+  FileText, PanelLeftClose, PanelLeftOpen, ArrowRight, HardDrive, ArrowLeftRight, X, Settings, Tag, GraduationCap
 } from 'lucide-react';
 
-export type WorkbenchTab = 'docs' | 'outline' | 'tags' | 'tasks' | 'inbox' | 'backup';
+export type WorkbenchTab = 'docs' | 'outline' | 'tags' | 'inbox' | 'backup';
 
 interface LeftWorkbenchProps {
   currentDoc: MindMapDocument;
@@ -63,13 +62,10 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
   isZoteroMode = false,
 }) => {
   const tagFacets = useMemo(() => collectTagFacets(currentDoc.root), [currentDoc.root]);
-  const branchProgress = useMemo(() => summarizeBranchTasks(currentDoc.root), [currentDoc.root]);
   const activeTag = tagFacets.find(facet => facet.tag === focusedTag);
   // Docs state
   const [docList, setDocList] = useState<DocumentSummary[]>([]);
   const [docSearch, setDocSearch] = useState('');
-  const [taskFilter, setTaskFilter] = useState<'all' | 'todo' | 'doing' | 'done' | 'overdue'>('all');
-  const [taskSearch, setTaskSearch] = useState('');
 
   // Inbox state
   const [inboxItems, setInboxItems] = useState<InboxItem[]>([]);
@@ -265,16 +261,7 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
               {node.text || (node.image ? '图片节点' : '未命名主题')}
             </span>
           )}
-          {node.task && (
-            <span className={`text-[9px] px-1 py-0.2 rounded font-bold ${node.task.status === 'done' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-              {node.task.status === 'done' ? '✓' : '待办'}
-            </span>
-          )}
-          {hasChildren && (branchProgress.get(node.id)?.total || 0) > 0 && (
-            <span className="text-[10px] text-violet-600 dark:text-violet-300" title="分支任务完成进度">
-              {branchProgress.get(node.id)?.done}/{branchProgress.get(node.id)?.total}
-            </span>
-          )}
+
           <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 ml-1">
             <button
               onClick={(e) => {
@@ -307,13 +294,6 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
   };
 
   const isLeftDock = dockPosition === 'left';
-  const tasks = collectMapTasks(currentDoc.root);
-  const completedTasks = tasks.filter(task => task.status === 'done').length;
-  const overdueTasks = tasks.filter(task => task.overdue).length;
-  const filteredTasks = tasks.filter(task =>
-    (taskFilter === 'all' || (taskFilter === 'overdue' ? task.overdue : task.status === taskFilter)) &&
-    task.text.toLocaleLowerCase().includes(taskSearch.trim().toLocaleLowerCase())
-  ).sort((a, b) => Number(b.overdue) - Number(a.overdue) || (a.priority ?? 4) - (b.priority ?? 4));
 
   return (
     <div className={`relative flex h-full z-30 select-none ${isLeftDock ? 'order-first' : 'order-last'}`}>
@@ -351,17 +331,7 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
             <ListTree className="w-4 h-4" />
           </button>
 
-          <button
-            onClick={() => {
-              if (isOpen && activeTab === 'tasks') onToggleOpen();
-              else { onTabChange('tasks'); if (!isOpen) onToggleOpen(); }
-            }}
-            title="任务总览与筛选"
-            aria-label="任务总览与筛选"
-            className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors ${isOpen && activeTab === 'tasks' ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
-          >
-            <ListTodo className="w-4 h-4" />
-          </button>
+
 
           <button
             onClick={() => {
@@ -444,7 +414,6 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
             <span className="text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 uppercase tracking-wider">
               {activeTab === 'docs' && <><FolderOpen className="w-4 h-4 text-slate-500" /> 我的导图文档</>}
               {activeTab === 'outline' && <><ListTree className="w-4 h-4 text-slate-500" /> 结构化大纲</>}
-              {activeTab === 'tasks' && <><ListTodo className="w-4 h-4 text-slate-500" /> 任务总览</>}
               {activeTab === 'tags' && <><Tag className="w-4 h-4 text-slate-500" /> 标签聚焦</>}
               {activeTab === 'inbox' && <><Inbox className="w-4 h-4 text-slate-500" /> 灵感与收集箱</>}
               {activeTab === 'backup' && <><ShieldCheck className="w-4 h-4 text-slate-500" /> 数据安全与备份</>}
@@ -562,30 +531,7 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
             </div>
           )}
 
-          {activeTab === 'tasks' && (
-            <div className="flex-1 overflow-y-auto p-3 space-y-3 text-xs">
-              <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 space-y-2">
-                <div className="flex justify-between font-semibold"><span>完成进度</span><span>{completedTasks}/{tasks.length} · {tasks.length ? Math.round(completedTasks / tasks.length * 100) : 0}%</span></div>
-                <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden" role="progressbar" aria-valuenow={completedTasks} aria-valuemax={tasks.length} aria-valuemin={0}>
-                  <div className="h-full bg-emerald-500" style={{ width: `${tasks.length ? completedTasks / tasks.length * 100 : 0}%` }} />
-                </div>
-                <p className="text-slate-500">进行中 {tasks.filter(task => task.status === 'doing').length} · 已逾期 {overdueTasks}</p>
-              </div>
-              <input value={taskSearch} onChange={event => setTaskSearch(event.target.value)} placeholder="搜索任务" aria-label="搜索任务" className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800" />
-              <select value={taskFilter} onChange={event => setTaskFilter(event.target.value as typeof taskFilter)} aria-label="筛选任务状态" className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
-                <option value="all">全部任务</option><option value="todo">待办</option><option value="doing">进行中</option><option value="done">已完成</option><option value="overdue">已逾期</option>
-              </select>
-              <div className="space-y-1">
-                {filteredTasks.length === 0 && <p className="py-5 text-center text-slate-500">没有符合条件的任务</p>}
-                {filteredTasks.map(task => (
-                  <button key={task.nodeId} onClick={() => onSelectNode(task.nodeId)} className={`w-full text-left p-2 rounded-lg border hover:border-violet-400 hover:bg-violet-50 dark:hover:bg-slate-800 ${selectedId === task.nodeId ? 'border-violet-400 bg-violet-50 dark:bg-violet-900/30' : 'border-slate-200 dark:border-slate-700'}`}>
-                  <span className="flex items-center gap-1 font-medium min-w-0">{task.priority && <span className="px-1 rounded text-[10px] bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300">P{task.priority}</span>}<span className="truncate" title={task.text}>{task.text}</span></span>
-                    <span className={task.overdue ? 'text-red-600' : 'text-slate-500'}>{task.status === 'done' ? '已完成' : task.status === 'doing' ? '进行中' : '待办'}{task.dueDate ? ` · 截止 ${task.dueDate}` : ''}{task.overdue ? ' · 已逾期' : ''}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+
 
           {/* TAB 3: INBOX */}
           {activeTab === 'inbox' && (
@@ -594,7 +540,7 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
                 <div className="flex gap-1.5">
                   <input
                     type="text"
-                    placeholder="捕捉闪念/待办..."
+                    placeholder="捕捉闪念/文献灵感..."
                     value={inboxInput}
                     onChange={(e) => setInboxInput(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') handleAddInboxItem(); }}

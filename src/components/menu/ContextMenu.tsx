@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import {
-  CornerDownRight, Plus, Trash2, CheckSquare,
+  CornerDownRight, Plus, Trash2,
   Copy, FolderPlus, FolderMinus, Eye, FileText,
   MapPin, BookOpen
 } from 'lucide-react';
@@ -14,7 +14,6 @@ export interface ContextMenuProps {
   onAddChild: (id: string) => void;
   onAddSibling: (id: string) => void;
   onDelete: (id: string) => void;
-  onToggleTask: (id: string) => void;
   onToggleCollapse: (id: string) => void;
   onStartEdit: (id: string) => void;
   onFocusSubtree?: (id: string) => void;
@@ -34,7 +33,6 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   onAddChild,
   onAddSibling,
   onDelete,
-  onToggleTask,
   onToggleCollapse,
   onStartEdit,
   onFocusSubtree,
@@ -153,18 +151,6 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
         <kbd className="text-[10px] font-mono text-slate-400">Space</kbd>
       </button>
 
-      <div className="my-1 border-t border-slate-100 dark:border-slate-800/80" />
-
-      <button
-        onClick={() => {
-          onToggleTask(node.id);
-          onClose();
-        }}
-        className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-left"
-      >
-        <CheckSquare className="w-3.5 h-3.5 text-emerald-500" />
-        <span>{node.task?.status ? '取消任务标记' : '设为待办任务 (Task)'}</span>
-      </button>
 
       {node.children && node.children.length > 0 && (
         <button

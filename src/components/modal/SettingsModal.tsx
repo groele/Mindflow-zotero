@@ -970,7 +970,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                 <div>
                   <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider mb-2">
-                    节点与任务交互习惯
+                    节点交互习惯
                   </h3>
                   <div className="space-y-2.5">
                     <label className="flex items-center justify-between p-2.5 rounded-xl border border-slate-200 dark:border-slate-800">
@@ -985,31 +985,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4"
                       />
                     </label>
-
-                    <div>
-                      <label className="block text-[11px] font-medium text-slate-500 mb-1">
-                        新建任务时的默认优先级
-                      </label>
-                      <div className="grid grid-cols-3 gap-2">
-                        {[
-                          { val: 1, label: 'P1 高优先级 (红)' },
-                          { val: 2, label: 'P2 中优先级 (橙)' },
-                          { val: 3, label: 'P3 普通 (绿)' },
-                        ].map((p) => (
-                          <button
-                            key={p.val}
-                            onClick={() => handleSaveSettings({ defaultTaskPriority: p.val as any })}
-                            className={`p-2 rounded-xl border text-center transition-all ${
-                              currentSettings.defaultTaskPriority === p.val
-                                ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 font-semibold ring-1 ring-blue-500'
-                                : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'
-                            }`}
-                          >
-                            {p.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
                   </div>
                 </div>
               </div>

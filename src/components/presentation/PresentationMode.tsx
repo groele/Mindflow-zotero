@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   ChevronLeft, ChevronRight, X, Maximize2, Minimize2,
-  FileText, CheckCircle2, Circle, Clock
+  FileText
 } from 'lucide-react';
 import { MindMapNode, ThemeColors } from '../../core/model/types';
 
@@ -153,27 +153,7 @@ export const PresentationMode: React.FC<PresentationModeProps> = ({
             {node.text}
           </h1>
 
-          {/* Task Status Badge */}
-          {node.task?.status && (
-            <div className="mt-4 inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-slate-800 border border-slate-700">
-              {node.task.status === 'done' ? (
-                <>
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  <span className="text-emerald-400">已完成 (Done)</span>
-                </>
-              ) : node.task.status === 'doing' ? (
-                <>
-                  <Clock className="w-4 h-4 text-blue-400" />
-                  <span className="text-blue-400">进行中 (Doing)</span>
-                </>
-              ) : (
-                <>
-                  <Circle className="w-4 h-4 text-amber-400" />
-                  <span className="text-amber-400">待办任务 (Todo)</span>
-                </>
-              )}
-            </div>
-          )}
+
         </div>
 
         {/* Note / Annotation */}

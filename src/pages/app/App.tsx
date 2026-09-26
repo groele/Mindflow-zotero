@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
-  MindMapDocument, MindMapNode, ViewportTransform, LayoutType, InboxItem, TaskStatus,
+  MindMapDocument, MindMapNode, ViewportTransform, LayoutType, InboxItem,
   RelationshipLink
 } from '../../core/model/types';
 import {
@@ -25,7 +25,7 @@ import {
   locateItemInZotero, openItemPdfInZotero, openZoteroPreferences, getZoteroInstance,
   ZoteroItemData, ZoteroArchiveResult
 } from '../../services/zotero/zoteroBridge';
-import { playAddNode, playTaskComplete, playDeleteNode } from '../../services/audio/soundService';
+import { playAddNode, playDeleteNode } from '../../services/audio/soundService';
 import { Canvas } from '../../components/canvas/Canvas';
 import { CanvasErrorBoundary } from '../../components/canvas/CanvasErrorBoundary';
 import { Toolbar } from '../../components/toolbar/Toolbar';
@@ -1216,34 +1216,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     return () => window.removeEventListener('paste', handlePaste);
   }, [doc, aiWorkflow, editingId, selectedId, isSettingsOpen, isShortcutsOpen, isCommandPaletteOpen, isTemplateModalOpen, isSearchOpen, isPresentationOpen, handleImportNodeImage, handlePasteNode]);
 
-  // Toggle Task Status (todo -> doing -> done -> todo)
-  const handleToggleTaskStatus = useCallback((id: string) => {
-    if (!doc) return;
-    const target = findNode(doc.root, id);
-    if (!target) return;
 
-    let nextStatus: TaskStatus = 'todo';
-    if (!target.task || target.task.status === 'todo') {
-      nextStatus = 'doing';
-    } else if (target.task.status === 'doing') {
-      nextStatus = 'done';
-    } else {
-      nextStatus = 'todo';
-    }
-
-    if (nextStatus === 'done') {
-      playTaskComplete(settings.soundEffects);
-    }
-
-    handleUpdateNodePatch(id, {
-      task: {
-        ...(target.task || {}),
-        priority: target.task?.priority ?? settings.defaultTaskPriority,
-        status: nextStatus,
-        progress: nextStatus === 'done' ? 100 : nextStatus === 'doing' ? 50 : 0,
-      },
-    });
-  }, [doc, handleUpdateNodePatch, settings.defaultTaskPriority, settings.soundEffects]);
 
   const handleCommitEdit = useCallback((id: string, newText: string) => {
     setEditingId(null);
@@ -1408,12 +1381,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     commitRootChange(newRoot);
   }, [doc, selectedIds, commitRootChange]);
 
-  const handleBatchTaskStatus = useCallback((status: TaskStatus) => {
-    if (!doc || selectedIds.length === 0) return;
-    const newRoot = updateMultipleNodes(doc.root, selectedIds, { task: { status } });
-    commitRootChange(newRoot);
-    if (status === 'done') playTaskComplete(settings.soundEffects);
-  }, [doc, selectedIds, commitRootChange, settings.soundEffects]);
+
 
   const handleBatchDelete = useCallback(() => {
     if (!doc || selectedIds.length === 0) return;
@@ -2317,7 +2285,6 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
               onCommitEditNode={handleCommitEdit}
               onCancelEditNode={() => setEditingId(null)}
               onToggleCollapse={handleToggleCollapse}
-              onToggleTaskStatus={handleToggleTaskStatus}
               onOpenInternalLink={(documentId, nodeId) => { void openDocumentAt(documentId, nodeId); }}
               onMoveNode={handleMoveNode}
               searchMatchedIds={searchMatchedIds}
@@ -2332,7 +2299,6 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
               onDeleteRelationship={handleDeleteRelationship}
               onEditRelationshipLabel={handleEditRelationshipLabel}
               onBatchColor={handleBatchColor}
-              onBatchTaskStatus={handleBatchTaskStatus}
               onBatchDelete={handleBatchDelete}
             />
           </CanvasErrorBoundary>
@@ -2373,7 +2339,6 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
             onOpenInternalLink={(documentId, nodeId) => { void openDocumentAt(documentId, nodeId); }}
             onClose={() => setIsPropertySidebarOpen(false)}
             dockSide={inspectorDockSide}
-            defaultTaskPriority={settings.defaultTaskPriority}
           />
         )}
       </div>
@@ -2502,7 +2467,6 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
           onDuplicateNode={(id) => handleDuplicateNode(id)}
           onPasteSubtree={(id) => handlePasteNode(id)}
           hasClipboardContent={!!clipboardSubtreeRef.current}
-          onToggleTask={handleToggleTaskStatus}
           onToggleCollapse={handleToggleCollapse}
           onStartEdit={(id) => setEditingId(id)}
           onFocusSubtree={(id) => handleSelectAndCenterNode(id)}
