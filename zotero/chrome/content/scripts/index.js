@@ -36,6 +36,77 @@
   const AI_PREPARED_TTL = 15 * 60 * 1000;
   const AI_CANCELLED = 'AI 分析已取消；未创建或归档导图。';
   const AI_OMISSION_MARKER = '[原文区间采样，区间之间有省略]';
+  const resolveChatEndpoint = (rawUrl) => {
+    const str = String(rawUrl || '').trim();
+    if (!str) return '';
+    try {
+      const parsed = new URL(str);
+      const pathname = parsed.pathname.replace(/\/+$/, '');
+      if (pathname.endsWith('/chat/completions')) {
+        return parsed.href;
+      }
+      if (/\/v[1-9]$/i.test(pathname) || pathname.endsWith('/v4')) {
+        parsed.pathname = pathname + '/chat/completions';
+        return parsed.href;
+      }
+      if (pathname === '' || pathname === '/') {
+        parsed.pathname = '/v1/chat/completions';
+        return parsed.href;
+      }
+      if (pathname.endsWith('/api')) {
+        parsed.pathname = pathname + '/v1/chat/completions';
+        return parsed.href;
+      }
+      parsed.pathname = pathname + '/chat/completions';
+      return parsed.href;
+    } catch (_) {
+      return str;
+    }
+  };
+
+  const isPrivateOrLocalHost = (hostname) => {
+    if (!hostname) return false;
+    if (['localhost', '127.0.0.1', '[::1]', '::1', '0.0.0.0', 'host.docker.internal'].includes(hostname)) return true;
+    if (hostname.endsWith('.local') || hostname.endsWith('.lan') || hostname.endsWith('.home.arpa')) return true;
+    if (/^(?:10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)/.test(hostname)) return true;
+    return false;
+  };
+
+  const isReasoningModel = (modelName) => {
+    const name = String(modelName || '').toLowerCase();
+    return name.includes('reasoner') || name.includes('r1') ||
+           name.includes('o1') || name.includes('o3') || name.includes('qwq');
+  };
+
+  const extractJsonFromLlmOutput = (text) => {
+    if (!text || typeof text !== 'string') return null;
+    const trimmed = text.trim();
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (parsed && typeof parsed === 'object') return parsed;
+    } catch (_) {}
+
+    const blockMatches = Array.from(trimmed.matchAll(/```(?:json)?\s*([\s\S]*?)\s*```/gi));
+    for (const match of blockMatches) {
+      if (match[1]) {
+        try {
+          const parsed = JSON.parse(match[1].trim());
+          if (parsed && typeof parsed === 'object') return parsed;
+        } catch (_) {}
+      }
+    }
+
+    const first = trimmed.indexOf('{');
+    const last = trimmed.lastIndexOf('}');
+    if (first !== -1 && last !== -1 && last > first) {
+      try {
+        const parsed = JSON.parse(trimmed.slice(first, last + 1));
+        if (parsed && typeof parsed === 'object') return parsed;
+      } catch (_) {}
+    }
+    return null;
+  };
+
   const normalizeEvidence = (value) => String(value || '').replace(/\s+/g, ' ').trim().toLowerCase();
   const sampleAcrossText = (value, limit) => {
     if (value.length <= limit) return value;
@@ -1818,48 +1889,106 @@
     },
 
     getAIConfiguration() {
-      const endpoint = String(Zotero.Prefs.get('extensions.mindflow.aiEndpoint', true) || '').trim();
+      const rawEndpoint = String(Zotero.Prefs.get('extensions.mindflow.aiEndpoint', true) || '').trim();
       const model = String(Zotero.Prefs.get('extensions.mindflow.aiModel', true) || '').trim();
       const apiKey = String(Zotero.Prefs.get('extensions.mindflow.aiApiKey', true) || '').trim();
-      if (!endpoint || !model) throw new Error('请先在 Zotero 设置 → MindFlow → AI 论文研究导图中填写接口地址和模型名称。');
+      if (!rawEndpoint || !model) throw new Error('请先在 Zotero 设置 → MindFlow → AI 论文研究导图中填写接口地址和模型名称。');
+      const endpoint = resolveChatEndpoint(rawEndpoint);
       let url;
       try { url = new URL(endpoint); } catch (_) { throw new Error('AI 接口地址无效。'); }
-      const local = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+      const local = isPrivateOrLocalHost(url.hostname);
       if ((url.protocol !== 'https:' && !(local && url.protocol === 'http:')) ||
-          url.username || url.password || url.search || url.hash) {
-        throw new Error('AI 接口须使用 HTTPS；仅本机地址可使用 HTTP，地址不能携带账号或查询参数。');
+          url.username || url.password || url.hash) {
+        throw new Error('AI 接口须使用 HTTPS；仅本机或局域网地址可使用 HTTP，地址不能携带账号认证信息。');
       }
       if (!apiKey && !local) throw new Error('请先在 Zotero 的 MindFlow 设置中填写 AI API 密钥。');
-      return { url: url.href, model, apiKey, local, host: url.host };
+      return { url: url.href, rawEndpoint, model, apiKey, local, host: url.host };
     },
 
     async testAIConnection() {
       const config = this.getAIConfiguration();
-      try {
-        const response = await Zotero.HTTP.request('POST', config.url, {
-          body: JSON.stringify({ model: config.model, messages: [
+      const sendTest = async (targetUrl) => {
+        const testPayload = {
+          model: config.model,
+          messages: [
             { role: 'user', content: 'Reply with OK.' },
-          ] }),
-          headers: { 'Content-Type': 'application/json',
-            ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {}) },
+          ],
+          stream: false,
+          max_tokens: isReasoningModel(config.model) ? 50 : 20,
+          ...(isReasoningModel(config.model) ? {} : { temperature: 0.1 }),
+        };
+        const testHeaders = {
+          'Content-Type': 'application/json',
+          ...(config.apiKey ? {
+            'Authorization': `Bearer ${config.apiKey}`,
+            'api-key': config.apiKey,
+          } : {}),
+          'HTTP-Referer': 'https://github.com/groele/Mindflow-zotero',
+          'X-Title': 'MindFlow for Zotero',
+        };
+        return await Zotero.HTTP.request('POST', targetUrl, {
+          body: JSON.stringify(testPayload),
+          headers: testHeaders,
           timeout: 20000, errorDelayMax: 0, noRetryOnThrottle: true, followRedirects: false,
           logBodyLength: 0, anon: true, noCache: true,
         });
-        let body;
-        try { body = typeof response.response === 'object' && response.response
-          ? response.response : JSON.parse(response.responseText || response.response); } catch (_) {}
-        if (!Array.isArray(body?.choices) || !body.choices[0]?.message) {
-          return { success: false, message: '接口已响应，但没有返回兼容 Chat Completions 的 choices；请核对接口路径。' };
+      };
+
+      try {
+        let response;
+        let usedUrl = config.url;
+        try {
+          response = await sendTest(config.url);
+        } catch (firstErr) {
+          // If 404 and URL contained /v1/chat/completions, try fallback to /chat/completions without /v1
+          if (firstErr?.status === 404 && config.url.includes('/v1/chat/completions')) {
+            const fallbackUrl = config.url.replace('/v1/chat/completions', '/chat/completions');
+            try {
+              response = await sendTest(fallbackUrl);
+              usedUrl = fallbackUrl;
+            } catch (_) {
+              throw firstErr;
+            }
+          } else {
+            throw firstErr;
+          }
         }
-        return { success: true, message: `已连接 ${config.host}，模型 ${config.model} 可响应。测试会消耗少量模型额度。` };
+
+        let body;
+        try {
+          body = typeof response.response === 'object' && response.response
+            ? response.response : JSON.parse(response.responseText || response.response);
+        } catch (_) {}
+
+        if (!Array.isArray(body?.choices) || !body.choices[0]?.message) {
+          return {
+            success: false,
+            message: `接口已响应（HTTP 200），但返回格式未包含标准的 choices 数组；请检查接口路径是否正确指向 /chat/completions（当前请求地址: ${usedUrl}）。`,
+          };
+        }
+        const replyText = String(body.choices[0].message.content || '').trim().slice(0, 30);
+        return {
+          success: true,
+          message: `连接成功！已连接 ${config.host}（请求路径: ${new URL(usedUrl).pathname}），模型 ${config.model} 响应正常${replyText ? `（模型回复: "${replyText}"）` : ''}。`,
+        };
       } catch (error) {
         const status = Number(error?.status || 0);
-        const detail = status === 401 || status === 403 ? '密钥或访问权限无效'
-          : status === 400 ? '接口或模型请求格式不兼容'
-          : status === 404 ? '接口路径或模型不存在'
-          : status === 429 ? '模型服务限流或额度不足'
-          : status >= 500 ? '模型服务暂时不可用' : '网络、证书或接口格式异常';
-        return { success: false, message: `连接失败${status ? `（HTTP ${status}）` : ''}：${detail}。` };
+        let errBody = null;
+        try {
+          errBody = typeof error?.response === 'object' && error?.response
+            ? error.response : JSON.parse(error?.responseText || error?.response || '{}');
+        } catch (_) {}
+        const serverMsg = errBody?.error?.message || errBody?.message || errBody?.detail || '';
+        const detail = status === 401 || status === 403 ? '密钥无效或缺少访问权限'
+          : status === 400 ? '请求格式或模型参数不兼容'
+          : status === 404 ? '接口路径不存在或模型不存在'
+          : status === 429 ? '模型服务限流或账户额度不足'
+          : status >= 500 ? '模型服务暂时不可用或内部错误' : '网络超时、证书或接口格式异常';
+        const extra = serverMsg ? `（服务商返回：${serverMsg}）` : '';
+        return {
+          success: false,
+          message: `连接失败${status ? `（HTTP ${status}）` : ''}：${detail}${extra}。\n[调试信息: 请求地址 ${config.url}, 模型: ${config.model}]`,
+        };
       }
     },
 
@@ -2059,14 +2188,28 @@
       const requestModel = async (payload, instruction) => {
         ensureActive();
         let response;
+        const reqPayload = {
+          model: config.model,
+          messages: [
+            { role: 'system', content: systemPrompt + instruction },
+            { role: 'user', content: JSON.stringify(payload) },
+          ],
+          stream: false,
+          ...(isReasoningModel(config.model) ? {} : { temperature: 0.2 }),
+        };
+        const reqHeaders = {
+          'Content-Type': 'application/json',
+          ...(config.apiKey ? {
+            'Authorization': `Bearer ${config.apiKey}`,
+            'api-key': config.apiKey,
+          } : {}),
+          'HTTP-Referer': 'https://github.com/groele/Mindflow-zotero',
+          'X-Title': 'MindFlow for Zotero',
+        };
         try {
           response = await Zotero.HTTP.request('POST', config.url, {
-            body: JSON.stringify({ model: config.model, messages: [
-              { role: 'system', content: systemPrompt + instruction },
-              { role: 'user', content: JSON.stringify(payload) },
-            ] }),
-            headers: { 'Content-Type': 'application/json',
-              ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {}) },
+            body: JSON.stringify(reqPayload),
+            headers: reqHeaders,
             timeout: 120000, errorDelayMax: 0, noRetryOnThrottle: true, followRedirects: false,
             logBodyLength: 0, anon: true, noCache: true,
             cancellerReceiver: (fn) => { cancelRequest = fn; if (cancelled) fn(); },
@@ -2074,13 +2217,20 @@
         } catch (error) {
           if (cancelled) throw new Error(AI_CANCELLED);
           const status = Number(error?.status || 0);
+          let errBody = null;
+          try {
+            errBody = typeof error?.response === 'object' && error?.response
+              ? error.response : JSON.parse(error?.responseText || error?.response || '{}');
+          } catch (_) {}
+          const serverMsg = errBody?.error?.message || errBody?.message || errBody?.detail || '';
           const detail = status === 401 || status === 403 ? '检查 API 密钥和访问权限'
             : status === 400 ? '请求格式或上下文长度不被模型接受，请尝试快速模式或兼容模型'
             : status === 413 ? '模型上下文不足，请改用快速模式或调低 PDF 页数'
             : status === 429 ? '模型服务限流或额度不足，请稍后重试'
             : status >= 500 ? '模型服务暂时不可用，请稍后重试'
             : '检查网络、接口地址和模型名称';
-          throw new Error(`模型请求失败${status ? `（HTTP ${status}）` : ''}；${detail}。`);
+          const extra = serverMsg ? `（服务商提示：${serverMsg}）` : '';
+          throw new Error(`模型请求失败${status ? `（HTTP ${status}）` : ''}；${detail}${extra}。`);
         } finally { cancelRequest = null; }
         ensureActive();
         if (response.status >= 300 && response.status < 400) {
@@ -2094,10 +2244,10 @@
         const output = typeof content === 'string' ? content
           : Array.isArray(content) ? content.map((part) => part.text || '').join('') : '';
         if (!output || output.length > 120000) throw new Error('模型未返回可用的研究分析内容。');
-        let parsed;
-        try { parsed = JSON.parse(output.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')); }
-        catch (_) { throw new Error('模型输出不是规定的 JSON 结构，请更换兼容模型后重试。'); }
-        if (!parsed?.sections || typeof parsed.sections !== 'object') throw new Error('模型输出缺少研究分析栏目。');
+        const parsed = extractJsonFromLlmOutput(output);
+        if (!parsed || !parsed.sections || typeof parsed.sections !== 'object') {
+          throw new Error('模型输出不是规定的 JSON 结构，请更换兼容模型后重试。');
+        }
         return parsed;
       };
       let parsed;

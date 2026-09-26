@@ -35,6 +35,38 @@
   margin: 0 0 16px;
   color: var(--muted-text-color, GrayText);
   font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.mindflow-password-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  max-width: 430px;
+}
+
+.mindflow-password-wrapper .mindflow-control {
+  flex: 1;
+}
+
+.mindflow-eye-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 8px;
+  min-height: 28px;
+  cursor: pointer;
+  background: var(--fill-quaternary, transparent);
+  border: 1px solid var(--fill-secondary, #ccc);
+  border-radius: 4px;
+  font-size: 13px;
+  user-select: none;
+}
+
+.mindflow-eye-btn:hover {
+  background: var(--fill-tertiary, #eaeaea);
 }
 
 .mindflow-pref-error {
