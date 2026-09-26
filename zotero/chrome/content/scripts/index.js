@@ -1529,7 +1529,9 @@
         try {
           const path = await attachment.getFilePathAsync?.();
           ensureActive();
-          if (!path || !(await IOUtils.exists(path))) { pdfState = 'PDF 附件尚未下载到本机'; continue; }
+          const fileExists = path ? await IOUtils.exists(path) : false;
+          ensureActive();
+          if (!fileExists) { pdfState = 'PDF 附件尚未下载到本机'; continue; }
           if (!Zotero.PDFWorker?.getFullText) { pdfState = '当前 Zotero 不支持 PDF 文字提取'; break; }
           const extracted = await Zotero.PDFWorker.getFullText(attachment.id, maxPages);
           ensureActive();
@@ -2085,7 +2087,8 @@
           const success = savedAttachment;
           const successMsg = `${success ? '归档完成' : '附件归档失败'}：文献【${itemTitle.length > 25 ? itemTitle.slice(0, 25) + '...' : itemTitle}】${completedTargets.length ? `\n- ${completedTargets.join('\n- ')}` : ''}${noteError ? `\n- 大纲笔记保存失败：${noteError}` : ''}`;
 
-          return { success, message: successMsg, parentItemTitle: itemTitle, savedPath };
+          return { success, message: successMsg, parentItemTitle: itemTitle, savedPath,
+            noteRequested: shouldCreateNote, savedNote, noteError };
         } else {
           // If no parent item found
           let msg = '';

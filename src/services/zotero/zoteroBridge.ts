@@ -798,7 +798,7 @@ export async function saveMindMapToZoteroAttachment(
   doc: MindMapDocument,
   parentItemKeyOrOptions?: string | { silent?: boolean },
   options?: { silent?: boolean }
-): Promise<{ success: boolean; message: string; savedPath?: string }> {
+): Promise<{ success: boolean; message: string; savedPath?: string; noteRequested?: boolean; savedNote?: boolean; noteError?: string }> {
   let targetKey: string | undefined;
   let opts: { silent?: boolean } | undefined = options;
 
@@ -831,7 +831,7 @@ export async function saveMindMapToZoteroAttachment(
   if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
     const requestId = `mindflow-save-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     return new Promise((resolve) => {
-      const finish = (result: { success: boolean; message: string; savedPath?: string }) => {
+      const finish = (result: { success: boolean; message: string; savedPath?: string; noteRequested?: boolean; savedNote?: boolean; noteError?: string }) => {
         window.removeEventListener('message', onMessage);
         window.clearTimeout(timeout);
         resolve(result);

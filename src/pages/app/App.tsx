@@ -236,7 +236,11 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
 
   // Document changes cancel the debounced save. Flush the latest editor state
   // first so switching maps cannot silently discard recent typing.
-  const flushCurrentDocument = useCallback(async (): Promise<boolean> => {
+  const flushCurrentDocument = useCallback(async (allowDuringAiArchive = false): Promise<boolean> => {
+    if (aiArchivingRef.current && !allowDuringAiArchive) {
+      setSaveStatus({ state: 'warning', message: '正在归档 AI 草稿，请等待完成后再切换或保存导图。' });
+      return false;
+    }
     try {
       pendingSaveTokenRef.current += 1;
       await saveQueueRef.current;
@@ -695,6 +699,8 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
           );
           if (!result.success && saveGenerationRef.current === saveGeneration) {
             setSaveStatus({ state: 'warning', message: `本地导图已保存；Zotero 附件归档失败：${result.message}` });
+          } else if (result.noteRequested && !result.savedNote && saveGenerationRef.current === saveGeneration) {
+            setSaveStatus({ state: 'warning', message: `导图附件已归档，但 Zotero 大纲笔记保存失败：${result.noteError || '请检查 Zotero 日志'}` });
           }
         }).catch((error) => {
           if (saveGenerationRef.current === saveGeneration) {
@@ -1390,7 +1396,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
           }
           await zoteroSyncQueueRef.current;
           const result = await saveMindMapToZoteroAttachment(latest);
-          setSaveStatus({ state: result.success ? 'saved' : 'warning', message: result.message });
+          setSaveStatus({ state: result.success && (!result.noteRequested || result.savedNote) ? 'saved' : 'warning', message: result.message });
         })().catch((error) => setSaveStatus({ state: 'error', message: `保存失败：${error?.message || error}` }));
         return;
       }
@@ -1649,7 +1655,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     aiArchivingRef.current = true;
     setIsArchivingAiDraft(true);
     try {
-      if (!(await flushCurrentDocument())) return;
+      if (!(await flushCurrentDocument(true))) return;
       const current = latestDocRef.current;
       if (!current?.metadata?.aiDraft || !current.metadata.zoteroItemKey) return;
       setSaveStatus({ state: 'saving', message: '正在将已审阅草稿归档到 Zotero 文献…' });
@@ -1662,7 +1668,9 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       setDoc((previous) => previous?.id === current.id ? {
         ...previous, metadata: { ...previous.metadata, aiDraft: false, autoSyncToZotero: true },
       } : previous);
-      setSaveStatus({ state: 'saved', message: 'AI 研究导图已归档至 Zotero；后续编辑将同步到文献附件。' });
+      setSaveStatus(archived.noteRequested && !archived.savedNote
+        ? { state: 'warning', message: `导图附件已归档，但 Zotero 大纲笔记保存失败：${archived.noteError || '请检查 Zotero 日志'}。本地草稿状态正在保存。` }
+        : { state: 'saving', message: '导图附件已归档至 Zotero；正在保存本地归档状态，后续编辑将自动同步。' });
     } catch (error: any) {
       setSaveStatus({ state: 'warning', message: `草稿仍保存在本机，Zotero 归档失败：${error?.message || error}` });
     } finally {
@@ -1753,7 +1761,8 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     await zoteroSyncQueueRef.current;
     const res = await saveMindMapToZoteroAttachment(current, parentKey, { silent: false });
     if (res?.success) {
-      setSaveStatus({ state: 'saved', message: res.message || '已成功归档至 Zotero 文献条目！' });
+      setSaveStatus({ state: res.noteRequested && !res.savedNote ? 'warning' : 'saved',
+        message: res.message || '已成功归档至 Zotero 文献条目！' });
     } else {
       setSaveStatus({ state: 'warning', message: res?.message || '归档失败，请检查 Zotero 状态后重试。' });
     }
