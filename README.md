@@ -1,16 +1,16 @@
 # MindFlow for Zotero
 
-[![Zotero 插件版本](https://img.shields.io/badge/Zotero%20插件-v1.4.0-2563eb)](https://github.com/groele/Mindflow-zotero/releases/tag/v1.4.0)
+[![Zotero 插件版本](https://img.shields.io/badge/Zotero%20插件-v1.5.0-2563eb)](https://github.com/groele/Mindflow-zotero/releases/tag/v1.5.0)
 [![兼容版本](https://img.shields.io/badge/Zotero-10.0.x-c2410c)](zotero/manifest.json)
 [![许可证](https://img.shields.io/badge/License-MIT-15803d)](LICENSE)
 
 **在 Zotero 10 中把文献、PDF 批注和阅读笔记整理成可编辑思维导图。** MindFlow 在文献列表和 PDF 阅读场景提供入口；导图可归档为文献下的 `.mindflow` 附件，并可写回结构化大纲笔记。
 
-> **版本说明：**本仓库同时保留 Chrome 扩展源码（版本 3.2.0）。本 README 和 GitHub `v1.4.0` 标签针对 **Zotero 插件**；下载 Zotero 安装包时请选择 `mindflow-zotero-1.4.0.xpi`，不要选择 Chrome ZIP。
+> **版本说明：**本仓库同时保留 Chrome 扩展源码（版本 3.2.0）。本 README 和 GitHub `v1.5.0` 标签针对 **Zotero 插件**；下载 Zotero 安装包时请选择 `mindflow-zotero-1.5.0.xpi`，不要选择 Chrome ZIP。
 
 ## 下载与安装
 
-1. 从 [v1.4.0 发布页](https://github.com/groele/Mindflow-zotero/releases/tag/v1.4.0)的 Assets 下载 `mindflow-zotero-1.4.0.xpi`。
+1. 从 [v1.5.0 发布页](https://github.com/groele/Mindflow-zotero/releases/tag/v1.5.0)的 Assets 下载 `mindflow-zotero-1.5.0.xpi`。
 2. 在 **Zotero 10** 打开 **工具 → 插件**，将 XPI 拖入插件窗口并按提示安装。Zotero 的[官方插件安装说明](https://www.zotero.org/support/plugins)也介绍了这一入口。
 3. 如 Zotero 提示重启，请重启。安装后可从工具菜单、主工具栏、文献右键菜单或条目详情侧栏打开 MindFlow；`Ctrl/Cmd+Alt+M` 也可调用入口。
 4. 在 **编辑 → 设置 → MindFlow** 调整导入规则、窗口模式、编辑默认值和备份配置。
@@ -72,7 +72,7 @@
 2. 在 Zotero 文献列表选中**一篇**论文，右键选择 **AI 解析论文并生成研究导图**；也可在 MindFlow 工作台的 Zotero 菜单点击同名操作。首次使用无需先创建普通导图。
 3. 插件先在本机读取摘要、最多 12 条笔记、80 条 PDF 批注及可提取的 PDF 文字，展示实际资料范围、遗漏数量、目标模型与预计请求次数。**只有点击“开始分析”后才发送论文资料。**快速模式进一步精简笔记、批注和 PDF 节选；深入模式对较长 PDF 分段分析，再整合研究脉络。运行时可查看阶段进度并取消当前模型请求。
 4. 生成结果先成为**本机可编辑草稿**。按“已有问题 → 研究目标 → 体系与方法 → 结果证据 → 解决的问题 → 创新意义 → 局限与后续验证”审阅和修改；确认后点击“归档到 Zotero”。归档失败时草稿仍留在本机。草稿阶段按 `Ctrl/Cmd+S` 只保存本机，不会绕过审阅自动归档。
-5. 节点区分 **原文支持**、**推断/待核验**、**待解决**；短引文存于节点备注。原文支持表示引文匹配到本次发送的相应资料，仍需读者核对论文语境。批注可保留 Zotero 的页码和定位链接；普通 PDF 文字不会伪造逐句页码。
+5. 节点区分 **原文支持**、**推断/待核验**、**待解决**；短引文和核对状态存于节点备注。来源编号指向摘要、PDF 片段、笔记、批注划线或批注评论；评论只作为读者材料。原文支持表示引文与指定资料片段匹配，仍需读者核对论文语境。批注可保留 Zotero 的页码和定位链接；PDF 片段编号不是页码，也不会伪造逐句页码。
 
 PDF 默认最多读取前 120 页（可选 50/120/200 页）；文字过长会跨区间采样，仍可能遗漏内容。扫描件、未下载的附件或受保护 PDF 可能无法提取文字。资料不足的栏目会标为待补充。模型用量与费用取决于服务商；深入模式通常需要多次请求。详见 [AI 研究导图使用说明](docs/AI_RESEARCH_MAP.md)。
 
@@ -141,7 +141,7 @@ npm ci
 npm run build:zotero
 ```
 
-安装文件为 `dist-zip/mindflow-zotero-1.4.0.xpi`；已解压的构建目录在 `dist-zotero/`。这两个目录是生成物，不提交到 Git。Chrome 扩展另用 `npm run build` 构建到 `dist/`，其版本仍为 3.2.0。
+安装文件为 `dist-zip/mindflow-zotero-1.5.0.xpi`；已解压的构建目录在 `dist-zotero/`。这两个目录是生成物，不提交到 Git。Chrome 扩展另用 `npm run build` 构建到 `dist/`，其版本仍为 3.2.0。
 
 | 路径 | 用途 |
 | --- | --- |

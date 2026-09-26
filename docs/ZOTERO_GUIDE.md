@@ -1,10 +1,10 @@
 # MindFlow for Zotero 10：使用与开发指南
 
-本指南对应 Zotero 插件 v1.4.0。面向用户的完整功能与安装说明先看[项目 README](../README.md)。插件清单目前限定 Zotero 10.0.x。
+本指南对应 Zotero 插件 v1.5.0。面向用户的完整功能与安装说明先看[项目 README](../README.md)。插件清单目前限定 Zotero 10.0.x。
 
 ## 安装和升级
 
-从 [GitHub Releases](https://github.com/groele/Mindflow-zotero/releases/tag/v1.4.0) 下载 mindflow-zotero-1.4.0.xpi。在 Zotero 中打开“工具 → 插件”，将 XPI 拖入插件窗口安装；若提示则重启。升级前建议导出重要导图的工作区备份，并确认文献下的 .mindflow 附件已同步。
+从 [GitHub Releases](https://github.com/groele/Mindflow-zotero/releases/tag/v1.5.0) 下载 mindflow-zotero-1.5.0.xpi。在 Zotero 中打开“工具 → 插件”，将 XPI 拖入插件窗口安装；若提示则重启。升级前建议导出重要导图的工作区备份，并确认文献下的 .mindflow 附件已同步。
 
 插件 ID 为 mindflow@groele.org。版本由 zotero/manifest.json 声明；zotero/update.json 指向同版本的 GitHub Release XPI。
 
@@ -55,9 +55,9 @@ zotero/chrome/content/preferences.xhtml 是 Zotero 注册的设置页；对应�
     npm ci
     npm run build:zotero
 
-构建脚本检查 TypeScript，生成 Zotero 用 IIFE 前端资源，检查宿主脚本语法，然后打包 dist-zip/mindflow-zotero-1.4.0.xpi。版本号取自 zotero/manifest.json。dist-zotero 和 dist-zip 是生成目录，不进入源码提交。
+构建脚本检查 TypeScript，生成 Zotero 用 IIFE 前端资源，检查宿主脚本语法，然后打包 dist-zip/mindflow-zotero-1.5.0.xpi。版本号取自 zotero/manifest.json。dist-zotero 和 dist-zip 是生成目录，不进入源码提交。
 
-本仓库另有 Chrome 扩展构建，版本为 3.2.0。Zotero 的 v1.4.0 与 Chrome 的 v3.2.0 属于两条版本线。发布时核对 Zotero 清单、更新清单、XPI 文件名、标签和 Release 资产的版本一致。
+本仓库另有 Chrome 扩展构建，版本为 3.2.0。Zotero 的 v1.5.0 与 Chrome 的 v3.2.0 属于两条版本线。发布时核对 Zotero 清单、更新清单、XPI 文件名、标签和 Release 资产的版本一致。
 
 ## 排查顺序
 

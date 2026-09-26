@@ -127,7 +127,8 @@ export const AIResearchModal: React.FC<AIResearchModalProps> = ({
                 <div className="flex items-center gap-2 font-semibold"><ShieldCheck size={15} />数据与费用</div>
                 <p className="mt-1">开始后将向 {preview.localModel ? '本机模型' : preview.endpointHost}（{preview.model}）发送资料，
                   本次准备了约 {preview.estimatedCharacters.toLocaleString()} 字符。实际 token、费用和耗时由模型服务决定。
-                  仅有短引文文本匹配的判断会标为“原文支持”，仍需回到原文核对。</p>
+                  仅有短引文与指定资料片段匹配的判断会标为“原文支持”，仍需回到原文核对。
+                  PDF、笔记、批注划线和批注评论会分别编号；评论只作为读者材料。</p>
               </div>
             </>
           )}

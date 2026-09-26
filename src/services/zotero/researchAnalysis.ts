@@ -9,8 +9,13 @@ interface ResearchClaim {
   text: string;
   detail: string;
   basis: 'paper' | 'inference' | 'unresolved';
-  source: 'abstract' | 'pdf' | 'note' | 'annotation' | 'none';
+  source: 'abstract' | 'pdf' | 'note' | 'annotation' | 'comment' | 'none';
+  sourceId?: string;
+  requestedSource?: ResearchClaim['source'];
+  requestedSourceId?: string;
+  verification?: 'matched' | 'no_quote' | 'no_source' | 'unknown_source' | 'ambiguous' | 'unmatched' | 'not_in_draft';
   quote: string;
+  attemptedQuote?: string;
   link?: string;
   pageLabel?: string;
 }
@@ -163,6 +168,9 @@ export function createResearchDocument(analysis: ResearchAnalysis, themeId: stri
     throw new Error('AI 研究分析结果格式无效。');
   }
   const scope = analysis.sourceScope;
+  const allClaims = Object.values(analysis.sections).flatMap((entries) => Array.isArray(entries) ? entries : []);
+  const evidenceCount = allClaims.filter((claim) => claim.basis === 'paper' && claim.verification === 'matched').length;
+  const reviewCount = allClaims.length - evidenceCount;
   const headline = (key: SectionKey, label: string) => {
     const claim = Array.isArray(analysis.sections[key]) ? analysis.sections[key][0] : null;
     if (!claim?.text) return `${label}：资料不足，待补充`;
@@ -175,12 +183,14 @@ export function createResearchDocument(analysis: ResearchAnalysis, themeId: stri
     headline('system', '研究体系'),
     headline('resolution', '解决的问题'),
     headline('significance', '研究意义'),
+    `证据核对：${evidenceCount} 条有对应原文片段；${reviewCount} 条为推断、待解决或缺少可匹配引文，须人工复核。`,
     '',
     `资料范围：${scope?.pdfState || 'PDF 状态未知'}；摘要${scope?.hasAbstract ? '可用' : '不可用'}；` +
       `笔记 ${scope?.noteCount || 0} 条；批注 ${scope?.annotationCount || 0} 条。`,
     scope?.pdfTruncated ? 'PDF 文字超出本次读取范围或经过跨区间采样，部分内容仍可能未纳入分析。' : '',
     scope?.quickSampled ? '本次为快速模式，PDF 文字仅取跨区间节选。' : '',
-    '【原文支持】仅表示短引文与摘要、PDF 文字或批注划线原文匹配，不等于结论已被独立验证。',
+    '【原文支持】仅表示短引文与指定摘要、PDF 片段或批注划线原文匹配，不等于结论已被独立验证。',
+    'P 编号是本次分析的 PDF 文字片段序号，不是 PDF 页码。',
     '【推断/待核验】是分析线索，不能当成论文已证明的事实。',
   ].filter(Boolean).join('\n');
   let claimCount = 0;
@@ -193,15 +203,30 @@ export function createResearchDocument(analysis: ResearchAnalysis, themeId: stri
         const paper = claim.basis === 'paper' && Boolean(claim.quote);
         const prefix = paper ? '【原文支持】' : claim.basis === 'unresolved' ? '【待解决】' : '【推断/待核验】';
         const sourceLabel: Record<string, string> = {
-          abstract: '摘要', pdf: 'PDF 文字节选', note: 'Zotero 笔记', annotation: 'Zotero 批注', none: '无直接引文',
+          abstract: '摘要', pdf: 'PDF 文字节选', note: 'Zotero 笔记',
+          annotation: 'Zotero 批注划线文字', comment: 'Zotero 批注评论（读者材料）', none: '无直接引文',
+        };
+        const verificationLabel: Record<string, string> = {
+          matched: '引文与指定资料匹配；仍需人工核对上下文',
+          no_quote: '未提供足够长度的原文引文',
+          no_source: '未指定可核对的资料来源',
+          unknown_source: '模型填写的资料编号不在本次输入中',
+          not_in_draft: '整合阶段新增或改写了 PDF 引文，未通过分段结果核对',
+          ambiguous: '引文在多个资料片段中重复，无法唯一定位',
+          unmatched: '引文与指定资料的文字不匹配',
         };
         return {
           id: generateId(),
           text: `${prefix}${claim.text.trim().slice(0, 230)}`,
-          note: [claim.detail?.trim(), `来源：${sourceLabel[claim.source] || '无直接引文'}`,
-            claim.pageLabel && claim.source === 'annotation' ? `Zotero 批注页码：${claim.pageLabel}` : '',
+          note: [claim.detail?.trim(), `来源：${sourceLabel[claim.source] || '无直接引文'}${claim.sourceId ? `（${claim.sourceId}）` : ''}`,
+            claim.source === 'none' && claim.requestedSource && claim.requestedSource !== 'none'
+              ? `模型声称来源：${sourceLabel[claim.requestedSource] || claim.requestedSource}${claim.requestedSourceId ? `（${claim.requestedSourceId}）` : ''}；未能确认` : '',
+            `核对状态：${verificationLabel[claim.verification || ''] || '需人工复核'}`,
+            claim.source === 'pdf' && claim.sourceId ? 'PDF 片段编号不是页码；链接打开关联 PDF。' : '',
+            claim.pageLabel && ['annotation', 'comment'].includes(claim.source) ? `Zotero 批注页码：${claim.pageLabel}` : '',
             claim.quote ? `${paper ? '原文片段' : '参考片段（不足以直接证明分析判断）'}：${claim.quote}`
-              : '此条尚无可匹配的直接引文，请核对原文。']
+              : claim.attemptedQuote ? `未匹配的模型引文（不能当作原文）：${claim.attemptedQuote}`
+                : '此条尚无可匹配的直接引文，请核对原文。']
             .filter(Boolean).join('\n\n'),
           link: typeof claim.link === 'string' && claim.link.startsWith('zotero://')
             ? claim.link : analysis.zoteroUri,
@@ -231,6 +256,8 @@ export function createResearchDocument(analysis: ResearchAnalysis, themeId: stri
       autoSyncToZotero: false,
       aiGenerated: true,
       aiDraft: true,
+      aiEvidenceCount: evidenceCount,
+      aiReviewCount: reviewCount,
       aiSourceScope: scope,
     },
   };

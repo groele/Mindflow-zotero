@@ -1618,7 +1618,11 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       setIsWelcomeOpen(false);
       setTimeout(() => centerCanvas(), 60);
       setAiWorkflow(null);
-      setSaveStatus({ state: 'saved', message: 'AI 研究导图草稿已保存在本机；请审阅并编辑后归档到 Zotero。' });
+      const evidenceCount = Number(newDoc.metadata?.aiEvidenceCount) || 0;
+      const reviewCount = Number(newDoc.metadata?.aiReviewCount) || 0;
+      setSaveStatus(evidenceCount > 0
+        ? { state: 'saved', message: `AI 研究导图草稿已保存；${evidenceCount} 条有原文片段匹配，${reviewCount} 条需核对。请审阅后归档。` }
+        : { state: 'warning', message: 'AI 草稿已保存在本机，但没有条目通过原文片段核对；请逐条核查后再归档。' });
     } catch (error: any) {
       if (controller.signal.aborted || token !== aiRequestTokenRef.current) return;
       const message = String(error?.message || error);
