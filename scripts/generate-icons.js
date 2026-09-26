@@ -1,4 +1,4 @@
-// Dependency-free generator for the shared MindFlow brand mark.
+// Dependency-free generator for the MindFlow MapGraph (星轨拓扑) icon set.
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
@@ -12,11 +12,21 @@ const OUTPUTS = [
 ];
 
 const COLORS = {
-  background: [239, 244, 247],
-  branch: [105, 127, 142],
-  outline: [82, 111, 130],
-  node: [250, 252, 253],
-  center: [78, 119, 140],
+  bgTop: [255, 255, 255],
+  bgBottom: [241, 245, 249],
+  border: [203, 213, 225],
+  branch: [2, 132, 199],        // #0284C7
+  center: [2, 132, 199],        // #0284C7
+  centerDark: [3, 105, 161],    // #0369A1
+  nodeN: [2, 132, 199],         // #0284C7
+  nodeNE: [6, 182, 212],        // #06B6D4
+  nodeE: [14, 165, 233],        // #0EA5E9
+  nodeSE: [99, 102, 241],       // #6366F1
+  nodeS: [2, 132, 199],         // #0284C7
+  nodeSW: [139, 92, 246],       // #8B5CF6
+  nodeW: [14, 165, 233],        // #0EA5E9
+  nodeNW: [6, 182, 212],        // #06B6D4
+  white: [255, 255, 255],
 };
 
 function roundedRectDistance(x, y, halfSize, radius) {
@@ -36,25 +46,83 @@ function distanceToSegment(x, y, x1, y1, x2, y2) {
   return Math.hypot(x - (x1 + t * dx), y - (y1 + t * dy));
 }
 
+const NODES = [
+  { pos: [0.5, 0.182], r: 0.066, color: COLORS.nodeN },
+  { pos: [0.712, 0.288], r: 0.056, color: COLORS.nodeNE },
+  { pos: [0.818, 0.5], r: 0.066, color: COLORS.nodeE },
+  { pos: [0.712, 0.712], r: 0.056, color: COLORS.nodeSE },
+  { pos: [0.5, 0.818], r: 0.066, color: COLORS.nodeS },
+  { pos: [0.288, 0.712], r: 0.056, color: COLORS.nodeSW },
+  { pos: [0.182, 0.5], r: 0.066, color: COLORS.nodeW },
+  { pos: [0.288, 0.288], r: 0.056, color: COLORS.nodeNW },
+];
+
 function sampleMark(x, y) {
-  const cardDistance = roundedRectDistance(x, y, 0.48, 0.19);
-  if (cardDistance > 0) return [0, 0, 0, 0];
+  const cardDist = roundedRectDistance(x, y, 0.47, 0.23);
+  if (cardDist > 0) return [0, 0, 0, 0];
 
-  let color = COLORS.background;
+  // Subtle background gradient
+  const t = Math.max(0, Math.min(1, y));
+  let color = [
+    Math.round(COLORS.bgTop[0] * (1 - t) + COLORS.bgBottom[0] * t),
+    Math.round(COLORS.bgTop[1] * (1 - t) + COLORS.bgBottom[1] * t),
+    Math.round(COLORS.bgTop[2] * (1 - t) + COLORS.bgBottom[2] * t),
+  ];
+
+  // Card border
+  if (cardDist > -0.025) {
+    color = COLORS.border;
+  }
+
   const center = [0.5, 0.5];
-  const nodes = [[0.245, 0.245], [0.245, 0.755], [0.755, 0.245], [0.755, 0.755]];
-  for (const [nx, ny] of nodes) {
-    if (distanceToSegment(x, y, ...center, nx, ny) < 0.042) color = COLORS.branch;
+
+  // 1. Branch connection lines
+  for (const node of NODES) {
+    if (distanceToSegment(x, y, center[0], center[1], node.pos[0], node.pos[1]) < 0.026) {
+      color = COLORS.branch;
+    }
   }
 
-  for (const [nx, ny] of nodes) {
-    const distance = Math.hypot(x - nx, y - ny);
-    if (distance < 0.088) color = COLORS.outline;
-    if (distance < 0.061) color = COLORS.node;
+  // 2. Satellite nodes
+  for (const node of NODES) {
+    const dist = Math.hypot(x - node.pos[0], y - node.pos[1]);
+    if (dist < node.r + 0.019) {
+      color = COLORS.white;
+    }
+    if (dist < node.r) {
+      color = node.color;
+    }
   }
 
-  if (Math.hypot(x - center[0], y - center[1]) < 0.133) color = COLORS.outline;
-  if (Math.hypot(x - center[0], y - center[1]) < 0.101) color = COLORS.center;
+  // 3. Central core node
+  const centerDist = Math.hypot(x - center[0], y - center[1]);
+  if (centerDist < 0.135 + 0.022) {
+    color = COLORS.white;
+  }
+  if (centerDist < 0.135) {
+    const ct = (x - (center[0] - 0.135)) / 0.27;
+    color = [
+      Math.round(COLORS.center[0] * (1 - ct) + COLORS.centerDark[0] * ct),
+      Math.round(COLORS.center[1] * (1 - ct) + COLORS.centerDark[1] * ct),
+      Math.round(COLORS.center[2] * (1 - ct) + COLORS.centerDark[2] * ct),
+    ];
+  }
+
+  // 4. Inner white network motif
+  const p1 = [0.46, 0.54];
+  const p2 = [0.5, 0.5];
+  const p3 = [0.54, 0.46];
+
+  if (distanceToSegment(x, y, p1[0], p1[1], p2[0], p2[1]) < 0.015 ||
+      distanceToSegment(x, y, p2[0], p2[1], p3[0], p3[1]) < 0.015) {
+    color = COLORS.white;
+  }
+  if (Math.hypot(x - p1[0], y - p1[1]) < 0.024 ||
+      Math.hypot(x - p2[0], y - p2[1]) < 0.032 ||
+      Math.hypot(x - p3[0], y - p3[1]) < 0.024) {
+    color = COLORS.white;
+  }
+
   return [...color, 255];
 }
 
@@ -88,7 +156,7 @@ function makePNG(size) {
       const alpha = Math.round(sum[3] / samples);
       const rgb = sum[3] > 0
         ? sum.slice(0, 3).map(value => Math.round(value / sum[3] * 255))
-        : COLORS.background;
+        : COLORS.bgBottom;
       const target = rowOffset + 1 + x * 4;
       raw[target] = rgb[0];
       raw[target + 1] = rgb[1];
