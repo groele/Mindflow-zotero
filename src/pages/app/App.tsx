@@ -69,6 +69,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   const [isAiAnalyzing, setIsAiAnalyzing] = useState(false);
   const aiAnalyzingRef = useRef(false);
   const analyzeRequestRef = useRef<(reference?: string) => Promise<void>>(async () => {});
+  const createBlankDocRef = useRef<() => Promise<void>>(async () => {});
   const aiAbortRef = useRef<AbortController | null>(null);
   const aiRequestTokenRef = useRef(0);
   const [aiWorkflow, setAiWorkflow] = useState<{
@@ -128,6 +129,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   const autoSyncTimerRef = useRef<number | undefined>(undefined);
   const saveGenerationRef = useRef(0);
   const pendingNavigationRef = useRef<{ documentId: string; nodeId?: string } | null>(null);
+  const activeDocLoadTokenRef = useRef(0);
   const currentDocIdRef = useRef<string | null>(null);
   currentDocIdRef.current = doc?.id || null;
   latestDocRef.current = doc;
@@ -322,15 +324,23 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   // Reload current workspace (e.g. after full backup restore)
   const reloadWorkspace = useCallback(async () => {
     const loadedDoc = await StorageService.getActiveDocument();
-      const loadedRelationships = loadedDoc.relationships || [];
-      setDoc(loadedDoc);
-      setRelationships(loadedRelationships);
-      cleanDocRef.current = loadedDoc;
-      cleanRelationshipsRef.current = loadedRelationships;
-      setSelectedId(loadedDoc.root.id);
-      historyRef.current.clear();
-      syncHistoryState();
-      setTimeout(() => centerCanvas(), 50);
+    // Guard against race conditions: don't overwrite if current doc is already active and same or newer
+    if (currentDocIdRef.current && currentDocIdRef.current === loadedDoc.id && latestDocRef.current?.updatedAt && loadedDoc.updatedAt <= latestDocRef.current.updatedAt) {
+      return;
+    }
+    const loadedRelationships = loadedDoc.relationships || [];
+    setDoc(loadedDoc);
+    setRelationships(loadedRelationships);
+    cleanDocRef.current = loadedDoc;
+    cleanRelationshipsRef.current = loadedRelationships;
+    latestDocRef.current = loadedDoc;
+    latestRelationshipsRef.current = loadedRelationships;
+    currentDocIdRef.current = loadedDoc.id;
+    setSelectedId(loadedDoc.root.id);
+    setSelectedIds([]);
+    historyRef.current.clear();
+    syncHistoryState();
+    setTimeout(() => centerCanvas(), 50);
   }, [centerCanvas, syncHistoryState]);
 
   const persistArchiveAssociation = useCallback(async (documentId: string, result: ZoteroArchiveResult): Promise<boolean> => {
@@ -653,6 +663,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       : null;
 
     const hasInitialAction = initialAction && (
+      initialAction.mode === 'create_blank' ||
       (initialAction.mode === 'open_document' && !!initialAction.doc) ||
       ((initialAction.mode === 'create_from_selection' || initialAction.mode === 'create_from_items') &&
         Array.isArray(initialAction.items) && initialAction.items.length > 0) ||
@@ -665,7 +676,9 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       initialZoteroActionRef.current = true;
       workspaceReady = (async () => {
         try {
-          if (initialAction.mode === 'open_document') {
+          if (initialAction.mode === 'create_blank') {
+            await createBlankDocRef.current();
+          } else if (initialAction.mode === 'open_document') {
             await openIncomingZoteroDocument(initialAction.doc);
           } else if (initialAction.mode === 'create_from_selection' || initialAction.mode === 'create_from_items') {
             await createMindMapFromZoteroItems(initialAction.items, true);
@@ -812,9 +825,9 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     if (!doc) return;
     if (cleanDocRef.current === doc && cleanRelationshipsRef.current === relationships) return;
     const saveToken = ++pendingSaveTokenRef.current;
-    setSaveStatus({ state: 'saving', message: '保存中…' });
     const timeout = setTimeout(() => {
       if (saveToken !== pendingSaveTokenRef.current) return;
+      setSaveStatus({ state: 'saving', message: '保存中…' });
       const runSave = async () => {
       if (saveToken !== pendingSaveTokenRef.current) return;
       if (currentDocIdRef.current !== doc.id) return;
@@ -1126,9 +1139,9 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       setSelectedId(nextSelectedId);
       setSelectedIds([]);
     } else {
-      const { newRoot } = deleteMultipleNodes(doc.root, ids);
+      const { newRoot, nextSelectedId } = deleteMultipleNodes(doc.root, ids);
       commitRootChange(newRoot);
-      setSelectedId(doc.root.id);
+      setSelectedId(nextSelectedId || doc.root.id);
       setSelectedIds([]);
     }
     playDeleteNode(settings.soundEffects);
@@ -1340,6 +1353,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       color: '#8b5cf6',
     };
     const nextRels = [...relationships, newRel];
+    latestRelationshipsRef.current = nextRels;
     setRelationships(nextRels);
     const updated = { ...doc, relationships: nextRels, updatedAt: Date.now() };
     setDoc(updated);
@@ -1348,6 +1362,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   const handleDeleteRelationship = useCallback((id: string) => {
     if (!doc) return;
     const nextRels = relationships.filter((r) => r.id !== id);
+    latestRelationshipsRef.current = nextRels;
     setRelationships(nextRels);
     const updated = { ...doc, relationships: nextRels, updatedAt: Date.now() };
     setDoc(updated);
@@ -1356,6 +1371,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   const handleEditRelationshipLabel = useCallback((id: string, label: string) => {
     if (!doc) return;
     const nextRels = relationships.map((r) => (r.id === id ? { ...r, label } : r));
+    latestRelationshipsRef.current = nextRels;
     setRelationships(nextRels);
     const updated = { ...doc, relationships: nextRels, updatedAt: Date.now() };
     setDoc(updated);
@@ -1485,12 +1501,19 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
 
   // Create clean blank document
   const handleCreateBlankDoc = useCallback(async () => {
+    const loadToken = ++activeDocLoadTokenRef.current;
     if (!(await flushCurrentDocument())) return;
+    if (loadToken !== activeDocLoadTokenRef.current) return;
+
+    // Prevent any pending initial action or workspace boot from running
+    workspaceBootRef.current = Promise.resolve();
+    initialZoteroActionRef.current = true;
 
     // Clear any cached initial action arguments to ensure clean state
     if (typeof window !== 'undefined') {
       try { delete (window as any)._mindflowInitialAction; } catch (_) {}
       try { if (window.frameElement) delete (window.frameElement as any)._mindflowInitialAction; } catch (_) {}
+      try { if (window.arguments?.[0]) (window.arguments[0] as any).mode = 'open'; } catch (_) {}
     }
 
     const blankDoc = createBlankDocument('新建思维导图');
@@ -1501,11 +1524,14 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     let savedDoc: MindMapDocument;
     try {
       savedDoc = await StorageService.saveDocument(blankDoc);
+      if (loadToken !== activeDocLoadTokenRef.current) return;
       await StorageService.setActiveDocumentId(savedDoc.id);
     } catch (error: any) {
       setSaveStatus({ state: 'error', message: `新导图未完成本地保存：${error?.message || error}` });
       return;
     }
+
+    if (loadToken !== activeDocLoadTokenRef.current) return;
 
     cleanDocRef.current = savedDoc;
     cleanRelationshipsRef.current = [];
@@ -1523,24 +1549,10 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       centerCanvas();
     }, 50);
 
-    const archiveInZotero = isZoteroMode || zoteroHostConnectedRef.current;
-    if (archiveInZotero) {
-      try {
-        const res = await saveMindMapToZoteroAttachment(savedDoc, undefined, {
-          silent: true,
-          archiveToUnlinkedContainer: true,
-        });
-        if (res.success) {
-          await persistArchiveAssociation(savedDoc.id, res);
-        }
-        setSaveStatus({ state: 'saved', message: '已创建空白导图并保存至工作区。' });
-      } catch (error: any) {
-        setSaveStatus({ state: 'saved', message: '已创建空白导图（已保存在本机工作区）。' });
-      }
-    } else {
-      setSaveStatus({ state: 'saved', message: '已创建空白导图。' });
-    }
-  }, [centerCanvas, flushCurrentDocument, isZoteroMode, persistArchiveAssociation, settings.defaultThemeId, settings.defaultLayout, syncHistoryState]);
+    setSaveStatus({ state: 'saved', message: '已创建空白导图。' });
+  }, [centerCanvas, flushCurrentDocument, settings.defaultThemeId, settings.defaultLayout, syncHistoryState]);
+
+  createBlankDocRef.current = handleCreateBlankDoc;
 
   // Open settings handler: directly opens Zotero Preferences in Zotero environment
   const handleOpenSettings = useCallback(() => {
@@ -2033,9 +2045,15 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
             await StorageService.setActiveDocumentId(savedDoc.id);
             cleanDocRef.current = savedDoc;
             cleanRelationshipsRef.current = savedDoc.relationships || [];
+            latestDocRef.current = savedDoc;
+            latestRelationshipsRef.current = cleanRelationshipsRef.current;
+            currentDocIdRef.current = savedDoc.id;
             setRelationships(cleanRelationshipsRef.current);
             setDoc(savedDoc);
             setSelectedId(importedDoc.root.id);
+            setSelectedIds([]);
+            historyRef.current.clear();
+            syncHistoryState();
             setTimeout(() => centerCanvas(), 50);
           }).catch((error) => alert(`导入失败：${error?.message || '无法保存导图'}`));
         } catch (error: any) {
@@ -2056,10 +2074,15 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
           await StorageService.setActiveDocumentId(savedDoc.id);
           cleanDocRef.current = savedDoc;
           cleanRelationshipsRef.current = [];
+          latestDocRef.current = savedDoc;
+          latestRelationshipsRef.current = cleanRelationshipsRef.current;
+          currentDocIdRef.current = savedDoc.id;
           setRelationships(cleanRelationshipsRef.current);
           setDoc(savedDoc);
           setSelectedId(newDoc.root.id);
           setSelectedIds([]);
+          historyRef.current.clear();
+          syncHistoryState();
           setTimeout(() => centerCanvas(), 50);
         }).catch((error) => alert(`Markdown 导入失败：${error?.message || '无法保存导图'}`));
       } else if (fileName.endsWith('.opml')) {
@@ -2077,10 +2100,15 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
           await StorageService.setActiveDocumentId(savedDoc.id);
           cleanDocRef.current = savedDoc;
           cleanRelationshipsRef.current = [];
+          latestDocRef.current = savedDoc;
+          latestRelationshipsRef.current = cleanRelationshipsRef.current;
+          currentDocIdRef.current = savedDoc.id;
           setRelationships(cleanRelationshipsRef.current);
           setDoc(savedDoc);
           setSelectedId(newDoc.root.id);
           setSelectedIds([]);
+          historyRef.current.clear();
+          syncHistoryState();
           setTimeout(() => centerCanvas(), 50);
         }).catch((error) => alert(`OPML 导入失败：${error?.message || '无法保存导图'}`));
       }

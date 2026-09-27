@@ -9,7 +9,7 @@
 
 **English** | [简体中文](README.md) • [English Documentation](README_EN.md)
 
-[![Zotero 插件版本](https://img.shields.io/badge/Zotero%20Plugin-v3.0.0-2563eb?style=flat-square&logo=zotero)](https://github.com/groele/Mindflow-zotero)
+[![Zotero 插件版本](https://img.shields.io/badge/Zotero%20Plugin-v3.1.0-2563eb?style=flat-square&logo=zotero)](https://github.com/groele/Mindflow-zotero)
 [![兼容版本](https://img.shields.io/badge/Zotero-10.0.x-c2410c?style=flat-square)](zotero/manifest.json)
 [![前端技术栈](https://img.shields.io/badge/React-19.3-06b6d4?style=flat-square&logo=react)](package.json)
 [![类型系统](https://img.shields.io/badge/TypeScript-7.0-3178c6?style=flat-square&logo=typescript)](tsconfig.json)
@@ -103,11 +103,11 @@
 ### 安装步骤
 1. 前往 GitHub [Releases](https://github.com/groele/Mindflow-zotero/releases) 下载最新版本的发行包：
    ```text
-   mindflow-zotero-3.0.0.xpi
+   mindflow-zotero-3.1.0.xpi
    ```
 2. 打开 Zotero 10，点击顶部菜单栏 **工具 → 附加组件 (Tools → Add-ons)**；
 3. 点击附加组件管理器右上角的 **齿轮设置图标**，选择 **从文件安装附加组件 (Install Add-on From File...)**；
-4. 选中已下载的 `mindflow-zotero-3.0.0.xpi` 并确认安装；
+4. 选中已下载的 `mindflow-zotero-3.1.0.xpi` 并确认安装；
 5. **重启 Zotero** 即可享受全新体验。
 
 ### 入口快速调用
@@ -199,7 +199,7 @@ npm run build:zotero
 
 打包完成后，安装包将生成至：
 ```text
-dist-zip/mindflow-zotero-3.0.0.xpi
+dist-zip/mindflow-zotero-3.1.0.xpi
 ```
 
 ---

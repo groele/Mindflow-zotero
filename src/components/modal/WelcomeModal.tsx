@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   Sparkles, Plus, BookOpen, LayoutTemplate, Upload,
-  Clock, ArrowRight, X, Lightbulb
+  Clock, ArrowRight, X, Lightbulb, RefreshCw
 } from 'lucide-react';
 import { DocumentSummary, StorageService } from '../../services/storage/storageService';
 import { getSelectedZoteroItems, ZoteroItemData } from '../../services/zotero/zoteroBridge';
@@ -33,15 +33,27 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({
 }) => {
   const [recentDocs, setRecentDocs] = useState<DocumentSummary[]>([]);
   const [selectedZoteroItems, setSelectedZoteroItems] = useState<ZoteroItemData[]>([]);
+  const [isRefreshingZotero, setIsRefreshingZotero] = useState(false);
 
-  useEffect(() => {
-    if (!isOpen) return;
+  const refreshZoteroSelection = useCallback(() => {
     try {
       const items = getSelectedZoteroItems();
       setSelectedZoteroItems(items);
     } catch (_) {
       setSelectedZoteroItems([]);
     }
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    refreshZoteroSelection();
+
+    // Poll selection periodically so switching items in Zotero library pane updates live
+    let interval: ReturnType<typeof setInterval> | null = null;
+    if (isZoteroMode) {
+      interval = setInterval(refreshZoteroSelection, 1500);
+    }
+
     StorageService.getDocumentList()
       .then((list) => {
         // Filter out legacy default doc and take top 4
@@ -49,7 +61,11 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({
         setRecentDocs(filtered.slice(0, 4));
       })
       .catch(() => setRecentDocs([]));
-  }, [isOpen, isZoteroMode]);
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isOpen, isZoteroMode, refreshZoteroSelection]);
 
   if (!isOpen) return null;
 
@@ -160,16 +176,33 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({
                     <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-700 flex items-center justify-center">
                       <BookOpen className="w-[18px] h-[18px]" aria-hidden="true" />
                     </div>
-                    {selectedZoteroItems.length > 0 ? (
-                      <span className="text-xs font-semibold text-emerald-800 dark:text-emerald-200 bg-emerald-100 dark:bg-emerald-900/60 px-2 py-0.5 rounded-md flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" aria-hidden="true"></span>
-                        已选 {selectedZoteroItems.length} 篇文献
-                      </span>
-                    ) : (
-                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-md">
-                        文献协同
-                      </span>
-                    )}
+                    <div className="flex items-center gap-1.5">
+                      {selectedZoteroItems.length > 0 ? (
+                        <span className="text-xs font-semibold text-emerald-800 dark:text-emerald-200 bg-emerald-100 dark:bg-emerald-900/60 px-2 py-0.5 rounded-md flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" aria-hidden="true"></span>
+                          已选 {selectedZoteroItems.length} 篇文献
+                        </span>
+                      ) : (
+                        <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-md">
+                          文献协同
+                        </span>
+                      )}
+                      {isZoteroMode && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIsRefreshingZotero(true);
+                            refreshZoteroSelection();
+                            setTimeout(() => setIsRefreshingZotero(false), 500);
+                          }}
+                          title="刷新 Zotero 选中条目"
+                          className="p-1 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-700/60 transition-colors"
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingZotero ? 'animate-spin text-blue-600' : ''}`} />
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <h3 className="font-bold text-slate-950 dark:text-white text-base leading-snug">
                     从所选论文生成研究导图

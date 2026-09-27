@@ -9,7 +9,7 @@
 
 [简体中文](README.md) • **English** • [English Documentation](README_EN.md)
 
-[![Zotero Plugin Version](https://img.shields.io/badge/Zotero%20Plugin-v3.0.0-2563eb?style=flat-square&logo=zotero)](https://github.com/groele/Mindflow-zotero)
+[![Zotero Plugin Version](https://img.shields.io/badge/Zotero%20Plugin-v3.1.0-2563eb?style=flat-square&logo=zotero)](https://github.com/groele/Mindflow-zotero)
 [![Compatible Version](https://img.shields.io/badge/Zotero-10.0.x-c2410c?style=flat-square)](zotero/manifest.json)
 [![Frontend Stack](https://img.shields.io/badge/React-19.3-06b6d4?style=flat-square&logo=react)](package.json)
 [![Type Safety](https://img.shields.io/badge/TypeScript-7.0-3178c6?style=flat-square&logo=typescript)](tsconfig.json)
@@ -104,11 +104,11 @@ As a landmark release in MindFlow's evolution, **v2.0.0** introduces architectur
 ### Installation Steps
 1. Navigate to GitHub [Releases](https://github.com/groele/Mindflow-zotero/releases) and download the latest release bundle:
    ```text
-   mindflow-zotero-3.0.0.xpi
+   mindflow-zotero-3.1.0.xpi
    ```
 2. Open Zotero 10 and select **Tools → Add-ons** from the top menu bar;
 3. Click the gear icon in the top-right corner of the Add-ons Manager and select **Install Add-on From File...**;
-4. Choose the downloaded `mindflow-zotero-3.0.0.xpi` file and confirm installation;
+4. Choose the downloaded `mindflow-zotero-3.1.0.xpi` file and confirm installation;
 5. **Restart Zotero** to activate the extension.
 
 ### Access Points
@@ -200,7 +200,7 @@ npm run build:zotero
 
 The compiled add-on will be available at:
 ```text
-dist-zip/mindflow-zotero-3.0.0.xpi
+dist-zip/mindflow-zotero-3.1.0.xpi
 ```
 
 ---

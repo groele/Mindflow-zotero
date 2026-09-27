@@ -16,6 +16,10 @@
     includeAbstract: (value) => typeof value === 'boolean',
     includeAnnotations: (value) => typeof value === 'boolean',
     includeTags: (value) => typeof value === 'boolean',
+    aiEndpoint: (value) => typeof value === 'string',
+    aiModel: (value) => typeof value === 'string',
+    aiApiKey: (value) => typeof value === 'string',
+    aiMaxPdfPages: (value) => typeof value === 'number' || typeof value === 'string',
   };
 
   const isMindFlowAttachment = (item) => {
@@ -864,6 +868,19 @@
         });
         toolsPopup.appendChild(toolsItem);
         windowElements.push(toolsItem);
+
+        const blankToolsItem = doc.createXULElement
+          ? doc.createXULElement('menuitem')
+          : doc.createElement('menuitem');
+        blankToolsItem.id = 'mindflow-tools-blank-menu';
+        blankToolsItem.setAttribute('label', 'MindFlow: 新建空白导图');
+        blankToolsItem.setAttribute('image', `${CHROME_ROOT}icons/mindflow.svg`);
+        blankToolsItem.setAttribute('class', 'menuitem-iconic');
+        blankToolsItem.addEventListener('command', () => {
+          this.openMindFlow({ mode: 'create_blank', forceNew: true }, window);
+        });
+        toolsPopup.appendChild(blankToolsItem);
+        windowElements.push(blankToolsItem);
       }
 
       // 2. Add to Item Context Menu (文献列表右键菜单)

@@ -160,9 +160,9 @@ function requestFromHost<T>(type: 'MINDFLOW_PREPARE_PAPER' | 'MINDFLOW_ANALYZE_P
         ? '等待模型分析超时；当前请求已取消，可在预览中重试并恢复已完成的分段。'
         : '准备论文资料超时；请检查 PDF 附件后重试。'));
     }, type === 'MINDFLOW_ANALYZE_PAPER'
-      ? Math.min(30 * 60 * 1000, Math.max(3 * 60 * 1000,
-        (Math.max(1, Number(options.expectedCalls) || 1) * 125000) + 30000))
-      : 180000);
+      ? Math.min(30 * 60 * 1000, Math.max(5 * 60 * 1000,
+        (Math.max(1, Number(options.expectedCalls) || 1) * 180000) + 60000))
+      : 240000);
     window.addEventListener('message', onMessage);
     options.signal?.addEventListener('abort', onAbort, { once: true });
     if (options.signal?.aborted) { onAbort(); return; }

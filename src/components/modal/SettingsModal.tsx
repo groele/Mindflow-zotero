@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   X, Sliders, Cloud, ShieldCheck, Settings, Info, Check, AlertCircle,
   Eye, EyeOff, Loader2, Upload, Download, RefreshCw, HardDrive, Trash2,
-  Sparkles, CheckCircle2, GraduationCap, ExternalLink, Monitor, Pin, AppWindow, BookOpen
+  Sparkles, CheckCircle2, GraduationCap, ExternalLink, Monitor, Pin, AppWindow, BookOpen, Bot
 } from 'lucide-react';
 import { isZoteroEnvironment, setZoteroPref, requestZoteroWindowMode, openZoteroPreferences } from '../../services/zotero/zoteroBridge';
 import { AppSettings, WebDAVConfig } from '../../core/model/settingsTypes';
@@ -21,7 +21,7 @@ interface SettingsModalProps {
   onLicenseChanged?: () => void;
 }
 
-type SettingsTab = 'interface' | 'webdav' | 'backup' | 'editing' | 'zotero' | 'license' | 'about';
+type SettingsTab = 'interface' | 'webdav' | 'backup' | 'editing' | 'zotero' | 'ai' | 'license' | 'about';
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   isOpen,
@@ -44,6 +44,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [listingVersions, setListingVersions] = useState(false);
   const [selectedVersion, setSelectedVersion] = useState('');
 
+  // AI settings states
+  const [testingAi, setTestingAi] = useState(false);
+  const [aiTestResult, setAiTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [showAiApiKey, setShowAiApiKey] = useState(false);
+
   // Backup states
   const [quota, setQuota] = useState<StorageQuotaInfo | null>(null);
   const [backupNotice, setBackupNotice] = useState<string | null>(null);
@@ -61,6 +66,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       setRemoteVersions([]);
       setSelectedVersion('');
       setBackupNotice(null);
+      setAiTestResult(null);
     }
   }, [isOpen]);
 
@@ -70,6 +76,52 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const updated = await SettingsService.updateSettings(patch);
     setCurrentSettings(updated);
     onUpdateSettings(updated);
+    if (isZoteroEnvironment()) {
+      if (patch.aiEndpoint !== undefined) setZoteroPref('aiEndpoint', patch.aiEndpoint);
+      if (patch.aiModel !== undefined) setZoteroPref('aiModel', patch.aiModel);
+      if (patch.aiApiKey !== undefined) setZoteroPref('aiApiKey', patch.aiApiKey);
+      if (patch.aiMaxPdfPages !== undefined) setZoteroPref('aiMaxPdfPages', patch.aiMaxPdfPages);
+    }
+  };
+
+  const handleTestAiConnection = async () => {
+    setTestingAi(true);
+    setAiTestResult(null);
+    try {
+      const endpoint = (currentSettings.aiEndpoint || '').trim();
+      const apiKey = (currentSettings.aiApiKey || '').trim();
+      const model = (currentSettings.aiModel || '').trim();
+      if (!endpoint || !model) {
+        setAiTestResult({ success: false, message: '请先填写接口地址与模型名称。' });
+        setTestingAi(false);
+        return;
+      }
+      const testUrl = endpoint.endsWith('/chat/completions')
+        ? endpoint
+        : `${endpoint.replace(/\/+$/, '')}/chat/completions`;
+      const response = await fetch(testUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+        },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: 'user', content: 'Hi' }],
+          max_tokens: 5,
+        }),
+      });
+      if (response.ok) {
+        setAiTestResult({ success: true, message: `连接成功！模型 ${model} 响应正常。` });
+      } else {
+        const errorText = await response.text().catch(() => '');
+        setAiTestResult({ success: false, message: `接口返回状态 ${response.status}：${errorText.slice(0, 120) || response.statusText}` });
+      }
+    } catch (e: any) {
+      setAiTestResult({ success: false, message: `连接异常：${e?.message || e}（若使用本地 Ollama，请确保已允许跨域）` });
+    } finally {
+      setTestingAi(false);
+    }
   };
 
   const handleWebDAVFieldChange = <K extends keyof WebDAVConfig>(field: K, value: WebDAVConfig[K]) => {
@@ -355,6 +407,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             >
               <GraduationCap className="w-3.5 h-3.5" />
               <span>Zotero 伴读联动</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('ai')}
+              className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium transition-colors ${
+                activeTab === 'ai'
+                  ? 'bg-purple-600 text-white shadow-xs font-semibold'
+                  : 'text-purple-700 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/40'
+              }`}
+            >
+              <Bot className="w-3.5 h-3.5" />
+              <span>AI 模型配置</span>
             </button>
 
             <button
@@ -1203,6 +1267,142 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
             )}
 
+            {/* TAB: AI MODEL CONFIG */}
+            {activeTab === 'ai' && (
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider mb-1">
+                    AI 研读大模型设置
+                  </h3>
+                  <p className="text-[11px] text-slate-400 mb-3">
+                    配置用于学术文献自动研读与结构化知识提取的大模型接口（兼容 OpenAI 规范，支持 DeepSeek、Kimi、Claude、Qwen、Ollama 等）：
+                  </p>
+                </div>
+
+                <div className="space-y-3.5 bg-slate-50/70 dark:bg-slate-900/40 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      API 接口地址 (Base URL)
+                    </label>
+                    <input
+                      type="text"
+                      value={currentSettings.aiEndpoint || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setCurrentSettings((s) => ({ ...s, aiEndpoint: val }));
+                        void handleSaveSettings({ aiEndpoint: val });
+                      }}
+                      placeholder="https://api.openai.com/v1 或 https://api.deepseek.com/v1"
+                      className="w-full px-3 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      若使用本地 Ollama，可填 http://127.0.0.1:11434/v1
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      模型名称 (Model)
+                    </label>
+                    <input
+                      type="text"
+                      value={currentSettings.aiModel || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setCurrentSettings((s) => ({ ...s, aiModel: val }));
+                        void handleSaveSettings({ aiModel: val });
+                      }}
+                      placeholder="gpt-4o-mini 或 deepseek-chat 或 qwen-plus"
+                      className="w-full px-3 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      API 密钥 (API Key)
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showAiApiKey ? 'text' : 'password'}
+                        value={currentSettings.aiApiKey || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setCurrentSettings((s) => ({ ...s, aiApiKey: val }));
+                          void handleSaveSettings({ aiApiKey: val });
+                        }}
+                        placeholder="sk-..."
+                        className="w-full px-3 py-1.5 pr-8 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowAiApiKey((prev) => !prev)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                      >
+                        {showAiApiKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      密钥仅加密保存在本地环境，绝不上传至任何第三方服务器。
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      PDF 论文单篇最大读取页数
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[50, 120, 200].map((pages) => (
+                        <button
+                          key={pages}
+                          type="button"
+                          onClick={() => {
+                            setCurrentSettings((s) => ({ ...s, aiMaxPdfPages: pages }));
+                            void handleSaveSettings({ aiMaxPdfPages: pages });
+                          }}
+                          className={`py-1.5 text-xs rounded-xl font-medium border transition-colors ${
+                            (currentSettings.aiMaxPdfPages || 120) === pages
+                              ? 'bg-purple-600 text-white border-purple-600 font-semibold'
+                              : 'border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
+                          }`}
+                        >
+                          {pages} 页
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="pt-2 flex items-center justify-between">
+                    <button
+                      type="button"
+                      disabled={testingAi}
+                      onClick={handleTestAiConnection}
+                      className="px-4 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-medium text-xs transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                    >
+                      {testingAi && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                      <span>{testingAi ? '正在测试连接…' : '测试 AI 接口连通性'}</span>
+                    </button>
+                  </div>
+
+                  {aiTestResult && (
+                    <div
+                      className={`p-2.5 rounded-xl border text-[11px] flex items-start gap-2 ${
+                        aiTestResult.success
+                          ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300'
+                          : 'bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800 text-red-800 dark:text-red-300'
+                      }`}
+                    >
+                      {aiTestResult.success ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                      )}
+                      <span className="break-all">{aiTestResult.message}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* TAB 6: ABOUT & PRIVACY */}
             {activeTab === 'about' && (
               <div className="space-y-4">
@@ -1212,7 +1412,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-slate-900 dark:text-white">MindFlow 思维导图与伴读笔记</h3>
-                    <p className="text-[11px] text-blue-600 dark:text-blue-400 font-medium">{isZoteroEnvironment() ? 'Zotero 10 插件版 1.6.6' : '浏览器扩展版 3.2.1'}</p>
+                    <p className="text-[11px] text-blue-600 dark:text-blue-400 font-medium">{isZoteroEnvironment() ? 'Zotero 伴读插件版 v3.1.0' : '浏览器扩展版 v3.1.0'}</p>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
                       基于 Chrome 浏览器的模块化、离线优先、全键盘盲操思维导图引擎。
                     </p>

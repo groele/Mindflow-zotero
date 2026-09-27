@@ -771,27 +771,68 @@ export function openItemPdfInZotero(itemKeyOrUri: string | number): boolean {
           return false;
         };
 
-        let pdfAttachment: any = null;
+        const openReader = (pdfAtt: any): boolean => {
+          if (!pdfAtt) return false;
+          let opened = false;
+          const mainWin = Zotero.getMainWindow ? Zotero.getMainWindow() : null;
+          const readerService = Zotero.Reader || mainWin?.Zotero?.Reader;
+
+          if (readerService && typeof readerService.open === 'function') {
+            try {
+              const res = readerService.open(pdfAtt.id);
+              if (res && typeof res.catch === 'function') {
+                res.catch(() => {
+                  try { readerService.open({ itemID: pdfAtt.id }); } catch (_) {}
+                });
+              }
+              opened = true;
+            } catch (_) {
+              try {
+                readerService.open({ itemID: pdfAtt.id });
+                opened = true;
+              } catch (_) {}
+            }
+          }
+
+          if (!opened && typeof Zotero.launchURL === 'function') {
+            try {
+              const groupID = Zotero.Libraries?.get?.(pdfAtt.libraryID)?.groupID;
+              const pdfUri = groupID
+                ? `zotero://open-pdf/groups/${groupID}/items/${pdfAtt.key}`
+                : `zotero://open-pdf/library/items/${pdfAtt.key}`;
+              Zotero.launchURL(pdfUri);
+              opened = true;
+            } catch (_) {}
+          }
+          return opened;
+        };
+
         if (isPdf(item)) {
-          pdfAttachment = item;
+          directOpened = openReader(item);
         } else {
           // Check best attachment if available
           try {
             if (typeof item.getBestAttachment === 'function') {
               const best = item.getBestAttachment();
-              const resolved = best && typeof best.then === 'function' ? null : best;
-              if (isPdf(resolved)) pdfAttachment = resolved;
+              if (best && typeof best.then === 'function') {
+                best.then((resolved: any) => {
+                  if (isPdf(resolved)) openReader(resolved);
+                });
+                directOpened = true;
+              } else if (isPdf(best)) {
+                directOpened = openReader(best);
+              }
             }
           } catch (_) {}
 
-          if (!pdfAttachment && typeof item.getAttachments === 'function') {
+          if (!directOpened && typeof item.getAttachments === 'function') {
             const attIds = item.getAttachments();
             if (Array.isArray(attIds)) {
               for (const attId of attIds) {
                 try {
                   const att = Zotero.Items.get(attId);
                   if (isPdf(att)) {
-                    pdfAttachment = att;
+                    directOpened = openReader(att);
                     break;
                   }
                 } catch (_) {}
@@ -800,41 +841,7 @@ export function openItemPdfInZotero(itemKeyOrUri: string | number): boolean {
           }
         }
 
-        if (pdfAttachment) {
-          const mainWin = Zotero.getMainWindow ? Zotero.getMainWindow() : null;
-          const readerService = Zotero.Reader || mainWin?.Zotero?.Reader;
-
-          if (readerService && typeof readerService.open === 'function') {
-            try {
-              // Zotero.Reader.open takes itemID (number), not an object
-              const res = readerService.open(pdfAttachment.id);
-              if (res && typeof res.catch === 'function') {
-                res.catch(() => {
-                  try { readerService.open({ itemID: pdfAttachment.id }); } catch (_) {}
-                });
-              }
-              directOpened = true;
-            } catch (e) {
-              try {
-                readerService.open({ itemID: pdfAttachment.id });
-                directOpened = true;
-              } catch (_) {}
-            }
-          }
-
-          if (!directOpened && typeof Zotero.launchURL === 'function') {
-            try {
-              const groupID = Zotero.Libraries?.get?.(pdfAttachment.libraryID)?.groupID;
-              const pdfUri = groupID
-                ? `zotero://open-pdf/groups/${groupID}/items/${pdfAttachment.key}`
-                : `zotero://open-pdf/library/items/${pdfAttachment.key}`;
-              Zotero.launchURL(pdfUri);
-              directOpened = true;
-            } catch (_) {}
-          }
-
-          if (directOpened) return true;
-        }
+        if (directOpened) return true;
       }
     } catch (e) {
       console.warn('[MindFlow] openItemPdfInZotero direct call:', e);

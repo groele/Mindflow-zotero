@@ -74,10 +74,19 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
     };
   }, [onClose]);
 
+  const [measuredHeight, setMeasuredHeight] = React.useState(420);
+
+  React.useLayoutEffect(() => {
+    if (menuRef.current) {
+      const h = menuRef.current.offsetHeight;
+      if (h > 100) setMeasuredHeight(h);
+    }
+  }, []);
+
   // Adjust position to stay inside viewport
   const adjustedStyle = React.useMemo(() => {
-    const menuWidth = 200;
-    const menuHeight = 280;
+    const menuWidth = 216;
+    const menuHeight = Math.max(measuredHeight, 380);
     const screenW = window.innerWidth;
     const screenH = window.innerHeight;
 
@@ -85,17 +94,17 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
     let posY = y;
 
     if (posX + menuWidth > screenW) {
-      posX = Math.max(10, screenW - menuWidth - 10);
+      posX = Math.max(10, screenW - menuWidth - 12);
     }
     if (posY + menuHeight > screenH) {
-      posY = Math.max(10, screenH - menuHeight - 10);
+      posY = Math.max(10, screenH - menuHeight - 12);
     }
 
     return {
       left: `${posX}px`,
       top: `${posY}px`,
     };
-  }, [x, y]);
+  }, [x, y, measuredHeight]);
 
   const handleCopyText = async () => {
     try {
@@ -116,7 +125,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
         e.preventDefault();
         e.stopPropagation();
       }}
-      className="fixed z-[100] w-52 py-1.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 shadow-2xl rounded-xl text-xs text-slate-700 dark:text-slate-200 animate-in fade-in zoom-in-95 duration-100 select-none"
+      className="fixed z-[100] w-52 max-h-[calc(100vh-24px)] overflow-y-auto py-1.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 shadow-2xl rounded-xl text-xs text-slate-700 dark:text-slate-200 animate-in fade-in zoom-in-95 duration-100 select-none"
     >
       <div className="px-3 py-1 text-[11px] font-semibold text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-800/80 truncate mb-1">
         {node.text}
