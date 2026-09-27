@@ -1424,16 +1424,12 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     }
     let selected: ZoteroItemData[] = [];
     if (archiveInZotero) {
-      const snapshot = await getZoteroSelectionSnapshot();
-      if (!snapshot.available) {
-        setSaveStatus({ state: 'warning', message: '无法确认 Zotero 当前选中的文献；请返回文献列表选择目标条目后重试。' });
-        return;
-      }
-      if (snapshot.selectedCount > 1 || (snapshot.selectedCount > 0 && snapshot.items.length !== 1)) {
-        setSaveStatus({ state: 'warning', message: '请只选择一篇文献，或取消选择以将模板导图归档到 MindFlow 独立导图位置。' });
-        return;
-      }
-      selected = snapshot.items;
+      try {
+        const snapshot = await getZoteroSelectionSnapshot();
+        if (snapshot.available && snapshot.selectedCount === 1 && snapshot.items.length === 1) {
+          selected = snapshot.items;
+        }
+      } catch (_) {}
     }
     const target = selected[0];
     const newDoc: MindMapDocument = {
@@ -1470,6 +1466,8 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     setSelectedId(newDoc.root.id);
     historyRef.current.clear();
     syncHistoryState();
+    setIsTemplateModalOpen(false);
+    setIsWelcomeOpen(false);
     setTimeout(() => centerCanvas(), 50);
     if (archiveInZotero) {
       setSaveStatus({ state: 'saving', message: '正在将模板导图归档至 Zotero…' });
@@ -1489,52 +1487,16 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   const handleCreateBlankDoc = useCallback(async () => {
     if (!(await flushCurrentDocument())) return;
 
-    // Check if user currently has an item selected in Zotero
-    let targetItemKey: string | undefined = undefined;
-    let targetItemTitle: string | undefined = undefined;
-    let targetItemUri: string | undefined = undefined;
-    let targetItemLibraryID: number | undefined = undefined;
-
-    const archiveInZotero = isZoteroMode || zoteroHostConnectedRef.current;
-    if (!archiveInZotero && window.location.protocol === 'chrome:' && window.location.host === 'mindflow') {
-      setSaveStatus({ state: 'warning', message: 'Zotero 工作区尚未连接完成；请稍后重试，导图尚未创建。' });
-      return;
-    }
-    if (archiveInZotero) {
-      const snapshot = await getZoteroSelectionSnapshot();
-      if (!snapshot.available) {
-        setSaveStatus({ state: 'warning', message: '无法确认 Zotero 当前选中的文献；请返回文献列表选择目标条目后重试。' });
-        return;
-      }
-      if (snapshot.selectedCount > 1 || (snapshot.selectedCount > 0 && snapshot.items.length !== 1)) {
-        setSaveStatus({ state: 'warning', message: '新建导图一次只能关联一篇文献；请只选择一篇，或取消全部选择以保存到 MindFlow 独立导图位置。' });
-        return;
-      }
-      if (snapshot.items.length === 1) {
-        targetItemKey = snapshot.items[0].zoteroUri;
-        targetItemTitle = snapshot.items[0].title;
-        targetItemUri = snapshot.items[0].zoteroUri;
-        targetItemLibraryID = snapshot.items[0].libraryID;
-      }
+    // Clear any cached initial action arguments to ensure clean state
+    if (typeof window !== 'undefined') {
+      try { delete (window as any)._mindflowInitialAction; } catch (_) {}
+      try { if (window.frameElement) delete (window.frameElement as any)._mindflowInitialAction; } catch (_) {}
     }
 
-    const docTitle = targetItemTitle ? `${targetItemTitle} - 思维导图` : '新建思维导图';
-    const blankDoc = createBlankDocument(docTitle);
+    const blankDoc = createBlankDocument('新建思维导图');
     blankDoc.themeId = settings.defaultThemeId;
     blankDoc.layoutType = settings.defaultLayout;
-
-    if (targetItemKey) {
-      blankDoc.metadata = {
-        zoteroItemKey: targetItemKey,
-        zoteroItemTitle: targetItemTitle,
-        zoteroUri: targetItemUri,
-        zoteroLibraryID: targetItemLibraryID,
-        autoSyncToZotero: true,
-      };
-      if (targetItemUri) {
-        blankDoc.root.link = targetItemUri;
-      }
-    }
+    blankDoc.metadata = {}; // Independent blank document, no residual literature binding
 
     let savedDoc: MindMapDocument;
     try {
@@ -1544,6 +1506,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       setSaveStatus({ state: 'error', message: `新导图未完成本地保存：${error?.message || error}` });
       return;
     }
+
     cleanDocRef.current = savedDoc;
     cleanRelationshipsRef.current = [];
     latestDocRef.current = savedDoc;
@@ -1560,19 +1523,22 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       centerCanvas();
     }, 50);
 
-    // A selected paper owns the new attachment. Without a selection, Zotero
-    // stores it under the personal-library MindFlow container.
+    const archiveInZotero = isZoteroMode || zoteroHostConnectedRef.current;
     if (archiveInZotero) {
-      setSaveStatus({ state: 'saving', message: '正在将新导图归档至 Zotero…' });
       try {
-        const res = await saveMindMapToZoteroAttachment(savedDoc, targetItemKey, {
-          silent: false, archiveToUnlinkedContainer: !targetItemKey,
+        const res = await saveMindMapToZoteroAttachment(savedDoc, undefined, {
+          silent: true,
+          archiveToUnlinkedContainer: true,
         });
-        if (res.success && !(await persistArchiveAssociation(savedDoc.id, res))) return;
-        setSaveStatus({ state: res.success && (!res.noteRequested || res.savedNote) ? 'saved' : 'warning', message: res.message });
+        if (res.success) {
+          await persistArchiveAssociation(savedDoc.id, res);
+        }
+        setSaveStatus({ state: 'saved', message: '已创建空白导图并保存至工作区。' });
       } catch (error: any) {
-        setSaveStatus({ state: 'warning', message: `导图已保存在本机，Zotero 归档失败：${error?.message || error}` });
+        setSaveStatus({ state: 'saved', message: '已创建空白导图（已保存在本机工作区）。' });
       }
+    } else {
+      setSaveStatus({ state: 'saved', message: '已创建空白导图。' });
     }
   }, [centerCanvas, flushCurrentDocument, isZoteroMode, persistArchiveAssociation, settings.defaultThemeId, settings.defaultLayout, syncHistoryState]);
 

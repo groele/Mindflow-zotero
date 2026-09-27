@@ -116,7 +116,6 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({
               {/* 1. Blank Map */}
               <button
                 onClick={() => {
-                  onClose();
                   onCreateBlank();
                 }}
                 className="mindflow-welcome-action group min-h-[166px] p-4 sm:p-[18px] rounded-xl border border-blue-300 dark:border-blue-700 bg-blue-50/45 dark:bg-blue-950/25 hover:border-blue-500 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-left flex flex-col justify-between gap-4 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 transition-colors"
