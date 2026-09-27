@@ -103,7 +103,7 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({
               <h2 id="mindflow-welcome-title" className="text-lg sm:text-xl leading-snug font-bold text-slate-950 dark:text-white flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span>欢迎使用 MindFlow 思维导图</span>
                 <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200">
-                  {isZoteroMode ? 'Zotero 10 伴读版' : '工作台'}
+                  Zotero 10 原生学术伴读版 v4.0.0
                 </span>
               </h2>
               <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-300 mt-1">

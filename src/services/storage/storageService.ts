@@ -11,26 +11,9 @@ const STORAGE_KEYS = {
 
 import { safeStorage } from './safeStorage';
 
-// Check if chrome.storage is available
-function isChromeStorage(): boolean {
-  return typeof chrome !== 'undefined' && !!chrome.storage && !!chrome.storage.local;
-}
-
-// Storage wrapper
+// Storage wrapper for Zotero 10 workspace files and dev fallback
 async function getItem(key: string): Promise<string | null> {
   if (isZoteroWorkspace()) return await zoteroWorkspaceStorage('get', { key }) as string | null;
-  if (isChromeStorage()) {
-    return new Promise((resolve, reject) => {
-      chrome.storage.local.get([key], (res) => {
-        const error = chrome.runtime?.lastError;
-        if (error) {
-          reject(new Error(error.message || '读取本地数据失败'));
-          return;
-        }
-        resolve((res[key] as string) || null);
-      });
-    });
-  }
   return Promise.resolve(safeStorage.getItem(key));
 }
 
@@ -53,18 +36,6 @@ async function setItems(items: Record<string, unknown>): Promise<void> {
     }
     return;
   }
-  if (isChromeStorage()) {
-    return new Promise((resolve, reject) => {
-      chrome.storage.local.set(items, () => {
-        const error = chrome.runtime?.lastError;
-        if (error) {
-          reject(new Error(error.message || '保存本地数据失败'));
-          return;
-        }
-        resolve();
-      });
-    });
-  }
   for (const [key, value] of Object.entries(items)) {
     safeStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value));
   }
@@ -75,36 +46,11 @@ async function removeItem(key: string): Promise<void> {
     await zoteroWorkspaceStorage('remove', { key });
     return;
   }
-  if (isChromeStorage()) {
-    return new Promise((resolve, reject) => {
-      chrome.storage.local.remove([key], () => {
-        const error = chrome.runtime?.lastError;
-        if (error) {
-          reject(new Error(error.message || '删除本地数据失败'));
-          return;
-        }
-        resolve();
-      });
-    });
-  }
   safeStorage.removeItem(key);
 }
 
 async function getAllItems(): Promise<Record<string, unknown>> {
   if (isZoteroWorkspace()) return await zoteroWorkspaceStorage('getAll') as Record<string, unknown>;
-  if (isChromeStorage()) {
-    return new Promise((resolve, reject) => {
-      chrome.storage.local.get(null, (items) => {
-        const error = chrome.runtime?.lastError;
-        if (error) {
-          reject(new Error(error.message || '读取本地数据失败'));
-          return;
-        }
-        resolve(items);
-      });
-    });
-  }
-
   return safeStorage.getAll();
 }
 
@@ -193,19 +139,7 @@ export class StorageService {
 
   public static async saveDocument(doc: MindMapDocument, options: { force?: boolean } = {}): Promise<MindMapDocument> {
     const expectedRevision = this.knownRevisions.get(doc.id) ?? revisionOf(doc);
-    let saved: MindMapDocument;
-    if (isChromeStorage() && typeof window !== 'undefined') {
-      const response = await chrome.runtime.sendMessage({
-        type: 'SAVE_DOCUMENT', doc, expectedRevision, force: options.force === true,
-      }) as { success: boolean; doc?: MindMapDocument; error?: string; conflict?: boolean };
-      if (!response?.success || !response.doc) {
-        if (response?.conflict) throw new DocumentConflictError(response.error || '其他窗口已修改此导图');
-        throw new Error(response?.error || '保存导图失败');
-      }
-      saved = response.doc;
-    } else {
-      saved = await this.saveDocumentDirect(doc, expectedRevision, options.force === true);
-    }
+    const saved = await this.saveDocumentDirect(doc, expectedRevision, options.force === true);
     this.knownRevisions.set(doc.id, revisionOf(saved));
     return saved;
   }
@@ -323,15 +257,7 @@ export class StorageService {
     const current = await this.getDocument(id, { trackRevision: false });
     if (!current) return;
     const expectedRevision = revisionOf(current);
-    if (isChromeStorage() && typeof window !== 'undefined') {
-      const response = await chrome.runtime.sendMessage({ type: 'DELETE_DOCUMENT', id, expectedRevision }) as { success?: boolean; error?: string; conflict?: boolean };
-      if (!response?.success) {
-        if (response?.conflict) throw new DocumentConflictError(response.error || '其他窗口已修改此导图');
-        throw new Error(response?.error || '删除导图失败');
-      }
-    } else {
-      await this.deleteDocumentDirect(id, expectedRevision);
-    }
+    await this.deleteDocumentDirect(id, expectedRevision);
     this.knownRevisions.delete(id);
   }
 

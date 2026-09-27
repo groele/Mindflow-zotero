@@ -23,6 +23,10 @@ const ZOTERO_PREF_PATHS: Record<string, string> = {
   'webdav.username': 'webdavUsername',
   'webdav.password': 'webdavPassword',
   'webdav.autoSyncOnSave': 'webdavAutoSync',
+  aiEndpoint: 'aiEndpoint',
+  aiModel: 'aiModel',
+  aiApiKey: 'aiApiKey',
+  aiMaxPdfPages: 'aiMaxPdfPages',
 };
 
 function getPath(value: any, path: string): any {
@@ -61,10 +65,6 @@ function mirrorZoteroPreferences(settings: AppSettings): void {
   zotero.Prefs.set('extensions.mindflow.theme', settings.defaultThemeId, true);
 }
 
-function isChromeStorage(): boolean {
-  return !getZoteroInstance() && typeof chrome !== 'undefined' && !!chrome.storage && !!chrome.storage.local;
-}
-
 function deepMerge(target: any, source: any): any {
   if (!source) return target;
   const output = { ...target };
@@ -97,32 +97,12 @@ export class SettingsService {
     }
 
     let loadedSettings: Partial<AppSettings> | null = null;
-
-    if (isChromeStorage()) {
-      loadedSettings = await new Promise((resolve, reject) => {
-        chrome.storage.local.get([SETTINGS_STORAGE_KEY], (res) => {
-          const error = chrome.runtime?.lastError;
-          if (error) {
-            reject(new Error(error.message || '读取设置失败'));
-            return;
-          }
-          const raw = res[SETTINGS_STORAGE_KEY];
-          if (!raw) return resolve(null);
-          try {
-            resolve(typeof raw === 'string' ? JSON.parse(raw) : raw);
-          } catch {
-            resolve(null);
-          }
-        });
-      });
-    } else {
-      const raw = safeStorage.getItem(SETTINGS_STORAGE_KEY);
-      if (raw) {
-        try {
-          loadedSettings = JSON.parse(raw);
-        } catch {
-          loadedSettings = null;
-        }
+    const raw = safeStorage.getItem(SETTINGS_STORAGE_KEY);
+    if (raw) {
+      try {
+        loadedSettings = JSON.parse(raw);
+      } catch {
+        loadedSettings = null;
       }
     }
 
@@ -139,20 +119,7 @@ export class SettingsService {
     const current = await this.getSettings();
     const updated = deepMerge(current, partial);
 
-    if (isChromeStorage()) {
-      await new Promise<void>((resolve, reject) => {
-        chrome.storage.local.set({ [SETTINGS_STORAGE_KEY]: updated }, () => {
-          const error = chrome.runtime?.lastError;
-          if (error) {
-            reject(new Error(error.message || '保存设置失败'));
-            return;
-          }
-          resolve();
-        });
-      });
-    } else {
-      safeStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(updated));
-    }
+    safeStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(updated));
     this.cachedSettings = updated;
     mirrorZoteroPreferences(updated);
 
@@ -168,21 +135,7 @@ export class SettingsService {
    * Reset settings to default values
    */
   public static async resetSettings(): Promise<AppSettings> {
-    if (isChromeStorage()) {
-      await new Promise<void>((resolve, reject) => {
-        chrome.storage.local.set({ [SETTINGS_STORAGE_KEY]: DEFAULT_SETTINGS }, () => {
-          const error = chrome.runtime?.lastError;
-          if (error) {
-            reject(new Error(error.message || '重置设置失败'));
-            return;
-          }
-          resolve();
-        });
-      });
-    } else {
-      safeStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(DEFAULT_SETTINGS));
-    }
-
+    safeStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(DEFAULT_SETTINGS));
     this.cachedSettings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS)) as AppSettings;
     mirrorZoteroPreferences(DEFAULT_SETTINGS);
     safeStorage.setItem('mindflow_dock_pos', DEFAULT_SETTINGS.workbenchDockPosition);

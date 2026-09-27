@@ -9,14 +9,14 @@
 
 **English** | [简体中文](README.md) • [English Documentation](README_EN.md)
 
-[![Zotero 插件版本](https://img.shields.io/badge/Zotero%20Plugin-v3.1.0-2563eb?style=flat-square&logo=zotero)](https://github.com/groele/Mindflow-zotero)
+[![Zotero 插件版本](https://img.shields.io/badge/Zotero%20Plugin-v4.0.0-2563eb?style=flat-square&logo=zotero)](https://github.com/groele/Mindflow-zotero)
 [![兼容版本](https://img.shields.io/badge/Zotero-10.0.x-c2410c?style=flat-square)](zotero/manifest.json)
 [![前端技术栈](https://img.shields.io/badge/React-19.3-06b6d4?style=flat-square&logo=react)](package.json)
 [![类型系统](https://img.shields.io/badge/TypeScript-7.0-3178c6?style=flat-square&logo=typescript)](tsconfig.json)
 [![构建检查](https://img.shields.io/badge/Build-Passing-10b981?style=flat-square)](scripts/build-zotero.mjs)
 [![开源协议](https://img.shields.io/badge/License-MIT-15803d?style=flat-square)](LICENSE)
 
-[快速安装](#-安装与快速上手) • [v3.0 重大更新](#-v300-跨越式升级) • [核心功能矩阵](#-核心特性矩阵) • [科研工作流](#-典型学术科研工作流) • [存储与同步架构](#-存储与同步安全架构) • [AI 论文导图](#-ai-论文研读导图) • [快捷键指南](#-全键盘高效快捷键) • [源码构建](#-从源码构建)
+[快速安装](#-安装与快速上手) • [v4.0 重大飞跃](#-v400-核心大版本重构) • [v3.0 更新历史](#-v300-跨越式升级) • [核心功能矩阵](#-核心特性矩阵) • [科研工作流](#-典型学术科研工作流) • [存储与同步架构](#-存储与同步安全架构) • [AI 论文导图](#-ai-论文研读导图) • [快捷键指南](#-全键盘高效快捷键) • [源码构建](#-从源码构建)
 
 </div>
 
@@ -24,7 +24,7 @@
 
 ## 📖 项目简介
 
-**MindFlow for Zotero** 是一款深度无缝嵌入 **Zotero 10** 生态的现代知识管理与可视化文献研读工具。
+**MindFlow for Zotero 10** 是一款专为 **Zotero 10** 生态量身打造的现代知识管理与可视化文献研读工具。
 
 在传统学术阅读中，文献题录、PDF 高亮批注与长篇读书笔记往往分散在各个面板中，难以形成宏观的知识脉络与逻辑体系。**MindFlow** 将文献元数据（作者、年份、DOI）、论文核心摘要、PDF 关键划线与批注笔记自动化汇聚为直观清晰、自由推演的层级思维导图：
 - 导图源文件直接作为目标文献条目的**直接子附件**（`.mindflow` 文件，与 PDF 平级保存）；
@@ -34,7 +34,31 @@
 
 ---
 
-## 🚀 v3.0.0 跨越式升级
+## 🚀 v4.0.0 核心大版本重构 (以 Zotero 10 为绝对核心，舍弃旧架构与版本兼容)
+
+作为 MindFlow 发展史上的**里程碑式大版本**，`v4.0.0` 彻底终结了历史遗留的浏览器扩展兼容架构与旧版本包袱，**全面以 Zotero 10 为绝对核心，进行全链路重构与现代化提升**：
+
+### 1. ⚡ 纯粹的现代 Zotero 10 原生架构 (Zero Legacy Overhead)
+- **彻底卸下浏览器扩展包袱**：完全剥离 Chrome MV3 Manifest、后台 Service Worker、Popup/SidePanel 入口与多环境存储分支，大幅降低运行时内存开销与通信延迟；
+- **全速现代 Gecko 运行环境**：严格以 Zotero 10 (`strict_min_version: 10.0`) 为基础，采用现代 ES2022+ 语法和原生 Web 标准，无需降级冗余 Polyfill；
+- **极速纯净 Gecko IIFE 打包**：打包体积缩减至 230KB+，自包含离线运行，无任何外部 CDN 依赖，在局域网、高校机房与保密科研环境下极致顺畅。
+
+### 2. 🛡️ 纯原生工作区与原子灾备落盘引擎
+- **直接对接 Zotero 本地数据目录**：工作区导图物理持久化于本地 `mindflow/workspace/`，通过“临时文件写入 $\to$ 原子替换 $\to$ 回读自检校验 $\to$ 镜像备份”四重机制，彻底杜绝数据丢失；
+- **双轨文献归档体系**：`Ctrl+S` 时自动在目标文献下保存 `.mindflow` 专属子附件，并同步生成剔除冗余摘要的排版大纲富文本 Note 笔记，完美支持移动端与 Web 端漫游。
+
+### 3. 🤖 AI 学术科研研读大模型引擎 v4.0
+- **最新一代推理大模型深度适配**：原生兼容 DeepSeek V3 / R1 (`deepseek-reasoner`)、OpenAI o1 / o3-mini、Claude 3.5 Sonnet、阿里通义千问 Qwen 2.5 等；
+- **免温控探活与自愈降级**：探活严格剥离推理模型不支持的 `temperature`，自动适配 `max_completion_tokens`，杜绝 400 参数冲突；
+- **原生 Fetch 双引擎穿透高校网关**：默认开启 `redirect: 'follow'`，完美穿透高校内网反向代理（如中南大学 `api.chat.csu.edu.cn` 等）与校园 WebVPN，认证信息永不丢失。
+
+### 4. 🎯 PDF 毫秒级双向穿梭与学术全景视野
+- **高亮批注精准回溯**：点击导图节点上的文献或批注链接，一键唤起 Zotero 10 原生 PDF 阅读器并高亮跳转至对应页码；
+- **ItemPane 详情区分区集成**：文献右侧详情面板原生渲染“MindFlow 导图”专属分区，即刻查看并管理该文献关联的全部导图。
+
+---
+
+## 🚀 v3.0.0 跨越式升级历史
 
 作为 MindFlow 发展史上的里程碑跨越式大版本，`v3.0.0` 深度重构了大模型接入架构并升级了桌面级全域右键交互系统：
 
@@ -103,11 +127,11 @@
 ### 安装步骤
 1. 前往 GitHub [Releases](https://github.com/groele/Mindflow-zotero/releases) 下载最新版本的发行包：
    ```text
-   mindflow-zotero-3.1.0.xpi
+   mindflow-zotero-4.0.0.xpi
    ```
 2. 打开 Zotero 10，点击顶部菜单栏 **工具 → 附加组件 (Tools → Add-ons)**；
 3. 点击附加组件管理器右上角的 **齿轮设置图标**，选择 **从文件安装附加组件 (Install Add-on From File...)**；
-4. 选中已下载的 `mindflow-zotero-3.1.0.xpi` 并确认安装；
+4. 选中已下载的 `mindflow-zotero-4.0.0.xpi` 并确认安装；
 5. **重启 Zotero** 即可享受全新体验。
 
 ### 入口快速调用
@@ -199,7 +223,7 @@ npm run build:zotero
 
 打包完成后，安装包将生成至：
 ```text
-dist-zip/mindflow-zotero-3.1.0.xpi
+dist-zip/mindflow-zotero-4.0.0.xpi
 ```
 
 ---

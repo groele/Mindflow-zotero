@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Zotero v4.0.0] - 2026-09-27 (以 Zotero 10 为绝对核心的大版本重构：全面舍弃旧架构兼容与历史包袱)
+
+### 🚀 架构彻底纯化：全面以 Zotero 10 为绝对核心 (Zero Legacy Overhead)
+- **彻底卸载 Chrome 扩展旧架构**：完整剥离历史遗留的浏览器扩展架构代码，包括 Chrome MV3 Manifest、后台 Service Worker (`background.js`)、Popup 与 Sidepanel 多入口配置及 `@types/chrome` 依赖；
+- **全速现代 Gecko 运行环境**：严格限制 `strict_min_version: 10.0`，全面利用现代 ES2022+ 语法特性，剥离冗余的向下兼容垫片（Polyfills）；
+- **极简独立 IIFE 打包**：精简打包流程，将整个插件压缩编译为单文件 IIFE 独立包，XPI 打包体积缩小至 ~230KB，零外部网络或 CDN 依赖，在高校离线局域网与科研专网中即装即用。
+
+### 🛡️ 纯原生工作区与磁盘原子灾备系统
+- **直接对接 Zotero 数据目录**：工作区导图统一直接持久化于本地物理磁盘 `mindflow/workspace/`，通过“临时文件原子写入 $\to$ 重命名原子落盘 $\to$ 回读自检校验 $\to$ 镜像备份”四重机制，彻底杜绝数据损坏风险；
+- **文献直接子附件与结构化富文本笔记双轨归档**：按 `Ctrl+S` 时，自动在目标文献下保存 `.mindflow` 专属子附件（与 PDF 平级），并同步生成剔除冗余摘要的排版大纲富文本 Note 笔记，完美支持移动端与 Web 端漫游。
+
+### 🤖 AI 学术科研研读大模型引擎 v4.0
+- **最新一代推理大模型深度适配**：原生兼容 DeepSeek V3 / R1 (`deepseek-reasoner`)、OpenAI o1 / o3-mini、Claude 3.5 Sonnet、阿里通义千问 Qwen 2.5 等；
+- **免温控探活与自愈降级**：探活严格剥离推理模型不支持的 `temperature`，自动适配 `max_completion_tokens`，杜绝 400 参数冲突；
+- **原生 Fetch 双引擎穿透高校网关**：默认开启 `redirect: 'follow'`，完美穿透高校内网反向代理（如中南大学 `api.chat.csu.edu.cn` 等）与校园 WebVPN，认证信息永不丢失。
+
+### 🎯 PDF 毫秒级双向穿梭与学术全景视野
+- **高亮批注精准回溯**：点击导图节点上的文献或批注链接，一键唤起 Zotero 10 原生 PDF 阅读器并高亮跳转至对应页码；
+- **ItemPane 详情区分区集成**：文献右侧详情面板原生渲染“MindFlow 导图”专属分区，即刻查看并管理该文献关联的全部导图。
+
 ## [Zotero v3.1.0] - 2026-09-27 (全面系统性稳定性与功能优化)
 
 ### 🛡️ 新建空白导图与文献导图加载并发竞态彻底修复 (Race Condition Guard)

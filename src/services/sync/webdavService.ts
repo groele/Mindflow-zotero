@@ -48,22 +48,15 @@ export class WebDAVService {
     }
     return versions.sort((a, b) => b.createdAt - a.createdAt);
   }
-  /** Ask only for the configured HTTPS origin, and only from a user action. */
+  /** Validate URL and ensure secure origin */
   public static async requestServerPermission(serverUrl: string): Promise<boolean> {
-    const url = this.parseSecureServerUrl(serverUrl);
-    if (typeof chrome === 'undefined' || !chrome.permissions) return true;
-
-    try {
-      return await chrome.permissions.request({ origins: [`${url.origin}/*`] });
-    } catch {
-      return false;
-    }
+    this.parseSecureServerUrl(serverUrl);
+    return true;
   }
 
   public static async hasServerPermission(serverUrl: string): Promise<boolean> {
-    const url = this.parseSecureServerUrl(serverUrl);
-    if (typeof chrome === 'undefined' || !chrome.permissions) return true;
-    return chrome.permissions.contains({ origins: [`${url.origin}/*`] });
+    this.parseSecureServerUrl(serverUrl);
+    return true;
   }
 
   private static parseSecureServerUrl(serverUrl: string): URL {

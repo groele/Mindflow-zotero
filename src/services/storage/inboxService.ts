@@ -4,33 +4,8 @@ import { safeStorage } from './safeStorage';
 
 const INBOX_STORAGE_KEY = 'mindflow_inbox_items';
 
-function isChromeStorage(): boolean {
-  return typeof chrome !== 'undefined' && !!chrome.storage && !!chrome.storage.local;
-}
-
 export class InboxService {
   public static async getItems(): Promise<InboxItem[]> {
-    if (isChromeStorage()) {
-      return new Promise((resolve, reject) => {
-        chrome.storage.local.get([INBOX_STORAGE_KEY], (res) => {
-          const error = chrome.runtime?.lastError;
-          if (error) {
-            reject(new Error(error.message || '读取收集箱失败'));
-            return;
-          }
-          const raw = res[INBOX_STORAGE_KEY];
-          if (!raw) return resolve([]);
-          try {
-            const parsed = JSON.parse(raw as string);
-            if (!Array.isArray(parsed)) throw new Error('收集箱数据不是列表');
-            resolve(parsed);
-          } catch (error) {
-            reject(new Error(`收集箱数据损坏：${(error as Error).message}`));
-          }
-        });
-      });
-    }
-
     const raw = safeStorage.getItem(INBOX_STORAGE_KEY);
     if (!raw) return [];
     try {
@@ -82,18 +57,6 @@ export class InboxService {
 
   private static async saveItems(items: InboxItem[]): Promise<void> {
     const serialized = JSON.stringify(items);
-    if (isChromeStorage()) {
-      return new Promise((resolve, reject) => {
-        chrome.storage.local.set({ [INBOX_STORAGE_KEY]: serialized }, () => {
-          const error = chrome.runtime?.lastError;
-          if (error) {
-            reject(new Error(error.message || '保存收集箱失败'));
-            return;
-          }
-          resolve();
-        });
-      });
-    }
     safeStorage.setItem(INBOX_STORAGE_KEY, serialized);
   }
 }

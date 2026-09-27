@@ -20,7 +20,7 @@ import {
   exportToOPML, importFromOPML, exportToInteractiveHTML, printToPDF
 } from '../../services/io/exporter';
 import {
-  isZoteroEnvironment, getSelectedZoteroItems, getZoteroSelectionSnapshot, convertZoteroItemToNode,
+  getSelectedZoteroItems, getZoteroSelectionSnapshot, convertZoteroItemToNode,
   saveMindMapToZoteroNote, saveMindMapToZoteroAttachment, extractZoteroItemData,
   locateItemInZotero, openItemPdfInZotero, openZoteroPreferences, getZoteroInstance,
   ZoteroItemData, ZoteroArchiveResult
@@ -61,7 +61,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [isZoteroMode, setIsZoteroMode] = useState<boolean>(() => isZoteroEnvironment());
+  const isZoteroMode = true;
   const zoteroHostConnectedRef = useRef(false);
   const workspaceBootRef = useRef<Promise<void> | null>(null);
   const initialZoteroActionRef = useRef(false);
@@ -176,22 +176,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     });
   }, []);
 
-  // Zotero's native settings pane can stay open beside an existing map tab.
-  // Follow its canonical preference rather than keeping the mount-time copy.
-  useEffect(() => {
-    if (isZoteroMode) return;
-    let attempts = 0;
-    const timer = window.setInterval(() => {
-      attempts += 1;
-      if (isZoteroEnvironment()) {
-        setIsZoteroMode(true);
-        window.clearInterval(timer);
-      } else if (attempts >= 40) {
-        window.clearInterval(timer);
-      }
-    }, 150);
-    return () => window.clearInterval(timer);
-  }, [isZoteroMode]);
+
 
   useEffect(() => {
     appMountedRef.current = true;
@@ -705,7 +690,6 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
 
       if (data.type === 'MINDFLOW_ZOTERO_CONNECTED') {
         zoteroHostConnectedRef.current = true;
-        setIsZoteroMode(true);
         if (window.parent !== window) {
           try { window.parent.postMessage({ type: 'MINDFLOW_HOST_ACK' }, '*'); } catch (_) {}
         }
@@ -790,24 +774,6 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       }
     };
     window.addEventListener('resize', handleResize);
-
-    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
-      const listener = (msg: any) => {
-        if (msg.type === 'DOC_UPDATED') {
-          setSaveStatus({ state: 'warning', message: '其他窗口更新了导图；本窗口若有编辑，将另存为冲突副本。' });
-        }
-      };
-      chrome.runtime.onMessage.addListener(listener);
-      return () => {
-        disposed = true;
-        chrome.runtime.onMessage.removeListener(listener);
-        window.removeEventListener('beforeunload', handleBeforeUnload);
-        window.removeEventListener('pagehide', handleBeforeUnload);
-        window.removeEventListener('resize', handleResize);
-        window.removeEventListener('message', handleImportMessage);
-        window.removeEventListener('mindflow-import-items', handleImportMessage);
-      };
-    }
 
     return () => {
       disposed = true;

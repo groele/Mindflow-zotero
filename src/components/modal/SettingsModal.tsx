@@ -881,7 +881,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1.5">
                       <div className="flex items-center justify-between text-[11px]">
                         <span className="flex items-center gap-1 font-medium">
-                          <HardDrive className="w-3.5 h-3.5 text-blue-500" /> {isZoteroEnvironment() ? '本机工作区存储使用量' : '本机 Chrome 存储使用量'}
+                          <HardDrive className="w-3.5 h-3.5 text-blue-500" /> Zotero 本地工作区存储使用量
                         </span>
                         <span className="font-semibold text-slate-700 dark:text-slate-300">
                           {formatSize(quota.usedBytes)} / {formatSize(quota.maxBytes)} ({quota.percent}%)
@@ -1411,10 +1411,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     MF
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-slate-900 dark:text-white">MindFlow 思维导图与伴读笔记</h3>
-                    <p className="text-[11px] text-blue-600 dark:text-blue-400 font-medium">{isZoteroEnvironment() ? 'Zotero 伴读插件版 v3.1.0' : '浏览器扩展版 v3.1.0'}</p>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white">MindFlow for Zotero 10</h3>
+                    <p className="text-[11px] text-blue-600 dark:text-blue-400 font-medium">原生学术伴读增强版 v4.0.0</p>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                      基于 Chrome 浏览器的模块化、离线优先、全键盘盲操思维导图引擎。
+                      专为 Zotero 10 现代生态打造，深度集成文献研读、PDF 批注穿梭、AI 论文论证脉络解构与全键盘思维导图。
                     </p>
                   </div>
                 </div>

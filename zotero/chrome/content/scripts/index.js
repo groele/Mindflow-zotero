@@ -1196,9 +1196,21 @@
 
           // B. Open PDF Reader in Zotero
           if (data.type === 'MINDFLOW_OPEN_PDF' && data.key) {
-            const item = resolveItemReference(data.key, data.libraryID);
-            if (item) {
-              void openPDFForItem(item);
+            const rawRef = String(data.key).trim();
+            let directOpened = false;
+            if (rawRef.startsWith('zotero://open-pdf/')) {
+              try {
+                if (typeof Zotero.launchURL === 'function') {
+                  Zotero.launchURL(rawRef);
+                  directOpened = true;
+                }
+              } catch (_) {}
+            }
+            if (!directOpened) {
+              const item = resolveItemReference(data.key, data.libraryID);
+              if (item) {
+                void openPDFForItem(item);
+              }
             }
           }
 

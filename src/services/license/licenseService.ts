@@ -35,25 +35,13 @@ export class LicenseService {
    */
   static async getLicense(): Promise<LicenseInfo> {
     try {
-      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-        const result = await chrome.storage.local.get(STORAGE_KEY);
-        const stored = result[STORAGE_KEY];
-        if (stored && typeof stored === 'object' && 'tier' in stored) {
-          return {
-            ...(stored as LicenseInfo),
-            tier: 'pro',
-            isLifetime: true,
-          };
-        }
-      } else {
-        const stored = safeStorage.getItem(STORAGE_KEY);
-        if (stored) {
-          return {
-            ...JSON.parse(stored),
-            tier: 'pro',
-            isLifetime: true,
-          };
-        }
+      const stored = safeStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        return {
+          ...JSON.parse(stored),
+          tier: 'pro',
+          isLifetime: true,
+        };
       }
     } catch (e) {
       console.warn('Failed to read license from storage:', e);
@@ -158,11 +146,7 @@ export class LicenseService {
     };
 
     try {
-      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-        await chrome.storage.local.set({ [STORAGE_KEY]: licenseInfo });
-      } else {
-        safeStorage.setItem(STORAGE_KEY, JSON.stringify(licenseInfo));
-      }
+      safeStorage.setItem(STORAGE_KEY, JSON.stringify(licenseInfo));
       return { success: true };
     } catch (e: any) {
       return { success: false, error: e?.message || '存储激活信息失败' };
@@ -178,11 +162,7 @@ export class LicenseService {
       isLifetime: true,
       licensee: 'MindFlow 社区用户 (全功能永久免费)',
     };
-    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-      await chrome.storage.local.set({ [STORAGE_KEY]: defaultLicense });
-    } else {
-      safeStorage.setItem(STORAGE_KEY, JSON.stringify(defaultLicense));
-    }
+    safeStorage.setItem(STORAGE_KEY, JSON.stringify(defaultLicense));
   }
 
   /**

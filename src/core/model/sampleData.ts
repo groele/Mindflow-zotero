@@ -32,7 +32,7 @@ export function createGuideDocument(): MindMapDocument {
     updatedAt: Date.now(),
     root: {
       id: 'root_node',
-      text: '🚀 MindFlow 现代思维导图',
+      text: '🚀 MindFlow for Zotero 10',
       isExpanded: true,
       children: [
         {
@@ -50,13 +50,14 @@ export function createGuideDocument(): MindMapDocument {
         },
         {
           id: 'branch_zotero',
-          text: '🎓 Zotero 伴读与学术协同',
+          text: '🎓 Zotero 10 原生学术协同',
           isExpanded: true,
           children: [
-            { id: 'feat_tab', text: '内嵌选项卡与独立窗口随心切换', tags: ['协同'], children: [] },
-            { id: 'feat_import', text: '文献一键成图：自动提取题录与笔记', children: [] },
-            { id: 'feat_jump', text: '双向溯源：点击文献标签直接回溯定位', children: [] },
-            { id: 'feat_export', text: '导图反向同步写回 Zotero 笔记', children: [] }
+            { id: 'feat_tab', text: 'Zotero 10 现代标签页与独立工作区无缝漫游', tags: ['Zotero 10'], children: [] },
+            { id: 'feat_import', text: '文献一键成图：自动提取题录、核心摘要与划线批注', children: [] },
+            { id: 'feat_jump', text: 'PDF 锚点穿梭：点击批注节点一秒直达阅读器高亮位置', children: [] },
+            { id: 'feat_export', text: '双轨持久化：文献下直接保存 .mindflow 附件并同步大纲富文本笔记', children: [] },
+            { id: 'feat_ai', text: 'AI 深度研读：五段式学术论证脉络自动解构（支持 DeepSeek R1/V3、o1/o3-mini）', children: [] }
           ]
         },
         {

@@ -43,9 +43,7 @@ export const MAX_BACKUP_BYTES = 20 * 1024 * 1024;
 const MAX_NODES_PER_DOCUMENT = 25000;
 const MAX_NODE_DEPTH = 256;
 
-function isChromeStorage(): boolean {
-  return typeof chrome !== 'undefined' && !!chrome.storage && !!chrome.storage.local;
-}
+
 
 function countNodes(root: any): number {
   if (!root) return 0;
@@ -237,27 +235,6 @@ export class BackupService {
   // 2. Get snapshots for a document
   public static async getSnapshots(docId: string): Promise<DocSnapshot[]> {
     const key = SNAPSHOT_STORAGE_KEY + docId;
-    if (isChromeStorage()) {
-      return new Promise((resolve, reject) => {
-        chrome.storage.local.get([key], (res) => {
-          const error = chrome.runtime?.lastError;
-          if (error) {
-            reject(new Error(error.message || '读取版本快照失败'));
-            return;
-          }
-          const raw = res[key];
-          if (!raw) return resolve([]);
-          try {
-            const parsed = JSON.parse(raw as string);
-            if (!Array.isArray(parsed)) throw new Error('快照数据不是列表');
-            resolve(parsed);
-          } catch (error) {
-            reject(new Error(`版本快照数据损坏：${(error as Error).message}`));
-          }
-        });
-      });
-    }
-
     const raw = safeStorage.getItem(key);
     if (!raw) return [];
     try {
@@ -366,20 +343,7 @@ export class BackupService {
       }
       // Save merged inbox
       const serialized = JSON.stringify(currentInbox);
-      if (isChromeStorage()) {
-        await new Promise<void>((resolve, reject) => {
-          chrome.storage.local.set({ mindflow_inbox_items: serialized }, () => {
-            const error = chrome.runtime?.lastError;
-            if (error) {
-              reject(new Error(error.message || '恢复收集箱失败'));
-              return;
-            }
-            resolve();
-          });
-        });
-      } else {
-        safeStorage.setItem('mindflow_inbox_items', serialized);
-      }
+      safeStorage.setItem('mindflow_inbox_items', serialized);
     }
 
     // Restore snapshots
@@ -410,32 +374,13 @@ export class BackupService {
 
   // 7. Get approximate storage quota
   public static async getStorageQuota(): Promise<StorageQuotaInfo> {
-    if (isChromeStorage() && chrome.storage.local.getBytesInUse) {
-      return new Promise((resolve) => {
-        chrome.storage.local.getBytesInUse(null, (bytesInUse) => {
-          const error = chrome.runtime?.lastError;
-          if (error) {
-            resolve({ usedBytes: 0, maxBytes: 10 * 1024 * 1024, percent: 0 });
-            return;
-          }
-          const maxBytes = 10 * 1024 * 1024; // 10MB default for chrome.storage.local
-          resolve({
-            usedBytes: bytesInUse || 0,
-            maxBytes,
-            percent: Math.min(100, Math.round(((bytesInUse || 0) / maxBytes) * 100)),
-          });
-        });
-      });
-    }
-
-    // Fallback for safeStorage estimation
     const all = safeStorage.getAll();
     let totalLength = 0;
     for (const [k, v] of Object.entries(all)) {
       totalLength += k.length + (v?.length || 0);
     }
     const usedBytes = totalLength * 2; // UTF-16 characters are 2 bytes
-    const maxBytes = 5 * 1024 * 1024; // 5MB standard for localStorage
+    const maxBytes = 50 * 1024 * 1024; // 50MB for Zotero desktop local workspace
     return {
       usedBytes,
       maxBytes,
@@ -446,18 +391,6 @@ export class BackupService {
   private static async saveSnapshots(docId: string, snapshots: DocSnapshot[]): Promise<void> {
     const key = SNAPSHOT_STORAGE_KEY + docId;
     const serialized = JSON.stringify(snapshots);
-    if (isChromeStorage()) {
-      return new Promise((resolve, reject) => {
-        chrome.storage.local.set({ [key]: serialized }, () => {
-          const error = chrome.runtime?.lastError;
-          if (error) {
-            reject(new Error(error.message || '保存版本快照失败'));
-            return;
-          }
-          resolve();
-        });
-      });
-    }
     safeStorage.setItem(key, serialized);
   }
 }

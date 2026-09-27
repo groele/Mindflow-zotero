@@ -1,8 +1,8 @@
 {
   "manifest_version": 2,
-  "name": "MindFlow - 思维导图与文献研读",
-  "version": "3.1.0",
-  "description": "MindFlow for Zotero: 专为学术科研打造的高颜值全功能思维导图与伴读笔记插件",
+  "name": "MindFlow for Zotero 10",
+  "version": "4.0.0",
+  "description": "MindFlow for Zotero 10: 专为现代 Zotero 10 打造的高颜值全功能学术思维导图与文献研读伴读插件",
   "homepage_url": "https://github.com/groele/Mindflow-zotero",
   "author": "groele",
   "icons": {

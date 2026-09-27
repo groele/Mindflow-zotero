@@ -790,15 +790,11 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           </div>
         )}
 
-        {/* Open in full tab button if in sidepanel or popup */}
+        {/* Open in full tab button if in sidepanel mode */}
         {isSidepanelMode && (
           <button
             onClick={() => {
-              if (typeof chrome !== 'undefined' && chrome.tabs && chrome.runtime) {
-                chrome.tabs.create({ url: chrome.runtime.getURL('index.html') });
-              } else {
-                window.open('index.html', '_blank');
-              }
+              window.open('index.html', '_blank');
             }}
             title="在独立大标签页中全屏打开"
             className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors"

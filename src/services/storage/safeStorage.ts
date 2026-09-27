@@ -1,11 +1,10 @@
 import { getZoteroInstance, isZoteroWorkspace } from '../zotero/zoteroBridge';
 
 /**
- * Universal Safe Storage Abstraction
+ * Safe Storage Abstraction for Zotero 10
  * Supports:
- * 1. Chrome Extension (chrome.storage.local)
- * 2. Zotero 10 Client preferences (Zotero.Prefs; fail closed if disconnected)
- * 3. Browser / Dev Server (localStorage with safe fallbacks)
+ * 1. Zotero 10 Client preferences (Zotero.Prefs; fail closed if disconnected)
+ * 2. Local environment & Dev Server (localStorage with safe memory fallbacks)
  *
  * Document bodies use StorageService's durable Zotero host files instead.
  */

@@ -757,6 +757,16 @@ export function openItemPdfInZotero(itemKeyOrUri: string | number): boolean {
 
   if (Zotero) {
     try {
+      const raw = String(itemKeyOrUri || '').trim();
+      if (raw.startsWith('zotero://open-pdf/')) {
+        try {
+          if (typeof Zotero.launchURL === 'function') {
+            Zotero.launchURL(raw);
+            return true;
+          }
+        } catch (_) {}
+      }
+
       const item = resolveZoteroItem(itemKeyOrUri, Zotero);
 
       if (item) {

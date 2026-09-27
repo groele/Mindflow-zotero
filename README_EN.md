@@ -9,14 +9,14 @@
 
 [简体中文](README.md) • **English** • [English Documentation](README_EN.md)
 
-[![Zotero Plugin Version](https://img.shields.io/badge/Zotero%20Plugin-v3.1.0-2563eb?style=flat-square&logo=zotero)](https://github.com/groele/Mindflow-zotero)
+[![Zotero Plugin Version](https://img.shields.io/badge/Zotero%20Plugin-v4.0.0-2563eb?style=flat-square&logo=zotero)](https://github.com/groele/Mindflow-zotero)
 [![Compatible Version](https://img.shields.io/badge/Zotero-10.0.x-c2410c?style=flat-square)](zotero/manifest.json)
 [![Frontend Stack](https://img.shields.io/badge/React-19.3-06b6d4?style=flat-square&logo=react)](package.json)
 [![Type Safety](https://img.shields.io/badge/TypeScript-7.0-3178c6?style=flat-square&logo=typescript)](tsconfig.json)
 [![Build Status](https://img.shields.io/badge/Build-Passing-10b981?style=flat-square)](scripts/build-zotero.mjs)
 [![License](https://img.shields.io/badge/License-MIT-15803d?style=flat-square)](LICENSE)
 
-[Quick Install](#-installation--quick-start) • [v3.0 Highlights](#-v300-major-release-milestones) • [Feature Matrix](#-core-feature-matrix) • [Workflows](#-scholarly-research-workflows) • [Storage Architecture](#-resilient-3-tier-storage-architecture) • [AI Literature Copilot](#-ai-literature-copilot) • [Shortcuts](#-keyboard-shortcuts) • [Build from Source](#-building-from-source)
+[Quick Install](#-installation--quick-start) • [v4.0 Major Leap](#-v400-core-architecture-reboot) • [v3.0 Highlights](#-v300-major-release-milestones) • [Feature Matrix](#-core-feature-matrix) • [Workflows](#-scholarly-research-workflows) • [Storage Architecture](#-resilient-3-tier-storage-architecture) • [AI Literature Copilot](#-ai-literature-copilot) • [Shortcuts](#-keyboard-shortcuts) • [Build from Source](#-building-from-source)
 
 </div>
 
@@ -24,13 +24,37 @@
 
 ## 📖 Introduction
 
-**MindFlow for Zotero** is a next-generation academic mind-mapping and visual knowledge organization tool designed specifically for the **Zotero 10** ecosystem.
+**MindFlow for Zotero 10** is a next-generation academic mind-mapping and visual knowledge organization tool designed exclusively for the **Zotero 10** ecosystem.
 
 In traditional scholarly research, bibliographic metadata, PDF highlights, and reading notes often remain siloed across disparate panels. **MindFlow** transforms research workflows by automatically consolidating bibliographic records (authors, publication year, journal, DOI), core abstracts, annotations, and notes into an intuitive, bidirectional, and interactive visual graph:
 - Mind map source files are securely archived as **direct child attachments** (`.mindflow` files, alongside PDFs) under the parent literature item;
 - Synchronizes clean, structured **outline notes (HTML Rich Text Notes)** without duplicate text;
 - Instant bidirectional navigation: click any annotation node to teleport directly to the corresponding page and highlighted quote in the Zotero PDF reader;
 - Built-in AI academic copilot with resilient dual-engine transport to deconstruct complex arguments, claims, and experimental evidence chains.
+
+---
+
+## 🚀 v4.0.0 Core Architecture Reboot (Pure Zotero 10, Zero Legacy Overhead)
+
+As the most substantial release in MindFlow's history, **v4.0.0** completely sheds historical backward-compatibility baggage and browser extension shims, **re-architecting the entire codebase with modern Zotero 10 as its singular, dedicated core**:
+
+### 1. ⚡ Pure Zotero 10 Native Architecture (Zero Legacy Overhead)
+- **Purged Browser Extension Baggage**: Completely removed Chrome MV3 Manifests, background service workers, popup/sidepanel entries, and multi-context storage branches, dramatically slashing runtime memory and latency;
+- **Full Modern Gecko Environment**: Strictly targets Zotero 10 (`strict_min_version: 10.0`), embracing modern ES2022+ standards with zero unnecessary polyfills;
+- **Ultra-Compact Gecko IIFE Bundle**: Lean ~230KB packaged XPI archive, 100% self-contained and offline-ready with no external CDN dependencies, ensuring rock-solid stability in air-gapped or university laboratory environments.
+
+### 2. 🛡️ Native Workspace & Atomic Disaster Recovery
+- **Direct Zotero Data Directory Integration**: Workspaces write directly to local disk `mindflow/workspace/` with atomic temporary writes, renaming, read-back verification, and mirror snapshots to completely eliminate data corruption;
+- **Dual-Track Item Archiving**: Pressing `Ctrl+S` saves `.mindflow` as an item child attachment (peer to PDFs) while synchronizing a clean, structured outline note without redundant abstracts.
+
+### 3. 🤖 AI Academic Literature Copilot v4.0
+- **Deep Support for Cutting-Edge Reasoning Models**: Native zero-error compatibility with DeepSeek V3 / R1 (`deepseek-reasoner`), OpenAI o1 / o3-mini, Claude 3.5 Sonnet, Qwen 2.5, and local Ollama instances;
+- **Zero-Conflict Probe & Self-Healing Parameters**: Connection probes automatically strip `temperature` for reasoning models and adapt `max_completion_tokens`;
+- **Native Dual-Engine Fetch with Proxy Traversal**: Default `redirect: 'follow'` transparently traverses university reverse proxies and campus WebVPN without losing authentication headers.
+
+### 4. 🎯 Sub-Second PDF Bidirectional Navigation
+- **Precise Annotation Anchoring**: Click any annotation node to instantly open Zotero 10's native PDF reader and navigate to the exact highlight bounding box;
+- **ItemPane Section Integration**: Directly exposes MindFlow maps under the selected literature item in the native Zotero right sidebar.
 
 ---
 
@@ -104,11 +128,11 @@ As a landmark release in MindFlow's evolution, **v2.0.0** introduces architectur
 ### Installation Steps
 1. Navigate to GitHub [Releases](https://github.com/groele/Mindflow-zotero/releases) and download the latest release bundle:
    ```text
-   mindflow-zotero-3.1.0.xpi
+   mindflow-zotero-4.0.0.xpi
    ```
 2. Open Zotero 10 and select **Tools → Add-ons** from the top menu bar;
 3. Click the gear icon in the top-right corner of the Add-ons Manager and select **Install Add-on From File...**;
-4. Choose the downloaded `mindflow-zotero-3.1.0.xpi` file and confirm installation;
+4. Choose the downloaded `mindflow-zotero-4.0.0.xpi` file and confirm installation;
 5. **Restart Zotero** to activate the extension.
 
 ### Access Points
@@ -200,7 +224,7 @@ npm run build:zotero
 
 The compiled add-on will be available at:
 ```text
-dist-zip/mindflow-zotero-3.1.0.xpi
+dist-zip/mindflow-zotero-4.0.0.xpi
 ```
 
 ---

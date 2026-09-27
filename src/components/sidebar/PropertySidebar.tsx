@@ -56,13 +56,8 @@ export const PropertySidebar: React.FC<PropertySidebarProps> = ({
       .then(list => { if (active) setDocuments(list); })
       .catch(() => { if (active) setDocuments([]); });
     void refresh();
-    const listener = (changes: Record<string, chrome.storage.StorageChange>, areaName: string) => {
-      if (areaName === 'local' && changes.mindflow_docs_index) void refresh();
-    };
-    if (typeof chrome !== 'undefined' && chrome.storage?.onChanged) chrome.storage.onChanged.addListener(listener);
     return () => {
       active = false;
-      if (typeof chrome !== 'undefined' && chrome.storage?.onChanged) chrome.storage.onChanged.removeListener(listener);
     };
   }, [currentDoc.id]);
 
