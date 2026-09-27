@@ -1083,6 +1083,20 @@
               max-width: 16px !important;
               max-height: 16px !important;
             }
+            #mindflow-toolbar-button .toolbarbutton-text {
+              display: none !important;
+              visibility: collapse !important;
+              width: 0 !important;
+              height: 0 !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              overflow: hidden !important;
+              opacity: 0 !important;
+              pointer-events: none !important;
+            }
+            #mindflow-toolbar-button {
+              min-width: 0 !important;
+            }
           `;
           (doc.head || doc.documentElement).appendChild(style);
           windowElements.push(style);
@@ -1432,8 +1446,10 @@
         : toolbarChildren;
       const isMindFlowButton = (button) =>
         button.id === 'mindflow-toolbar-button' ||
+        button.getAttribute('data-mindflow') === 'true' ||
         (button.getAttribute('label') === 'MindFlow' &&
-          String(button.getAttribute('image') || '').includes('/icons/mindflow.svg'));
+          String(button.getAttribute('image') || '').includes('/icons/mindflow.svg')) ||
+        String(button.getAttribute('image') || '').includes('/icons/mindflow.svg');
       const toolbarButtons = leadingActionItems.filter((child) =>
         String(child.localName || child.tagName || '').toLowerCase() === 'toolbarbutton' &&
         !isMindFlowButton(child) &&
@@ -1460,14 +1476,33 @@
       });
 
       btn.id = 'mindflow-toolbar-button';
-      btn.setAttribute('label', 'MindFlow');
+      btn.setAttribute('data-mindflow', 'true');
+      btn.removeAttribute('label');
+      if ('label' in btn) {
+        try { btn.label = ''; } catch (_) {}
+      }
       btn.setAttribute('tooltiptext', '打开 MindFlow 思维导图与文献研读工作区');
+      btn.setAttribute('aria-label', 'MindFlow');
       btn.setAttribute('image', `${CHROME_ROOT}icons/mindflow.svg`);
       btn.setAttribute('class', 'zotero-tb-button toolbarbutton-1 chromeclass-toolbar-additional');
       btn.setAttribute(
         'style',
         'cursor: pointer; margin: 0 3px; display: inline-flex; align-items: center; justify-content: center;'
       );
+
+      // Clean up any internal text elements/nodes if present to ensure pure icon display
+      try {
+        const textElements = btn.querySelectorAll?.('.toolbarbutton-text, label, text');
+        if (textElements) {
+          textElements.forEach((el) => {
+            el.textContent = '';
+            el.style.display = 'none';
+          });
+        }
+        Array.from(btn.childNodes || []).forEach((node) => {
+          if (node.nodeType === 3) node.remove(); // Node.TEXT_NODE
+        });
+      } catch (_e) {}
 
       const trigger = (e) => {
         if (e) {
