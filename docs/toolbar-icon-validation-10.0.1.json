@@ -1,0 +1,33 @@
+{
+  "version": "10.0.1",
+  "date": "2026-09-28",
+  "zoteroVersion": "10.0.3",
+  "metrics": {
+    "mindflow": {
+      "width": 20,
+      "height": 20
+    },
+    "native": {
+      "width": 20,
+      "height": 20
+    },
+    "image": "chrome://mindflow/content/icons/mindflow-toolbar.svg",
+    "label": "",
+    "ariaLabel": "MindFlow"
+  },
+  "hostTests": 36,
+  "frontendTests": 24,
+  "nativeTests": 23,
+  "nativeRestartTests": 3,
+  "totalPassed": 86,
+  "failed": 0,
+  "nativePayloadMatchesPackage": true,
+  "productionEntryCount": 23,
+  "testHarnessIncludedInXPI": false,
+  "typecheck": "passed",
+  "build": "passed",
+  "package": "mindflow-zotero-10.0.1.xpi",
+  "sha256": "1253b716eb7b9e4d3d0cb605c6f7477c972f4ccca19fbb9e87d92c40d1d043d1",
+  "userLibraryModified": false,
+  "published": false
+}

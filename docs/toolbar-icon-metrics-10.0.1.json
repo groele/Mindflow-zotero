@@ -1,0 +1,13 @@
+{
+  "mindflow": {
+    "width": 20,
+    "height": 20
+  },
+  "native": {
+    "width": 20,
+    "height": 20
+  },
+  "image": "chrome://mindflow/content/icons/mindflow-toolbar.svg",
+  "label": "",
+  "ariaLabel": "MindFlow"
+}
