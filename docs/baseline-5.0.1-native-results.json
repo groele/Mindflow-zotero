@@ -1,0 +1,60 @@
+{
+  "version": "10.0.3",
+  "dataDirectory": "tests\\native-test-20260928-192658\\data",
+  "results": [
+    {
+      "name": "A opens its exact attachment",
+      "pass": true
+    },
+    {
+      "name": "B with the same document ID shows B and isolates A",
+      "pass": true
+    },
+    {
+      "name": "settings reload cannot replace A with global active B",
+      "pass": true
+    },
+    {
+      "name": "A→B→A reopen preserves edited content",
+      "pass": true
+    },
+    {
+      "name": "icon has no adjacent MindFlow brand text",
+      "pass": true
+    },
+    {
+      "name": "close and reopen B reuses its isolated workspace ID",
+      "pass": true
+    },
+    {
+      "name": "forceNew creates another map for the same paper",
+      "pass": true
+    },
+    {
+      "name": "archived file contents are registered under exact parents",
+      "pass": true
+    },
+    {
+      "name": "same-parent maps open separate exact tabs",
+      "pass": true
+    },
+    {
+      "name": "standalone A and B remain separate with same embedded ID",
+      "pass": true
+    },
+    {
+      "name": "native item-pane registration exists and toolbar accessible name is retained",
+      "pass": true
+    },
+    {
+      "name": "typing then immediate native tab close retains the latest title",
+      "pass": false,
+      "error": "Error: latest typing lost: Native A Edited",
+      "stack": "check@workspace:/tests/native-test-20260928-192658/profile/extensions/mindflow@groele.org/native-regression.js:7:51\n@workspace:/tests/native-test-20260928-192658/profile/extensions/mindflow@groele.org/native-regression.js:134:12\n"
+    },
+    {
+      "name": "header groups do not overlap at native 1000px window width",
+      "pass": true
+    }
+  ]
+}

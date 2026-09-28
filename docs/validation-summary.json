@@ -1,0 +1,44 @@
+{
+  "pluginVersion": "10.0.0",
+  "date": "2026-09-28",
+  "xpi": "mindflow-zotero-10.0.0.xpi",
+  "sha256": "cc0989a82acfb8e4588ac4715de530b5d5def781c4c0a6e010c2935c377b3337",
+  "packagedPayloadVerified": true,
+  "nativeTestedExactPackage": true,
+  "testBootstrapOnlyAppendsHarness": true,
+  "independentDependencyInstall": "npm ci passed",
+  "cleanDependencyBuildMatches": true,
+  "zoteroVersion": "10.0.3",
+  "nodeVersion": "22.14.0",
+  "powershellVersion": "7.6.6",
+  "typecheck": "passed",
+  "productionBuild": "passed",
+  "syntaxChecks": "passed",
+  "hostTests": {
+    "passed": 36,
+    "failed": 0
+  },
+  "frontendTests": {
+    "passed": 24,
+    "failed": 0
+  },
+  "nativeTests": {
+    "passed": 23,
+    "failed": 0
+  },
+  "nativeRestartTests": {
+    "passed": 3,
+    "failed": 0
+  },
+  "totalPassed": 86,
+  "testProfile": "tests/native-test-20260928-202146",
+  "userLibraryModified": false,
+  "releaseTag": "v10.0.0",
+  "review": "docs/release-v10.md",
+  "limits": [
+    "Live group-library permissions and file sync not exercised",
+    "No live AI provider or WebDAV account calls",
+    "Full workspace restore remains a per-document operation",
+    "Long-duration stress and power-loss recovery not exercised"
+  ]
+}

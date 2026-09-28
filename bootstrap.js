@@ -117,9 +117,11 @@ async function startup({ id, version, resourceURI, rootURI }, reason) {
     ]);
 
     const ctx = {
+      Zotero,
       rootURI,
       addonId: id,
       version,
+      restoreSessionOnStartup: reason === APP_STARTUP,
     };
     ctx._globalThis = ctx;
 

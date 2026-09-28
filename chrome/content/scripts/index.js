@@ -26,7 +26,12 @@
     if (!item || typeof item.isAttachment !== 'function' || !item.isAttachment()) return false;
     const filename = String(item.attachmentFilename || '');
     const title = String((item.getField ? item.getField('title') : item.title) || '');
-    return /\.mindflow$/i.test(filename) || /\.mindflow(?:\s|$)/i.test(title);
+    return filename ? /\.mindflow$/i.test(filename) : /\.mindflow(?:\s|$)/i.test(title);
+  };
+  const sameWindow = (a, b) => {
+    if (!a || !b) return false;
+    try { return (a.wrappedJSObject || a) === (b.wrappedJSObject || b); }
+    catch (_) { return a === b; }
   };
   const escapeHtml = (value) => String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -34,6 +39,24 @@
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+
+  const validateHostDocument = (doc) => {
+    if (!doc || !/^[a-zA-Z0-9_-]{1,148}$/.test(doc.id) || typeof doc.title !== 'string' ||
+        !Number.isFinite(doc.createdAt) || !Number.isFinite(doc.updatedAt) ||
+        !['mindmap', 'logic-right', 'org-down'].includes(doc.layoutType)) throw new Error('导图身份或结构无效');
+    const ids = new Set(), stack = [[doc.root, 0]];
+    while (stack.length) {
+      const [node, depth] = stack.pop();
+      if (!node || typeof node.id !== 'string' || !node.id || typeof node.text !== 'string' ||
+          !Array.isArray(node.children) || depth > 256 || ids.size >= 25000 || ids.has(node.id)) {
+        throw new Error('导图节点无效、重复或超出安全上限');
+      }
+      ids.add(node.id);
+      for (const child of node.children) stack.push([child, depth + 1]);
+    }
+    if (doc.relationships !== undefined && (!Array.isArray(doc.relationships) ||
+        doc.relationships.some(r => !r || !ids.has(r.fromId) || !ids.has(r.toId)))) throw new Error('导图关系线目标不存在');
+  };
 
   const AI_SECTION_KEYS = ['background', 'gap', 'question', 'system', 'method', 'findings',
     'resolution', 'significance', 'limitations', 'nextSteps'];
@@ -496,9 +519,66 @@
   Zotero.MindFlow = {
     rootURI: typeof rootURI !== 'undefined' ? rootURI : '',
     addonId: ADDON_ID,
+    restoreSessionOnStartup: typeof restoreSessionOnStartup !== 'undefined' && restoreSessionOnStartup,
     localizedDocs: new Set(),
     resolveItemReference,
     openTargetIdentity,
+    workspaceOwner(source) {
+      const windows = [...injectedElements.keys()];
+      const main = Zotero.getMainWindow?.();
+      if (main && !windows.includes(main)) windows.push(main);
+      for (const win of windows) for (const tab of win.Zotero_Tabs?._tabs || []) {
+        if (tab.type !== 'mindflow') continue;
+        const frame = tabContainer(win.Zotero_Tabs, tab, win)?.querySelector?.('iframe');
+        if (sameWindow(frame?.contentWindow, source)) return { win, tab, frame };
+      }
+      return null;
+    },
+    updateWorkspaceContext(source, data) {
+      const owner = this.workspaceOwner(source);
+      if (!owner || typeof data.documentId !== 'string' || typeof data.title !== 'string') return false;
+      const { win, tab } = owner;
+      const switched = tab.data?.docId && tab.data.docId !== data.documentId;
+      tab.data = { ...tab.data, docId: data.documentId, doc: null,
+        parentItemUri: data.parentItemUri || null, openedAttachmentKey: data.attachmentKey || null,
+        openedAttachmentLibraryID: data.attachmentLibraryID || null };
+      if (data.attachmentKey && data.attachmentLibraryID) tab.data.targetItemId = `attachment:${data.attachmentLibraryID}:${data.attachmentKey}`;
+      else if (data.parentItemUri && !data.unlinkedContainer && !data.aiDraft) {
+        const parent = resolveItemReference(data.parentItemUri);
+        tab.data.targetItemId = parent ? `items:${itemIdentity(parent)}` : `document:${data.documentId}`;
+      } else if (switched) tab.data.targetItemId = `document:${data.documentId}`;
+      win.Zotero_Tabs.rename?.(tab.id, `MindFlow - ${data.title.trim().slice(0,140)}`);
+      return true;
+    },
+    connectWorkspace(source) {
+      const owner = this.workspaceOwner(source);
+      if (!owner) return false;
+      owner.frame._mindflowReady = true;
+      if (owner.frame._mindflowPending) {
+        source.postMessage(owner.frame._mindflowPending, '*');
+        owner.frame._mindflowPending = null;
+      }
+      return true;
+    },
+    updateStandaloneContext(source, data) {
+      if (!this._standaloneWindows) return;
+      const entry = [...this._standaloneWindows].find(([, win]) => sameWindow(win, source));
+      if (!entry) return;
+      let target = entry[0];
+      if (data.attachmentKey && data.attachmentLibraryID) {
+        target = `attachment:${data.attachmentLibraryID}:${data.attachmentKey}`;
+      } else if (data.parentItemUri && !data.unlinkedContainer && !data.aiDraft) {
+        const parent = resolveItemReference(data.parentItemUri);
+        target = parent ? `items:${itemIdentity(parent)}` : `document:${data.documentId}`;
+      } else if (source._mindflowDocumentId && source._mindflowDocumentId !== data.documentId) {
+        target = `document:${data.documentId}`;
+      }
+      source._mindflowDocumentId = data.documentId;
+      if (target !== entry[0]) {
+        this._standaloneWindows.delete(entry[0]);
+        this._standaloneWindows.set(target, entry[1]);
+      }
+    },
 
     // Durable, per-key workspace files live in Zotero's data directory. Old
     // preference values remain readable and migrate on the next normal save.
@@ -514,6 +594,12 @@
       };
       const fileFor = (key) => PathUtils.join(directory, `${checkedKey(key)}.json`);
       const readFile = async (key) => {
+        // The durable tombstone is the logical deletion point, including when
+        // physical cleanup was interrupted. Never fall back to a legacy copy.
+        if (key.startsWith('mindflow_doc_')) {
+          const markerKey = `mindflow_deleted_doc_${key.slice('mindflow_doc_'.length)}`;
+          if (await IOUtils.exists(fileFor(markerKey)) || Zotero.Prefs?.get?.(`mindflow.${markerKey}`, true)) return null;
+        }
         const path = fileFor(key);
         if (await IOUtils.exists(path)) {
           try {
@@ -521,6 +607,7 @@
             if (key.startsWith('mindflow_doc_')) {
               const parsed = JSON.parse(content);
               if (key !== `mindflow_doc_${parsed?.id}` || !parsed?.root?.id) throw new Error('导图文件名与内容身份不一致');
+              validateHostDocument(parsed);
             }
             return content;
           }
@@ -531,6 +618,7 @@
               if (key.startsWith('mindflow_doc_')) {
                 const parsed = JSON.parse(backupContent);
                 if (key !== `mindflow_doc_${parsed?.id}` || !parsed?.root?.id) throw new Error(`导图主文件和备份身份不一致：${key}`);
+                validateHostDocument(parsed);
               }
               if (!this._workspaceRecoveredKeys) this._workspaceRecoveredKeys = new Set();
               this._workspaceRecoveredKeys.add(key);
@@ -541,19 +629,84 @@
         }
         try {
           const legacy = Zotero.Prefs?.get?.(`mindflow.${key}`, true);
+          if (typeof legacy === 'string' && key.startsWith('mindflow_doc_') &&
+              key !== `mindflow_doc_${JSON.parse(legacy)?.id}`) throw new Error('旧版导图存储键与内容 ID 不一致');
           return typeof legacy === 'string' ? legacy : null;
-        } catch (_) { return null; }
+        } catch (error) { throw new Error(`旧版导图读取失败：${key}；${error}`); }
       };
       if (action === 'get') return readFile(checkedKey(payload.key));
-      if (action === 'setMany') {
-        const entries = Object.entries(payload.items || {});
-        if (!entries.length) return true;
+      if (action === 'mutateSnapshots') {
+        const key = checkedKey(`mindflow_snapshots_${payload.docId}`);
+        const additions = JSON.parse(JSON.stringify(payload.snapshots || []));
+        for (const snapshot of additions) {
+          const doc = JSON.parse(snapshot.data);
+          validateHostDocument(doc);
+          if (!snapshot.id || snapshot.docId !== payload.docId || doc.id !== payload.docId || !Number.isFinite(snapshot.timestamp)) {
+            throw new Error('快照身份与所属导图不一致');
+          }
+        }
+        const operation = (this._workspaceWriteQueue || Promise.resolve()).catch(() => {}).then(async () => {
+          const raw = await readFile(key);
+          let snapshots = raw ? JSON.parse(raw) : [];
+          if (!Array.isArray(snapshots)) throw new Error('快照存储数据损坏');
+          snapshots = snapshots.filter(s => s.id !== payload.removeSnapshotId);
+          for (const snapshot of additions) {
+            if (!snapshots.some(s => s.id === snapshot.id)) snapshots.push(snapshot);
+          }
+          snapshots.sort((a,b) => b.timestamp - a.timestamp);
+          if (Number.isInteger(payload.limit)) snapshots = snapshots.slice(0, Math.max(10, Math.min(50, payload.limit)));
+          const path = fileFor(key), serialized = JSON.stringify(snapshots);
+          await IOUtils.makeDirectory(directory, { createAncestors: true, ignoreExisting: true });
+          await IOUtils.writeUTF8(path, serialized, { tmpPath: `${path}.tmp`, backupFile: `${path}.bak`, flush: true });
+          if (await IOUtils.readUTF8(path) !== serialized) throw new Error('快照写入后校验失败');
+          return snapshots;
+        });
+        this._workspaceWriteQueue = operation.catch(() => {});
+        return operation;
+      }
+      if (action === 'deleteDocument') {
+        const key = checkedKey(`mindflow_doc_${payload.id}`);
+        const operation = (this._workspaceWriteQueue || Promise.resolve()).catch(() => {}).then(async () => {
+          const raw = await readFile(key);
+          if (!raw || (Number(JSON.parse(raw).revision) || 0) !== payload.expectedRevision) {
+            throw new Error('MINDFLOW_REVISION_CONFLICT: 导图已被其他窗口修改或删除');
+          }
+          const markerPath = fileFor(`mindflow_deleted_doc_${payload.id}`);
+          await IOUtils.writeUTF8(markerPath, JSON.stringify({ deletedAt: Date.now(), revision: payload.expectedRevision }),
+            { tmpPath: `${markerPath}.tmp`, flush: true });
+          // Retain .bak for deliberate recovery. Readers always honor marker.
+          try {
+            if (await IOUtils.exists(fileFor(key))) await IOUtils.remove(fileFor(key));
+            Zotero.Prefs?.clear?.(`mindflow.${key}`, true);
+          } catch (error) { Zotero.logError?.('[MindFlow] Deleted document cleanup deferred: ' + error); }
+          return true;
+        });
+        this._workspaceWriteQueue = operation.catch(() => {});
+        return operation;
+      }
+      if (action === 'setMany' || action === 'commitDocument') {
+        const committing = action === 'commitDocument';
+        const commitSnapshot = committing ? JSON.parse(JSON.stringify(payload.doc)) : null;
+        let entries = committing ? [] : Object.entries(payload.items || {});
+        if (!committing && !entries.length) return true;
         for (const [key, value] of entries) {
           checkedKey(key);
           if (typeof value !== 'string') throw new Error('MindFlow 本地保存内容必须是文本');
         }
         const operation = (this._workspaceWriteQueue || Promise.resolve()).catch(() => {}).then(async () => {
           await IOUtils.makeDirectory(directory, { createAncestors: true, ignoreExisting: true });
+          let savedDocument = null;
+          if (committing) {
+            validateHostDocument(commitSnapshot);
+            const key = checkedKey(`mindflow_doc_${commitSnapshot?.id}`);
+            const currentRaw = await readFile(key);
+            const currentRevision = currentRaw ? Number(JSON.parse(currentRaw).revision) || 0 : 0;
+            if (payload.force !== true && currentRevision !== payload.expectedRevision) {
+              throw new Error('MINDFLOW_REVISION_CONFLICT: 导图已被其他窗口修改');
+            }
+            savedDocument = { ...commitSnapshot, revision: currentRevision + 1, updatedAt: Date.now() };
+            entries = [[key, JSON.stringify(savedDocument)]];
+          }
           const recreatedIds = [];
           for (const [key, value] of entries) {
             if (!key.startsWith('mindflow_doc_')) continue;
@@ -563,10 +716,11 @@
             if (key !== `mindflow_doc_${incoming?.id}` || !incoming?.root?.id) {
               throw new Error('导图文件名与文档身份不一致；拒绝覆盖');
             }
+            validateHostDocument(incoming);
             const currentRaw = await readFile(key);
             const deletionMarker = await readFile(`mindflow_deleted_doc_${key.slice('mindflow_doc_'.length)}`);
-            if (currentRaw && deletionMarker) {
-              throw new Error('MINDFLOW_REVISION_CONFLICT: 此导图正在删除；请重新打开工作区');
+            if (deletionMarker && !(committing && payload.force === true)) {
+              throw new Error('MINDFLOW_REVISION_CONFLICT: 此导图已删除；请保留为新导图或明确从备份恢复');
             }
             let currentRevision = 0;
             if (currentRaw) {
@@ -599,7 +753,7 @@
             if (await IOUtils.exists(markerPath)) await IOUtils.remove(markerPath);
             try { Zotero.Prefs?.clear?.(`mindflow.${markerKey}`, true); } catch (_) {}
           }
-          return true;
+          return savedDocument || true;
         });
         this._workspaceWriteQueue = operation.catch(() => {});
         return operation;
@@ -640,12 +794,52 @@
         if (action === 'keys') return [...keys];
         const result = {};
         for (const key of keys) {
-          const value = await readFile(key);
-          if (value !== null) result[key] = value;
+          try {
+            const value = await readFile(key);
+            if (value !== null) result[key] = value;
+          } catch (error) { Zotero.logError?.('[MindFlow] Unreadable workspace record: ' + key + '; ' + error); }
         }
         return result;
       }
       throw new Error('不支持的 MindFlow 存储操作');
+    },
+
+    captureWorkspaceOnClose(source) {
+      // Capture synchronously while the editor still exists. The Promise and
+      // disk I/O then belong to Zotero, so destroying the iframe cannot cancel it.
+      const editor = source?.wrappedJSObject || source;
+      let snapshot;
+      try { snapshot = editor?._mindflowCaptureState?.(); }
+      catch (error) { Zotero.logError?.('[MindFlow] Close capture failed: ' + error); return; }
+      if (!snapshot?.doc) return;
+      snapshot = JSON.parse(JSON.stringify(snapshot));
+      const fingerprint = JSON.stringify(snapshot);
+      if (editor._mindflowClosingFingerprint === fingerprint) return;
+      editor._mindflowClosingFingerprint = fingerprint;
+      const operation = (async () => {
+        let saved;
+        try {
+          saved = await this.workspaceStorage('commitDocument', { doc: snapshot.doc, expectedRevision: snapshot.doc.revision || 0 });
+        } catch (error) {
+          if (!String(error).includes('MINDFLOW_REVISION_CONFLICT:')) throw error;
+          const raw = await this.workspaceStorage('get', { key: `mindflow_doc_${snapshot.doc.id}` });
+          const comparable = doc => JSON.stringify({ ...doc, revision: 0, updatedAt: 0 });
+          if (raw && comparable(JSON.parse(raw)) === comparable(snapshot.doc)) return;
+          const metadata = { ...snapshot.doc.metadata, autoSyncToZotero: false };
+          for (const key of ['zoteroItemKey','zoteroUri','zoteroLibraryID','zoteroItemTitle','zoteroAttachmentKey','zoteroAttachmentLibraryID','mindflowUnlinkedContainer']) delete metadata[key];
+          saved = await this.workspaceStorage('commitDocument', { doc: { ...snapshot.doc,
+            id: `doc_close_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
+            title: `${snapshot.doc.title}（关闭恢复副本）`, metadata, revision: 0 }, expectedRevision: 0 });
+        }
+        if (saved.metadata?.zoteroItemKey && saved.metadata.autoSyncToZotero !== false) {
+          await this.saveMindMapToItem({ doc: saved, parentItemKey: saved.metadata.zoteroItemKey, silent: true });
+        }
+      })();
+      const tracked = operation.catch(error => {
+        Zotero.logError?.('[MindFlow] Closing document was not saved: ' + error);
+      });
+      this._closeSaveQueue = Promise.all([this._closeSaveQueue || Promise.resolve(), tracked]);
+      return tracked;
     },
 
     ensureLocalization(doc) {
@@ -671,6 +865,20 @@
     },
 
     init() {
+      this._lifecycleActive = true;
+      this._quitObserver = { observe: () => this.captureAllWorkspaces() };
+      Services.obs.addObserver(this._quitObserver, 'quit-application-granted');
+      this._shutdownSave = async () => {
+        if (!this._lifecycleActive) return;
+        this.captureAllWorkspaces();
+        await this.drainPendingWrites();
+      };
+      Zotero.addShutdownListener?.(this._shutdownSave);
+      try {
+        const { AsyncShutdown } = ChromeUtils.importESModule('resource://gre/modules/AsyncShutdown.sys.mjs');
+        this._shutdownBarrier = AsyncShutdown.profileBeforeChange;
+        this._shutdownBarrier.addBlocker('MindFlow: saving workspace documents', this._shutdownSave);
+      } catch (error) { Zotero.logError?.('[MindFlow] Shutdown barrier registration failed: ' + error); }
       this.initWindowListener();
       // Inject into any existing windows
       const windows = Services.wm.getEnumerator('navigator:browser');
@@ -713,6 +921,23 @@
       this.registerItemPaneSection();
 
       Zotero.log('[MindFlow] Initialized successfully in Zotero');
+    },
+
+    captureAllWorkspaces() {
+      for (const win of injectedElements.keys()) {
+        for (const frame of win.document?.querySelectorAll?.('.mindflow-workspace-iframe') || []) this.captureWorkspaceOnClose(frame.contentWindow);
+      }
+      for (const win of this._standaloneWindows?.values() || []) if (!win.closed) this.captureWorkspaceOnClose(win);
+    },
+
+    async drainPendingWrites() {
+      let last;
+      do {
+        last = this._workspaceWriteQueue;
+        await this._closeSaveQueue;
+        await last;
+        await this._archiveWriteQueue;
+      } while (last !== this._workspaceWriteQueue);
     },
 
     registerItemPaneSection() {
@@ -860,6 +1085,7 @@
 
     addToWindow(window) {
       if (!window || !window.document) return;
+      this.installTabLifecycle(window);
       const doc = window.document;
 
       // Prevent duplicate injection
@@ -1145,7 +1371,7 @@
           if (!source) return;
           // Only frames created by this plugin can issue privileged host commands.
           const ownerFrame = Array.from(doc.querySelectorAll?.('.mindflow-workspace-iframe') || [])
-            .find((frame) => frame.contentWindow === source);
+            .find((frame) => sameWindow(frame.contentWindow, source));
           if (!ownerFrame) return;
           const responseOrigin = event.origin && event.origin !== 'null' ? event.origin : '*';
 
@@ -1160,7 +1386,7 @@
             const frames = doc.querySelectorAll?.('.mindflow-workspace-iframe, iframe[id^="mindflow-iframe-"], iframe[id="mindflow-tab-iframe"]');
             if (frames) {
               for (const f of frames) {
-                if (f.contentWindow === source) {
+                if (sameWindow(f.contentWindow, source)) {
                   f._mindflowReady = true;
                   if (f._mindflowPending) {
                     try {
@@ -1255,11 +1481,12 @@
           if ((data.type === 'MINDFLOW_SET_TAB_TITLE' || data.type === 'MINDFLOW_DOCUMENT_CONTEXT') &&
               typeof data.title === 'string' && data.title.trim()) {
             const tabs = window.Zotero_Tabs;
-            const ownerTab = tabs?._tabs?.find((tab) => tab.id === ownerFrame._mindflowTabId);
+            const ownerTab = this.workspaceOwner(source)?.tab;
             if (ownerTab?.type === 'mindflow') {
               const displayTitle = `MindFlow - ${data.title.trim().replace(/^MindFlow - /, '').slice(0, 140)}`;
               tabs.rename?.(ownerTab.id, displayTitle);
               if (data.type === 'MINDFLOW_DOCUMENT_CONTEXT' && typeof data.documentId === 'string') {
+                this.updateWorkspaceContext(source, data);
                 const switchedDocument = ownerTab.data?.docId && ownerTab.data.docId !== data.documentId;
                 ownerTab.data = { ...ownerTab.data, docId: data.documentId, doc: null,
                   parentItemUri: data.parentItemUri || null,
@@ -1566,6 +1793,16 @@
 
     removeFromWindow(window) {
       if (!window) return;
+      const hookState = this._tabHookStates?.get(window);
+      if (hookState) {
+        for (const [action, hook, previous] of hookState) {
+          if (window.Zotero_Tabs?.tabHooks?.[action]?.mindflow === hook) {
+            if (previous) window.Zotero_Tabs.tabHooks[action].mindflow = previous;
+            else delete window.Zotero_Tabs.tabHooks[action].mindflow;
+          }
+        }
+        this._tabHookStates.delete(window);
+      }
       const elements = injectedElements.get(window);
       if (elements) {
         for (const el of elements) {
@@ -1578,6 +1815,67 @@
         injectedElements.delete(window);
       }
       this.removeLocalization(window.document);
+    },
+
+    installTabLifecycle(win) {
+      const tabs = win?.Zotero_Tabs;
+      if (!tabs?.tabHooks) return;
+      if (!this._tabHookStates) this._tabHookStates = new WeakMap();
+      if (this._tabHookStates.has(win)) return;
+      const restore = async (tab, index, session = false) => {
+        try {
+          await this._closeSaveQueue;
+          const data = tab.data || {};
+          if (!data.docId) return false;
+          const raw = await this.workspaceStorage('get', { key: `mindflow_doc_${data.docId}` });
+          if (!raw) return false;
+          const doc = JSON.parse(raw);
+          this.openMindFlow({ mode: 'open_document', doc, workspaceDocumentId: doc.id, targetMode: 'tab',
+            openedAttachmentKey: doc.metadata?.zoteroAttachmentKey,
+            openedAttachmentLibraryID: doc.metadata?.zoteroAttachmentLibraryID,
+            tabIndex: index, select: session ? tab.selected === true : true }, win);
+          return true;
+        } catch (error) { Zotero.logError?.('[MindFlow] Tab restoration stopped: ' + error); return false; }
+      };
+      const hooks = {
+        undoClose: (tab, index) => restore(tab, index),
+        restoreState: async (tab, index) => { await restore(tab, index, true); return { itemID: null }; },
+      };
+      const state = [];
+      for (const [action, hook] of Object.entries(hooks)) {
+        if (!tabs.tabHooks[action]) tabs.tabHooks[action] = {};
+        state.push([action, hook, tabs.tabHooks[action].mindflow]);
+        tabs.tabHooks[action].mindflow = hook;
+      }
+      this._tabHookStates.set(win, state);
+      // ZoteroPane can begin restoring session.json before add-on startup.
+      // Reconcile our saved tabs after registering hooks, without re-creating
+      // tabs already restored by the native path.
+      if (this.restoreSessionOnStartup && win === Zotero.getMainWindow?.() && !this._startupSessionScheduled) {
+        this._startupSessionScheduled = true;
+        const savedTabs = Zotero.Session?.state?.windows?.find(w=>w.type==='pane')?.tabs || [];
+        win.setTimeout(() => {
+          this._startupRestoreQueue = (async () => {
+            const occurrences = new Map(), restoredItemIDs = [];
+            for (let i=0;i<savedTabs.length;i++) {
+              const saved = savedTabs[i];
+              if (saved.type === 'mindflow') {
+                if (saved.data?.docId && !tabs._tabs.some(t=>t.type==='mindflow' && t.data?.docId===saved.data.docId)) await restore(saved,i,true);
+              } else if (['reader','note'].includes(saved.type) && saved.data?.itemID) {
+                const identity = `${saved.type}:${saved.data.itemID}`;
+                const occurrence = (occurrences.get(identity) || 0) + 1;
+                occurrences.set(identity,occurrence);
+                const present = tabs._tabs.filter(t=>t.type.startsWith(saved.type) && t.data?.itemID===saved.data.itemID).length;
+                if (present < occurrence) {
+                  const result = await tabs.tabHooks.restoreState[saved.type]?.(saved,i);
+                  if (result?.itemID) restoredItemIDs.push(result.itemID);
+                }
+              }
+            }
+            if (restoredItemIDs.length) await Zotero.Items.loadDataTypes(await Zotero.Items.getAsync(restoredItemIDs));
+          })().catch(error=>Zotero.logError?.('[MindFlow] Startup session reconciliation failed: '+error));
+        },0);
+      }
     },
 
     /**
@@ -1856,6 +2154,7 @@
           (Zotero.getMainWindow && Zotero.getMainWindow().Zotero_Tabs);
 
         if (tabs && typeof tabs.add === 'function') {
+          this.installTabLifecycle(win);
           const serializedItems = Array.isArray(options.items)
             ? options.items.map((i) => this.serializeZoteroItem(i)).filter(Boolean)
             : [];
@@ -1902,12 +2201,15 @@
             docId: options.doc?.id || null,
           };
 
+          let workspaceFrame = null;
           const tabResult = tabs.add({
             type: 'mindflow',
             title: tabTitle,
-            select: true,
+            select: options.select !== false,
+            index: Number.isInteger(options.tabIndex) ? options.tabIndex : undefined,
             data: tabData,
             onClose: () => {
+              this.captureWorkspaceOnClose(workspaceFrame?.contentWindow);
               Zotero.log?.('[MindFlow] Workspace tab closed: ' + tabTitle);
             },
           });
@@ -1922,6 +2224,7 @@
             const doc = container.ownerDocument || win.document;
             const tabId = tabResult?.id || `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
             const iframe = doc.createElement('iframe');
+            workspaceFrame = iframe;
             iframe.id = `mindflow-iframe-${tabId}`;
             iframe.className = 'mindflow-workspace-iframe';
             iframe.setAttribute('src', `${CHROME_ROOT}index.html`);
@@ -2005,10 +2308,19 @@
 
         const win = ww.openWindow(null, url, windowName, features, params);
         if (win) {
+          const appWindow = win.wrappedJSObject || win;
+          appWindow.Zotero = Zotero;
+          appWindow._mindflowInitialAction = params;
           this._standaloneWindows.set(targetId, win);
-          win.addEventListener('unload', () => {
-            if (this._standaloneWindows?.get(targetId) === win) this._standaloneWindows.delete(targetId);
-          }, { once: true });
+          win.addEventListener('beforeunload', () => { this.captureWorkspaceOnClose(win); });
+          win.addEventListener('unload', (event) => {
+            // openWindow first navigates away from about:blank. That unload
+            // must not unregister the workspace which is still starting.
+            if (event.target?.documentURI !== url) return;
+            for (const [key, registered] of this._standaloneWindows || []) {
+              if (registered === win) this._standaloneWindows.delete(key);
+            }
+          });
           try {
             win.addEventListener('load', () => {
               if (win.document) {
@@ -2717,10 +3029,15 @@
     },
 
     saveMindMapToItem(data = {}, targetWindow = null) {
-      const snapshot = JSON.parse(JSON.stringify(data));
-      const operation = (this._archiveWriteQueue || Promise.resolve()).catch(() => {})
+      let snapshot;
+      try { snapshot = JSON.parse(JSON.stringify(data)); }
+      catch (error) { return Promise.resolve({ success: false, message: '导图数据无法序列化；未归档：' + error }); }
+      // Archive and delete must share the same mutation boundary. Otherwise a
+      // queued archive can create a new attachment after a completed deletion.
+      const operation = (this._workspaceWriteQueue || Promise.resolve()).catch(() => {})
         .then(() => this._saveMindMapToItem(snapshot, targetWindow));
       this._archiveWriteQueue = operation.catch(() => {});
+      this._workspaceWriteQueue = this._archiveWriteQueue;
       return operation;
     },
 
@@ -2733,9 +3050,20 @@
 
         const doc = data.doc;
         if (!doc?.id || !doc?.root?.id) return { success: false, message: '导图身份或结构无效；未归档' };
+        validateHostDocument(doc);
+        if (await this.workspaceStorage('get', { key: `mindflow_deleted_doc_${doc.id}` })) {
+          return { success: false, message: '此导图已从工作区删除；已停止后台归档' };
+        }
         const workspaceRaw = await this.workspaceStorage('get', { key: `mindflow_doc_${doc.id}` });
         if (workspaceRaw && (Number(JSON.parse(workspaceRaw).revision) || 0) > (Number(doc.revision) || 0)) {
           return { success: false, message: '当前导图已有更新版本；已停止过时归档，请重新保存' };
+        }
+        if (workspaceRaw) {
+          const current = JSON.parse(workspaceRaw);
+          const content = value => JSON.stringify([value.title, value.root, value.relationships || []]);
+          if ((current.revision || 0) === (doc.revision || 0) && content(current) !== content(doc)) {
+            return { success: false, message: '归档内容与同版本本地导图不一致；请先保存最新编辑' };
+          }
         }
 
         const safeTitle = (String(doc.title || '思维导图')
@@ -2743,8 +3071,8 @@
           .trim()
           .slice(0, 80)) || '思维导图';
         const safeTitleHtml = escapeHtml(safeTitle);
-        const docToken = String(doc.id).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 80);
-        if (!docToken) return { success: false, message: '导图 ID 无法作为有效文件名' };
+        const docToken = String(doc.id);
+        if (!/^[a-zA-Z0-9_-]{1,150}$/.test(docToken)) return { success: false, message: '导图 ID 无法作为有效文件名' };
         const tempToken = `${docToken}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         let parentItem = null;
 
@@ -3117,6 +3445,15 @@
     },
 
     shutdown() {
+      this._lifecycleActive = false;
+      if (this._quitObserver) {
+        try { Services.obs.removeObserver(this._quitObserver,'quit-application-granted'); } catch (_) {}
+        this._quitObserver = null;
+      }
+      if (this._shutdownBarrier && this._shutdownSave) {
+        this._shutdownBarrier.removeBlocker(this._shutdownSave);
+        this._shutdownBarrier = null;
+      }
       if (this.itemPaneSectionID && typeof Zotero.ItemPaneManager?.unregisterSection === 'function') {
         try {
           Zotero.ItemPaneManager.unregisterSection(this.itemPaneSectionID);

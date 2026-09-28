@@ -1,0 +1,112 @@
+@import "tailwindcss" source("../");
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    user-select: none;
+    -webkit-user-select: none;
+  }
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.6);
+}
+
+/* Canvas dot grid pattern */
+.canvas-grid-dots {
+  background-image: radial-gradient(circle, rgba(148, 163, 184, 0.25) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.canvas-grid-dots-dark {
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.15) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* Canvas line grid pattern */
+.canvas-grid-lines {
+  background-image:
+    linear-gradient(to right, rgba(148, 163, 184, 0.15) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(148, 163, 184, 0.15) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.canvas-grid-lines-dark {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* Glassmorphism effects */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.glass-panel-dark {
+  background: rgba(30, 41, 59, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(51, 65, 85, 0.8);
+}
+
+/* MindFlow icon system: quiet slate strokes, consistent weight, color reserved for control state. */
+.mindflow-app {
+  --mf-icon-color: #647789;
+  --mf-icon-color-dark: #a4b1bc;
+}
+
+.mindflow-app svg.lucide {
+  color: var(--mf-icon-color);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.mindflow-app.dark svg.lucide {
+  color: var(--mf-icon-color-dark);
+}
+
+.mindflow-app button:hover svg.lucide,
+.mindflow-app button[aria-pressed="true"] svg.lucide,
+.mindflow-app button[aria-current="page"] svg.lucide,
+.mindflow-app button[class*="text-blue-"] svg.lucide,
+.mindflow-app button[class*="text-sky-"] svg.lucide,
+.mindflow-app button[class*="text-emerald-"] svg.lucide {
+  color: inherit;
+}
+
+/* The welcome dialog uses white glyphs on its two blue icon tiles. */
+.mindflow-welcome-modal .mindflow-welcome-brand svg.lucide,
+.mindflow-welcome-modal .mindflow-welcome-action-icon svg.lucide {
+  color: #fff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mindflow-welcome-modal *,
+  .mindflow-welcome-modal *::before,
+  .mindflow-welcome-modal *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

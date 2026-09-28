@@ -1,8 +1,12 @@
-# Development, temporary and backup directories in repo root
+# Temporary and backup directories
 /backups/
-/scripts/
-/source/
-/docs/
+/tests/
+**/node_modules/
+**/__pycache__/
+*.pyc
+# Historical tracked XPI files remain available; publish new packages as assets.
+/*.xpi
+!/mindflow-zotero-10.0.0.xpi
 
 # OS metadata
 .DS_Store

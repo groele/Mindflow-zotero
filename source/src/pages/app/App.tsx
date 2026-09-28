@@ -1,0 +1,2576 @@
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import {
+  MindMapDocument, MindMapNode, ViewportTransform, LayoutType, InboxItem,
+  RelationshipLink
+} from '../../core/model/types';
+import {
+  addChildNode, addSiblingNode, updateNode, deleteNode,
+  toggleNodeCollapse, moveNode, findNode, findAdjacentNode, generateId,
+  duplicateNode, pasteSubtree, deleteMultipleNodes, updateMultipleNodes,
+  setCollapseByLevel, replaceNodeText, replaceAllNodeText
+} from '../../core/model/treeOps';
+import { computeLayout } from '../../core/layout/layoutEngine';
+import { prepareNodeImage } from '../../core/model/nodeImage';
+import { getTheme } from '../../core/theme/themes';
+import { TemplateDefinition } from '../../core/model/templates';
+import { HistoryManager } from '../../core/history/historyManager';
+import { DocumentConflictError, StorageService } from '../../services/storage/storageService';
+import {
+  exportToPNG, exportToSVG, exportToMarkdown, exportToJSON, importFromMarkdown,
+  exportToOPML, importFromOPML, exportToInteractiveHTML, printToPDF
+} from '../../services/io/exporter';
+import {
+  getSelectedZoteroItems, getZoteroSelectionSnapshot, convertZoteroItemToNode,
+  saveMindMapToZoteroNote, saveMindMapToZoteroAttachment, extractZoteroItemData,
+  locateItemInZotero, openItemPdfInZotero, openZoteroPreferences, getZoteroInstance,
+  ZoteroItemData, ZoteroArchiveResult
+} from '../../services/zotero/zoteroBridge';
+import { playAddNode, playDeleteNode } from '../../services/audio/soundService';
+import { Canvas } from '../../components/canvas/Canvas';
+import { CanvasErrorBoundary } from '../../components/canvas/CanvasErrorBoundary';
+import { Toolbar } from '../../components/toolbar/Toolbar';
+import { PropertySidebar } from '../../components/sidebar/PropertySidebar';
+import { LeftWorkbench, WorkbenchTab } from '../../components/sidebar/LeftWorkbench';
+import { ShortcutsModal } from '../../components/modal/ShortcutsModal';
+import { TemplateModal } from '../../components/modal/TemplateModal';
+import { CommandPalette } from '../../components/command/CommandPalette';
+import { Minimap } from '../../components/minimap/Minimap';
+import { SettingsModal } from '../../components/modal/SettingsModal';
+import { CanvasSearch } from '../../components/search/CanvasSearch';
+import { ContextMenu } from '../../components/menu/ContextMenu';
+import { CanvasContextMenu } from '../../components/menu/CanvasContextMenu';
+import { PresentationMode } from '../../components/presentation/PresentationMode';
+import { AppSettings, DEFAULT_SETTINGS } from '../../core/model/settingsTypes';
+import { createBlankDocument } from '../../core/model/sampleData';
+import { WelcomeModal } from '../../components/modal/WelcomeModal';
+import { SettingsService } from '../../services/storage/settingsService';
+import { BackupService, MAX_BACKUP_BYTES, validateMindMapDocument } from '../../services/storage/backupService';
+import { WebDAVService } from '../../services/sync/webdavService';
+import { safeStorage } from '../../services/storage/safeStorage';
+import { createResearchDocument, prepareResearchAnalysis, requestResearchAnalysis,
+  ResearchInputPreview, ResearchProgress, ResearchSourceSelection } from '../../services/zotero/researchAnalysis';
+import { AIResearchModal, AIResearchStage } from '../../components/modal/AIResearchModal';
+import { Minimize2 } from 'lucide-react';
+import { sameDocumentSource, planIncomingDocument, detachedMetadata } from '../../services/zotero/documentIdentity';
+
+interface AppProps {
+  isSidepanelMode?: boolean;
+}
+
+export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
+  const [doc, setDoc] = useState<MindMapDocument | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const isZoteroMode = true;
+  const zoteroHostConnectedRef = useRef(false);
+  const workspaceBootRef = useRef<Promise<void> | null>(null);
+  const hostActionQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const executeHostActionRef = useRef<(event: any) => Promise<void>>(async () => {});
+  const initialZoteroActionRef = useRef(false);
+  const appMountedRef = useRef(false);
+  const [isAiAnalyzing, setIsAiAnalyzing] = useState(false);
+  const aiAnalyzingRef = useRef(false);
+  const analyzeRequestRef = useRef<(reference?: string) => Promise<void>>(async () => {});
+  const createBlankDocRef = useRef<() => Promise<void>>(async () => {});
+  const aiAbortRef = useRef<AbortController | null>(null);
+  const aiRequestTokenRef = useRef(0);
+  const [aiWorkflow, setAiWorkflow] = useState<{
+    reference: string;
+    stage: AIResearchStage;
+    preview: ResearchInputPreview | null;
+    progress: ResearchProgress | null;
+    error: string;
+  } | null>(null);
+  const [isArchivingAiDraft, setIsArchivingAiDraft] = useState(false);
+  const aiArchivingRef = useRef(false);
+  const [viewport, setViewport] = useState<ViewportTransform>({ x: 0, y: 0, scale: 1 });
+  const clipboardSubtreeRef = useRef<MindMapNode | null>(null);
+  const clipboardNodeTokenRef = useRef<string | null>(null);
+  const clipboardNodeTextRef = useRef<string | null>(null);
+  const imageImportBusyRef = useRef(false);
+
+  // Workbench & Sidebar Layout (Ergonomic left-right docking)
+  const [isWorkbenchOpen, setIsWorkbenchOpen] = useState(false);
+  const [workbenchTab, setWorkbenchTab] = useState<WorkbenchTab>('docs');
+  const [dockPosition, setDockPosition] = useState<'left' | 'right'>(() => {
+    return (safeStorage.getItem('mindflow_dock_pos') as 'left' | 'right') || 'left';
+  });
+
+  const [isPropertySidebarOpen, setIsPropertySidebarOpen] = useState(false);
+  const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+  const [isWelcomeOpen, setIsWelcomeOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isZenMode, setIsZenMode] = useState(false);
+  const importFileInputRef = useRef<HTMLInputElement>(null);
+
+  // New features: In-canvas Search, Presentation Mode, Node Context Menu, Commercial License
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchMatchedIds, setSearchMatchedIds] = useState<string[]>([]);
+  const [focusedTag, setFocusedTag] = useState<string | null>(null);
+  useEffect(() => { setFocusedTag(null); }, [doc?.id]);
+  const [isPresentationOpen, setIsPresentationOpen] = useState(false);
+  const [contextMenuState, setContextMenuState] = useState<{ x: number; y: number; node: MindMapNode } | null>(null);
+  const [canvasContextMenuState, setCanvasContextMenuState] = useState<{ x: number; y: number } | null>(null);
+  const [relationships, setRelationships] = useState<RelationshipLink[]>([]);
+
+  // Settings State
+  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  const [saveStatus, setSaveStatus] = useState<{
+    state: 'saving' | 'saved' | 'warning' | 'error';
+    message: string;
+  }>({ state: 'saved', message: '已保存到本地' });
+  const cleanDocRef = useRef<MindMapDocument | null>(null);
+  const cleanRelationshipsRef = useRef<RelationshipLink[]>([]);
+  const latestDocRef = useRef<MindMapDocument | null>(null);
+  const latestRelationshipsRef = useRef<RelationshipLink[]>([]);
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const zoteroSyncQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const pendingSaveTokenRef = useRef(0);
+  const autoSyncTimerRef = useRef<number | undefined>(undefined);
+  const saveGenerationRef = useRef(0);
+  const pendingNavigationRef = useRef<{ documentId: string; nodeId?: string } | null>(null);
+  const activeDocLoadTokenRef = useRef(0);
+  const currentDocIdRef = useRef<string | null>(null);
+  currentDocIdRef.current = doc?.id || null;
+  latestDocRef.current = doc;
+  latestRelationshipsRef.current = relationships;
+  useEffect(() => () => window.clearTimeout(autoSyncTimerRef.current), []);
+
+  // Load Settings on mount & handle Welcome display
+  useEffect(() => {
+    SettingsService.getSettings().then((loaded) => {
+      setSettings(loaded);
+      setDockPosition(loaded.workbenchDockPosition);
+
+      // Check if opened directly with context-action arguments
+      let hasDirectAction = false;
+      const initialAction = typeof window !== 'undefined'
+        ? ((window as any)._mindflowInitialAction || (window.frameElement as any)?._mindflowInitialAction || window.arguments?.[0]?.wrappedJSObject || window.arguments?.[0])
+        : null;
+      if (initialAction && (
+        (initialAction.mode === 'open_document' && !!initialAction.doc) ||
+        ((initialAction.mode === 'create_from_selection' || initialAction.mode === 'create_from_items') &&
+          Array.isArray(initialAction.items) && initialAction.items.length > 0) ||
+        (initialAction.mode === 'create_from_collection' && Array.isArray(initialAction.items)) ||
+        (initialAction.mode === 'ai_analyze' && Array.isArray(initialAction.items) && !!initialAction.items[0]?.zoteroUri)
+      )) {
+        hasDirectAction = true;
+      }
+      if (loaded.showWelcomeOnStartup && !hasDirectAction) {
+        setIsWelcomeOpen(true);
+      }
+    });
+  }, []);
+
+
+
+  useEffect(() => {
+    appMountedRef.current = true;
+    return () => { appMountedRef.current = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!isZoteroMode) return;
+    const zotero = getZoteroInstance();
+    const refresh = () => {
+      void SettingsService.getSettings().then((loaded) => {
+        setSettings(loaded);
+        setDockPosition(loaded.workbenchDockPosition);
+      }).catch((error) => console.warn('[MindFlow] Could not refresh settings:', error));
+    };
+    const observer = zotero?.Prefs?.registerObserver?.('mindflow.mindflow_app_settings', refresh, true);
+    window.addEventListener('focus', refresh);
+    const onVisible = () => { if (!document.hidden) refresh(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', onVisible);
+      if (observer) zotero?.Prefs?.unregisterObserver?.(observer);
+    };
+  }, [isZoteroMode]);
+
+  // History Manager
+  const historyRef = useRef<HistoryManager>(new HistoryManager(50));
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerSize, setContainerSize] = useState({ width: 1000, height: 800 });
+
+  // Update history states
+  const syncHistoryState = useCallback(() => {
+    setCanUndo(historyRef.current.canUndo());
+    setCanRedo(historyRef.current.canRedo());
+  }, []);
+
+  const handleToggleDockPosition = () => {
+    const next = dockPosition === 'left' ? 'right' : 'left';
+    setDockPosition(next);
+    SettingsService.updateSettings({ workbenchDockPosition: next }).then(setSettings);
+  };
+
+  // Center canvas on root or specific node
+  const centerCanvas = useCallback((bounds?: { minX: number; maxX: number; minY: number; maxY: number }) => {
+    if (!containerRef.current) return;
+    const cw = containerRef.current.clientWidth || 1000;
+    const ch = containerRef.current.clientHeight || 800;
+    setContainerSize({ width: cw, height: ch });
+
+    if (bounds) {
+      const bw = bounds.maxX - bounds.minX;
+      const bh = bounds.maxY - bounds.minY;
+      const scaleW = (cw - 120) / Math.max(bw, 200);
+      const scaleH = (ch - 120) / Math.max(bh, 200);
+      const fitScale = Math.min(Math.max(Math.min(scaleW, scaleH), 0.5), 1.15);
+
+      const midX = (bounds.minX + bounds.maxX) / 2;
+      const midY = (bounds.minY + bounds.maxY) / 2;
+
+      setViewport({
+        x: cw / 2 - midX * fitScale,
+        y: ch / 2 - midY * fitScale,
+        scale: fitScale,
+      });
+    } else {
+      setViewport({
+        x: cw / 2,
+        y: ch / 2,
+        scale: 1,
+      });
+    }
+  }, []);
+
+  // Document changes cancel the debounced save. Flush the latest editor state
+  // first so switching maps cannot silently discard recent typing.
+  const flushCurrentDocument = useCallback(async (allowDuringAiArchive = false): Promise<boolean> => {
+    if (aiArchivingRef.current && !allowDuringAiArchive) {
+      setSaveStatus({ state: 'warning', message: '正在归档 AI 草稿，请等待完成后再切换或保存导图。' });
+      return false;
+    }
+    try {
+      pendingSaveTokenRef.current += 1;
+      await saveQueueRef.current;
+      const latest = latestDocRef.current;
+      const latestRelationships = latestRelationshipsRef.current;
+      if (!latest || (cleanDocRef.current === latest && cleanRelationshipsRef.current === latestRelationships)) return true;
+      try {
+        const saved = await StorageService.saveDocument({ ...latest, relationships: latestRelationships });
+        if (latestDocRef.current !== latest || latestRelationshipsRef.current !== latestRelationships) {
+          setSaveStatus({ state: 'warning', message: '保存期间又有新编辑；请暂停编辑后重试切换。' });
+          return false;
+        }
+        cleanDocRef.current = saved;
+        cleanRelationshipsRef.current = latestRelationships;
+        latestDocRef.current = saved;
+        setDoc((previous) => previous === latest ? saved : previous);
+        return true;
+      } catch (error) {
+        if (!(error instanceof DocumentConflictError)) throw error;
+        const copy = await StorageService.saveDocument({
+          ...latest,
+          relationships: latestRelationships,
+          metadata: detachedMetadata(latest.metadata),
+          id: 'doc_' + generateId(),
+          title: `${latest.title}（冲突副本）`,
+          revision: 0,
+          createdAt: Date.now(),
+        });
+        if (currentDocIdRef.current !== latest.id) return false;
+        await StorageService.setActiveDocumentId(copy.id);
+        cleanDocRef.current = copy;
+        cleanRelationshipsRef.current = latestRelationships;
+        setDoc((previous) => previous?.id === latest.id ? {
+          ...previous, id: copy.id, title: copy.title,
+          revision: copy.revision, createdAt: copy.createdAt, metadata: copy.metadata,
+        } : previous);
+        setSaveStatus({ state: 'warning', message: `原导图发生版本冲突；编辑已切换到「${copy.title}」。请核对副本，再重试刚才的操作。` });
+        // Stop the requested switch/archive so it cannot act on the stale original.
+        return false;
+      }
+    } catch (error: any) {
+      setSaveStatus({ state: 'error', message: `切换已停止：当前导图保存失败：${error?.message || '存储不可用'}` });
+      return false;
+    }
+  }, []);
+
+  useEffect(() => {
+    const editor = window as any;
+    editor._mindflowCaptureState = () => {
+      let latest = latestDocRef.current;
+      if (latest) {
+        for (const input of document.querySelectorAll<HTMLInputElement>('[data-mindflow-node-draft]')) {
+          const id = input.dataset.mindflowNodeDraft;
+          const text = input.value.trim();
+          if (id && text && findNode(latest.root, id)?.text !== text) {
+            latest = { ...latest, root: updateNode(latest.root, id, { text }) };
+          }
+        }
+      }
+      if (!latest || (latest === cleanDocRef.current && latestRelationshipsRef.current === cleanRelationshipsRef.current)) return null;
+      return { doc: { ...latest, relationships: latestRelationshipsRef.current } };
+    };
+    return () => { delete editor._mindflowCaptureState; };
+  }, []);
+
+  // Reload current workspace (e.g. after full backup restore)
+  const reloadWorkspace = useCallback(async () => {
+    const token = ++activeDocLoadTokenRef.current;
+    const loadedDoc = await StorageService.getActiveDocument();
+    if (token !== activeDocLoadTokenRef.current) return;
+    // Guard against race conditions: don't overwrite if current doc is already active and same or newer
+    if (currentDocIdRef.current && currentDocIdRef.current === loadedDoc.id && latestDocRef.current?.updatedAt && loadedDoc.updatedAt <= latestDocRef.current.updatedAt) {
+      return;
+    }
+    const loadedRelationships = loadedDoc.relationships || [];
+    setDoc(loadedDoc);
+    setRelationships(loadedRelationships);
+    cleanDocRef.current = loadedDoc;
+    cleanRelationshipsRef.current = loadedRelationships;
+    latestDocRef.current = loadedDoc;
+    latestRelationshipsRef.current = loadedRelationships;
+    currentDocIdRef.current = loadedDoc.id;
+    setSelectedId(loadedDoc.root.id);
+    setSelectedIds([]);
+    historyRef.current.clear();
+    syncHistoryState();
+    setTimeout(() => centerCanvas(), 50);
+  }, [centerCanvas, syncHistoryState]);
+
+  const persistArchiveAssociation = useCallback(async (documentId: string, result: ZoteroArchiveResult, reviewedAiDraft = false): Promise<boolean> => {
+    if (!result.parentItemUri) {
+      setSaveStatus({ state: 'warning', message: '附件已归档，但 Zotero 未返回归档位置；本地导图关联尚未保存。' });
+      return false;
+    }
+    if (!(await flushCurrentDocument(reviewedAiDraft))) return false;
+    const latest = latestDocRef.current;
+    if (latest?.id !== documentId) {
+      setSaveStatus({ state: 'warning', message: '附件已归档，但当前导图已切换；请重新打开导图检查归档关联。' });
+      return false;
+    }
+    const linkedMetadata = {
+      ...latest.metadata,
+      zoteroItemKey: result.parentItemUri,
+      zoteroUri: result.parentItemUri,
+      zoteroLibraryID: result.parentLibraryID,
+      zoteroItemTitle: result.parentItemTitle,
+      zoteroAttachmentKey: result.attachmentKey,
+      zoteroAttachmentLibraryID: result.attachmentLibraryID,
+      mindflowUnlinkedContainer: result.usedUnlinkedContainer === true,
+      autoSyncToZotero: true,
+      ...(reviewedAiDraft ? { aiDraft: false } : {}),
+    };
+    try {
+      const saved = await StorageService.saveDocument({ ...latest, metadata: linkedMetadata });
+      cleanDocRef.current = saved;
+      cleanRelationshipsRef.current = saved.relationships || latestRelationshipsRef.current;
+      if (latestDocRef.current === latest) latestDocRef.current = saved;
+      setDoc((previous) => previous?.id === saved.id
+        ? previous === latest ? saved : { ...previous, metadata: linkedMetadata, revision: saved.revision }
+        : previous);
+      return true;
+    } catch (error: any) {
+      setSaveStatus({ state: 'warning', message: `附件已归档，但本地关联保存失败：${error?.message || error}。请重试归档。` });
+      return false;
+    }
+  }, [flushCurrentDocument]);
+
+  const openIncomingZoteroDocument = useCallback(async (rawDoc: unknown, workspaceDocumentId?: string) => {
+    const token = ++activeDocLoadTokenRef.current;
+    if (!(await flushCurrentDocument()) || token !== activeDocLoadTokenRef.current) return;
+    const rawIncoming = validateMindMapDocument(rawDoc, '打开文献导图');
+    let documentToOpen: MindMapDocument;
+    if (workspaceDocumentId !== undefined) {
+      // Session/undo-close targets are canonical workspace records, including
+      // detached copies. They must not re-enter attachment import/fork logic.
+      documentToOpen = await StorageService.resolveWorkspaceOpen(workspaceDocumentId, rawIncoming);
+    } else {
+      if (latestDocRef.current && sameDocumentSource(latestDocRef.current, rawIncoming)) {
+        setTimeout(() => centerCanvas(), 60);
+        return;
+      }
+      const sourceLocal = await StorageService.getDocumentBySource(rawIncoming);
+      const incoming = sourceLocal ? { ...rawIncoming, id: sourceLocal.id } : rawIncoming;
+      const local = sourceLocal || await StorageService.getDocument(incoming.id, { trackRevision: false });
+      if (token !== activeDocLoadTokenRef.current) return;
+      const plan = planIncomingDocument(incoming, local);
+      documentToOpen = incoming;
+      if (plan === 'local' && local) {
+        const merged = { ...local, metadata: { ...local.metadata, ...incoming.metadata } };
+        documentToOpen = JSON.stringify(merged.metadata) === JSON.stringify(local.metadata) ? local
+          : await StorageService.saveDocumentDirect(merged, local.revision || 0);
+        setSaveStatus({ state: 'warning', message: '已保留同一附件的较新本地编辑。' });
+      } else if (plan === 'fork') {
+        // Copying a .mindflow file preserves its embedded ID. Give the second
+        // physical attachment its own workspace ID; never open the first file.
+        documentToOpen = await StorageService.saveDocument({ ...incoming,
+          id: 'doc_' + generateId(), revision: 0 });
+        setSaveStatus({ state: 'warning', message: '附件文档 ID 与另一来源重复；已隔离为独立工作区，原导图保留。' });
+      } else {
+        if (local) {
+          await StorageService.saveDocument({ ...local,
+            id: 'doc_' + generateId(), title: `${local.title}（附件导入前副本）`,
+            revision: 0, createdAt: Date.now(), metadata: detachedMetadata(local.metadata) });
+        }
+        documentToOpen = await StorageService.saveDocumentDirect(incoming, local?.revision || 0);
+        if (local) setSaveStatus({ state: 'warning', message: '已打开较新的附件，原本地编辑已保存为独立副本。' });
+      }
+    }
+    if (token !== activeDocLoadTokenRef.current) return;
+    await StorageService.setActiveDocumentId(documentToOpen.id);
+    if (token !== activeDocLoadTokenRef.current) return;
+    cleanDocRef.current = documentToOpen;
+    cleanRelationshipsRef.current = documentToOpen.relationships || [];
+    latestDocRef.current = documentToOpen;
+    latestRelationshipsRef.current = cleanRelationshipsRef.current;
+    currentDocIdRef.current = documentToOpen.id;
+    setRelationships(cleanRelationshipsRef.current);
+    setDoc(documentToOpen);
+    setSelectedId(documentToOpen.root.id);
+    setSelectedIds([]);
+    historyRef.current.clear();
+    syncHistoryState();
+    setIsWelcomeOpen(false);
+    setTimeout(() => centerCanvas(), 60);
+  }, [centerCanvas, flushCurrentDocument, syncHistoryState]);
+
+  /**
+   * Create a brand-new dedicated mind map document from Zotero literature item(s),
+   * set the root node and document title to the paper, and immediately archive
+   * into Zotero as a child attachment (.mindflow) and outline note.
+   */
+  const createMindMapFromZoteroItems = useCallback(
+    async (rawItems: any[] | ZoteroItemData[], fromZoteroHost = false, forceNew = false) => {
+      if (!Array.isArray(rawItems) || rawItems.length === 0) return;
+      const parsedItems: ZoteroItemData[] = [];
+      for (const raw of rawItems) {
+        const d = extractZoteroItemData(raw);
+        if (d) parsedItems.push(d);
+      }
+      if (parsedItems.length === 0) return;
+
+      const token = ++activeDocLoadTokenRef.current;
+      if (!(await flushCurrentDocument()) || token !== activeDocLoadTokenRef.current) return;
+
+      let newDoc: MindMapDocument;
+      const primaryItem = parsedItems[0];
+      const primaryItemKey = primaryItem.zoteroUri;
+
+      // If this tab already has this single item open, don't overwrite user's work unless explicitly forced
+      const isForcedNew = forceNew;
+      if (parsedItems.length === 1 && latestDocRef.current && !isForcedNew) {
+        const currentMetaUri = latestDocRef.current.metadata?.zoteroUri || latestDocRef.current.metadata?.zoteroItemKey;
+        if (currentMetaUri && currentMetaUri === primaryItemKey) {
+          setSaveStatus({ state: 'saved', message: `当前标签页正在研读文献【${primaryItem.title || ''}】` });
+          setTimeout(() => centerCanvas(), 60);
+          return;
+        }
+      }
+
+      if (parsedItems.length === 1) {
+        const item = parsedItems[0];
+        const itemNode = convertZoteroItemToNode(item, {
+          includeAbstract: settings.zoteroIncludeAbstract,
+          includeAnnotations: settings.zoteroIncludeAnnotations,
+          includeTags: false,
+        });
+        const rootNode: MindMapNode = {
+          id: generateId(),
+          text: item.title || '文献导图',
+          link: item.zoteroUri,
+          color: '#0284c7',
+          isExpanded: true,
+          children: itemNode.children,
+        };
+
+        newDoc = {
+          id: 'doc_' + generateId(),
+          title: item.title || '文献导图',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          root: rootNode,
+          themeId: settings.defaultThemeId,
+          layoutType: settings.defaultLayout,
+          metadata: {
+            zoteroItemKey: item.zoteroUri,
+            zoteroLibraryID: item.libraryID,
+            zoteroItemTitle: item.title,
+            zoteroUri: item.zoteroUri,
+            zoteroYear: item.year,
+            zoteroAuthors: item.authors,
+            autoSyncToZotero: true,
+          },
+        };
+      } else {
+        const title = `Zotero 文献专题导图 (${parsedItems.length} 篇)`;
+        const rootNode: MindMapNode = {
+          id: generateId(),
+          text: `文献研读专题 (${parsedItems.length} 篇)`,
+          color: '#0284c7',
+          isExpanded: true,
+          children: parsedItems.map((item) => convertZoteroItemToNode(item, {
+            includeAbstract: settings.zoteroIncludeAbstract,
+            includeAnnotations: settings.zoteroIncludeAnnotations,
+            includeTags: false,
+          })),
+        };
+
+        newDoc = {
+          id: 'doc_' + generateId(),
+          title,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          root: rootNode,
+          themeId: settings.defaultThemeId,
+          layoutType: settings.defaultLayout,
+          metadata: {
+            zoteroItemKeys: parsedItems.map((i) => i.zoteroUri),
+            zoteroLibraryID: primaryItem.libraryID,
+            // A multi-paper map has no single Zotero parent item. Linking it
+            // to the first paper would archive the entire topic under an
+            // unrelated child attachment on every subsequent save.
+            autoSyncToZotero: false,
+          },
+        };
+      }
+
+      let savedDoc: MindMapDocument;
+      try {
+        savedDoc = await StorageService.saveDocument(newDoc);
+        if (token !== activeDocLoadTokenRef.current) return;
+        await StorageService.setActiveDocumentId(savedDoc.id);
+      } catch (error: any) {
+        setSaveStatus({ state: 'error', message: `新导图未完成本地保存：${error?.message || error}` });
+        return;
+      }
+      cleanDocRef.current = savedDoc;
+      cleanRelationshipsRef.current = [];
+      latestDocRef.current = savedDoc;
+      latestRelationshipsRef.current = cleanRelationshipsRef.current;
+      currentDocIdRef.current = savedDoc.id;
+      setRelationships(cleanRelationshipsRef.current);
+      setDoc(savedDoc);
+      setSelectedId(savedDoc.root.id);
+      setSelectedIds([]);
+      historyRef.current.clear();
+      syncHistoryState();
+      setIsWelcomeOpen(false);
+      setTimeout(() => centerCanvas(), 60);
+
+      // Auto archive directly into Zotero literature item attachment (.mindflow) and child note!
+      const archiveInZotero = isZoteroMode || fromZoteroHost || zoteroHostConnectedRef.current;
+      if (archiveInZotero && parsedItems.length === 1) {
+        setSaveStatus({ state: 'saving', message: '正在自动归档至 Zotero 文献条目…' });
+        try {
+          const res = await saveMindMapToZoteroAttachment(savedDoc, primaryItemKey, { silent: false });
+          if (res.success) await persistArchiveAssociation(savedDoc.id, res);
+          setSaveStatus({ state: res.success && (!res.noteRequested || res.savedNote) ? 'saved' : 'warning', message: res.message });
+        } catch (e: any) {
+          console.warn('[MindFlow] Auto-archive note:', e);
+          setSaveStatus({ state: 'warning', message: '导图已创建，但归档至条目附件受阻：' + (e?.message || e) });
+        }
+      } else {
+        if (archiveInZotero && parsedItems.length > 1) {
+          setSaveStatus({ state: 'saving', message: '正在将专题导图归档到 MindFlow 独立导图位置…' });
+          try {
+            const result = await saveMindMapToZoteroAttachment(savedDoc, {
+              archiveToUnlinkedContainer: true,
+            });
+            if (result.success && !(await persistArchiveAssociation(savedDoc.id, result))) return;
+            setSaveStatus({ state: result.success ? 'saved' : 'warning', message: result.message });
+          } catch (error: any) {
+            setSaveStatus({ state: 'warning', message: `专题导图已保存在本机，Zotero 归档失败：${error?.message || error}` });
+          }
+        } else {
+          setSaveStatus({ state: 'saved', message: '已在当前工作区创建学术文献导图' });
+        }
+      }
+    },
+    [centerCanvas, flushCurrentDocument, isZoteroMode, persistArchiveAssociation, settings, syncHistoryState]
+  );
+
+  /**
+   * Import an entire Zotero collection as a structured knowledge map
+   */
+  const importZoteroCollection = useCallback(
+    async (collectionName: string, items: any[]) => {
+      const token = ++activeDocLoadTokenRef.current;
+      const parsedItems: ZoteroItemData[] = [];
+      for (const raw of items) {
+        const d = extractZoteroItemData(raw);
+        if (d) parsedItems.push(d);
+      }
+
+      if (!(await flushCurrentDocument()) || token !== activeDocLoadTokenRef.current) return;
+
+      const rootNode: MindMapNode = {
+        id: generateId(),
+        text: collectionName || '专题文献分类',
+        color: '#0284c7',
+        isExpanded: true,
+        children: parsedItems.map((item) => convertZoteroItemToNode(item, {
+          includeAbstract: settings.zoteroIncludeAbstract,
+          includeAnnotations: settings.zoteroIncludeAnnotations,
+          includeTags: false,
+        })),
+      };
+
+      const newDoc: MindMapDocument = {
+        id: 'doc_' + generateId(),
+        title: `${collectionName || '文献分类'} 知识脉络导图`,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        root: rootNode,
+        themeId: settings.defaultThemeId,
+        layoutType: settings.defaultLayout,
+        metadata: {
+          zoteroCollectionName: collectionName,
+          zoteroItemKeys: parsedItems.map((i) => i.zoteroUri),
+          zoteroLibraryID: parsedItems[0]?.libraryID,
+          // Zotero collections cannot own child attachments. Keep the
+          // collection map in the workspace until a deliberate target is set.
+          autoSyncToZotero: false,
+        },
+      };
+
+      let saved: MindMapDocument;
+      try {
+        saved = await StorageService.saveDocument(newDoc);
+        if (token !== activeDocLoadTokenRef.current) return;
+        await StorageService.setActiveDocumentId(saved.id);
+      } catch (error: any) {
+        setSaveStatus({ state: 'error', message: `分类导图未完成本地保存：${error?.message || error}` });
+        return;
+      }
+      if (token !== activeDocLoadTokenRef.current) return;
+      cleanDocRef.current = saved;
+      cleanRelationshipsRef.current = [];
+      latestDocRef.current = saved;
+      latestRelationshipsRef.current = cleanRelationshipsRef.current;
+      currentDocIdRef.current = saved.id;
+      setRelationships(cleanRelationshipsRef.current);
+      setDoc(saved);
+      setSelectedId(saved.root.id);
+      setSelectedIds([]);
+      historyRef.current.clear();
+      syncHistoryState();
+      setIsWelcomeOpen(false);
+      setTimeout(() => centerCanvas(), 60);
+
+      if (isZoteroMode || zoteroHostConnectedRef.current) {
+        setSaveStatus({ state: 'saving', message: '正在将分类导图归档到 MindFlow 独立导图位置…' });
+        try {
+          const result = await saveMindMapToZoteroAttachment(saved, {
+            archiveToUnlinkedContainer: true,
+          });
+          if (result.success && !(await persistArchiveAssociation(saved.id, result))) return;
+          setSaveStatus({ state: result.success ? 'saved' : 'warning', message: result.message });
+        } catch (error: any) {
+          setSaveStatus({ state: 'warning', message: `分类导图已保存在本机，Zotero 归档失败：${error?.message || error}` });
+        }
+      } else {
+        setSaveStatus({ state: 'saved', message: '分类导图已保存到本机工作区。' });
+      }
+    },
+    [centerCanvas, flushCurrentDocument, isZoteroMode, persistArchiveAssociation, settings, syncHistoryState]
+  );
+
+  // Load active document or requested Zotero literature map on mount
+  useEffect(() => {
+    let disposed = false;
+
+    // Check if opened with specific Zotero items or document via context menu, toolbar or tab argument
+    const initialAction = typeof window !== 'undefined'
+      ? ((window as any)._mindflowInitialAction || (window.frameElement as any)?._mindflowInitialAction || window.arguments?.[0]?.wrappedJSObject || window.arguments?.[0])
+      : null;
+
+    const hasInitialAction = initialAction && (
+      initialAction.mode === 'create_blank' ||
+      (initialAction.mode === 'open_document' && !!initialAction.doc) ||
+      ((initialAction.mode === 'create_from_selection' || initialAction.mode === 'create_from_items') &&
+        Array.isArray(initialAction.items) && initialAction.items.length > 0) ||
+      (initialAction.mode === 'create_from_collection' && Array.isArray(initialAction.items)) ||
+      (initialAction.mode === 'ai_analyze' && Array.isArray(initialAction.items) && !!initialAction.items[0]?.zoteroUri)
+    );
+
+    let workspaceReady: Promise<void>;
+    if (hasInitialAction && !initialZoteroActionRef.current) {
+      initialZoteroActionRef.current = true;
+      workspaceReady = (async () => {
+        try {
+          if (initialAction.mode === 'create_blank') {
+            await createBlankDocRef.current();
+          } else if (initialAction.mode === 'open_document') {
+            await openIncomingZoteroDocument(initialAction.doc, initialAction.workspaceDocumentId);
+          } else if (initialAction.mode === 'create_from_selection' || initialAction.mode === 'create_from_items') {
+            await createMindMapFromZoteroItems(initialAction.items, true, initialAction.forceNew === true);
+          } else if (initialAction.mode === 'create_from_collection') {
+            await importZoteroCollection(initialAction.collectionName || initialAction.collection?.name || '文献分类', initialAction.items);
+          } else {
+            void analyzeRequestRef.current(initialAction.items[0].zoteroUri);
+          }
+        } catch (e: any) {
+          console.error('[MindFlow] Failed to load initial Zotero action:', e);
+          if (appMountedRef.current) setSaveStatus({ state: 'error', message: `打开 Zotero 文献失败：${e?.message || e}` });
+          // Keep the failure visible; loading the global last document would
+          // make a failed item open appear to succeed with another paper.
+        }
+      })();
+    } else {
+      workspaceReady = workspaceBootRef.current || (hasInitialAction ? Promise.resolve() : reloadWorkspace());
+    }
+
+    workspaceBootRef.current = workspaceReady;
+
+    // Listen for live imports and document loads when running inside a persistent Zotero tab or standalone window
+    const executeImportMessage = async (event: any) => {
+      if (event.type === 'message' && window.parent !== window && event.source !== window.parent) return;
+      if (event.type === 'message' && window.parent === window &&
+          event.source !== window && event.source !== window.opener && event.source !== getZoteroInstance()?.getMainWindow?.()) return;
+      const data = event.data || event.detail;
+      if (!data) return;
+
+      if (data.type === 'MINDFLOW_ZOTERO_CONNECTED') {
+        zoteroHostConnectedRef.current = true;
+        if (window.parent !== window) {
+          try { window.parent.postMessage({ type: 'MINDFLOW_HOST_ACK' }, '*'); } catch (_) {}
+        }
+      } else if (data.type === 'MINDFLOW_OPEN_ACTION' && data.action) {
+        const action = data.action;
+        if (action.mode === 'open_document') await openIncomingZoteroDocument(action.doc, action.workspaceDocumentId);
+        else if (action.mode === 'create_blank') await createBlankDocRef.current();
+        else if (action.mode === 'ai_analyze') await analyzeRequestRef.current(action.items?.[0]?.zoteroUri);
+        else if (action.mode === 'create_from_collection') await importZoteroCollection(action.collectionName || '文献分类', action.items || []);
+        else if (Array.isArray(action.items)) await createMindMapFromZoteroItems(action.items, true, action.forceNew === true);
+      } else if (data.type === 'MINDFLOW_LOAD_DOCUMENT' && data.doc) {
+        await openIncomingZoteroDocument(data.doc).catch((e) => {
+          console.error('[MindFlow] Failed to load document from message:', e);
+          setSaveStatus({ state: 'error', message: `打开 Zotero 附件失败：${e?.message || e}` });
+        });
+      } else if (
+        data.type === 'MINDFLOW_CREATE_FROM_ITEMS' ||
+        (data.mode === 'create_from_selection' && Array.isArray(data.items))
+      ) {
+        const items = data.items || [];
+        await createMindMapFromZoteroItems(items, true, data.forceNew === true);
+      } else if (data.type === 'MINDFLOW_IMPORT_ZOTERO_ITEMS' || data.type === 'MINDFLOW_APPEND_ZOTERO_ITEMS') {
+        const items = data.items || [];
+        if (data.action === 'append' || data.type === 'MINDFLOW_APPEND_ZOTERO_ITEMS') {
+          // Explicitly requested to append as branch to current map
+          const current = latestDocRef.current;
+          if (current) {
+            const parentId = selectedId || current.root.id;
+            let currentRoot = current.root;
+            for (const rawItem of items) {
+              const itemData = extractZoteroItemData(rawItem);
+              if (itemData) {
+                const itemNode = convertZoteroItemToNode(itemData, {
+                  includeAbstract: settings.zoteroIncludeAbstract,
+                  includeAnnotations: settings.zoteroIncludeAnnotations,
+                  includeTags: false,
+                });
+                const { newRoot, newNodeId } = addChildNode(currentRoot, parentId, itemNode.text);
+                currentRoot = updateNode(newRoot, newNodeId, {
+                  note: itemNode.note,
+                  link: itemNode.link,
+                  tags: itemNode.tags,
+                  color: itemNode.color,
+                  children: itemNode.children,
+                });
+              }
+            }
+            commitRootChange(currentRoot);
+          }
+        } else {
+          // Default: create a dedicated independent mind map document
+          await createMindMapFromZoteroItems(items, event.type === 'message' && window.parent !== window, data.forceNew === true);
+        }
+      } else if (data.type === 'MINDFLOW_IMPORT_ZOTERO_COLLECTION' || data.mode === 'create_from_collection') {
+        const items = data.items || [];
+        await importZoteroCollection(data.collectionName || '文献分类', items);
+      } else if (data.type === 'MINDFLOW_AI_ANALYZE' && typeof data.reference === 'string') {
+        await analyzeRequestRef.current(data.reference);
+      } else if (data.type === 'MINDFLOW_CENTER_CANVAS') {
+        centerCanvas();
+      }
+    };
+
+    executeHostActionRef.current = executeImportMessage;
+    const handleImportMessage = (event: any) => {
+      // Connection messages are immediate; mutations await the initial action
+      // and are serialized so slow earlier imports cannot finish over later ones.
+      if (event.data?.type === 'MINDFLOW_ZOTERO_CONNECTED') {
+        void workspaceReady.then(() => { if (!disposed) void executeImportMessage(event); });
+        return;
+      }
+      hostActionQueueRef.current = hostActionQueueRef.current.catch(() => {})
+        .then(() => workspaceReady).then(() => { if (appMountedRef.current) return executeHostActionRef.current(event); })
+        .catch((error) => setSaveStatus({ state: 'error', message: `打开操作失败：${error?.message || error}` }));
+    };
+    window.addEventListener('message', handleImportMessage);
+    window.addEventListener('mindflow-import-items', handleImportMessage);
+    if (window.parent !== window) {
+      void workspaceReady.then(() => {
+        if (!disposed) {
+          try {
+            getZoteroInstance()?.MindFlow?.connectWorkspace?.(window);
+            window.parent.postMessage({ type: 'MINDFLOW_READY' }, '*');
+            window.parent.postMessage({ type: 'MINDFLOW_HOST_ACK' }, '*');
+          } catch (_) {}
+        }
+      }).catch((error) => setSaveStatus({ state: 'error', message: `加载工作区失败：${error?.message || error}` }));
+    }
+
+    const handleBeforeUnload = () => {
+      pendingSaveTokenRef.current += 1;
+      const host = getZoteroInstance()?.MindFlow;
+      if (typeof host?.captureWorkspaceOnClose === 'function') host.captureWorkspaceOnClose(window);
+      else void flushCurrentDocument();
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('pagehide', handleBeforeUnload);
+
+    const handleResize = () => {
+      if (containerRef.current) {
+        setContainerSize({
+          width: containerRef.current.clientWidth,
+          height: containerRef.current.clientHeight,
+        });
+      }
+    };
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      disposed = true;
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('pagehide', handleBeforeUnload);
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('message', handleImportMessage);
+      window.removeEventListener('mindflow-import-items', handleImportMessage);
+    };
+  }, [centerCanvas, createMindMapFromZoteroItems, flushCurrentDocument, importZoteroCollection, openIncomingZoteroDocument, reloadWorkspace]);
+
+  // Auto-save locally, create interval-based recovery snapshots, then report
+  // local/cloud outcomes separately so failures are visible to the user.
+  useEffect(() => {
+    if (!doc) return;
+    if (cleanDocRef.current === doc && cleanRelationshipsRef.current === relationships) return;
+    const saveToken = ++pendingSaveTokenRef.current;
+    const timeout = setTimeout(() => {
+      if (saveToken !== pendingSaveTokenRef.current) return;
+      setSaveStatus({ state: 'saving', message: '保存中…' });
+      const runSave = async () => {
+      if (saveToken !== pendingSaveTokenRef.current) return;
+      if (currentDocIdRef.current !== doc.id) return;
+      const documentToSave = { ...doc, relationships };
+      let savedDocument: MindMapDocument;
+      try {
+        savedDocument = await StorageService.saveDocument(documentToSave);
+      } catch (error: any) {
+        if (error instanceof DocumentConflictError) {
+          if (currentDocIdRef.current !== doc.id) return;
+          try {
+            const latestLocal = latestDocRef.current?.id === doc.id ? latestDocRef.current : documentToSave;
+            const latestRelationships = latestRelationshipsRef.current;
+            const copy = await StorageService.saveDocument({
+              ...latestLocal,
+              relationships: latestRelationships,
+              metadata: detachedMetadata(latestLocal.metadata),
+              id: 'doc_' + generateId(),
+              title: `${latestLocal.title}（冲突副本）`,
+              revision: 0,
+              createdAt: Date.now(),
+            });
+            if (currentDocIdRef.current !== doc.id) return;
+            cleanDocRef.current = copy;
+            cleanRelationshipsRef.current = latestRelationships;
+            await StorageService.setActiveDocumentId(copy.id);
+            const afterCopy = latestDocRef.current;
+            setDoc(afterCopy?.id === doc.id && afterCopy !== latestLocal
+              ? { ...afterCopy, id: copy.id, title: copy.title, revision: copy.revision, createdAt: copy.createdAt, metadata: copy.metadata }
+              : copy);
+            setSaveStatus({ state: 'warning', message: '其他窗口已修改原导图；本窗口内容已保存为冲突副本，请检查并合并。' });
+          } catch (copyError: any) {
+            setSaveStatus({ state: 'error', message: `原导图发生冲突，副本保存失败：${copyError?.message || '未知错误'}` });
+          }
+          return;
+        }
+        console.error('MindFlow local save failed', error);
+        setSaveStatus({ state: 'error', message: `本地保存失败：${error?.message || '存储空间可能已满'}` });
+        return;
+      }
+      if (currentDocIdRef.current !== doc.id || latestDocRef.current !== doc ||
+          latestRelationshipsRef.current !== relationships) return;
+      cleanDocRef.current = savedDocument;
+      cleanRelationshipsRef.current = relationships;
+      latestDocRef.current = savedDocument;
+      setDoc((previous) => previous === doc ? savedDocument : previous);
+      const saveGeneration = ++saveGenerationRef.current;
+
+      let warning = '';
+      if (settings.autoSnapshotEnabled) {
+        try {
+          await BackupService.createAutoSnapshotIfDue(savedDocument, settings.autoSnapshotIntervalMinutes);
+        } catch (error: any) {
+          console.error('MindFlow recovery snapshot failed', error);
+          warning = '本地导图已保存，但自动版本快照失败。';
+        }
+      }
+
+      // Silently sync updated mind map to the Zotero item attachment (.mindflow) and outline note
+      const needsZoteroArchive = (isZoteroMode || zoteroHostConnectedRef.current) &&
+        !!savedDocument.metadata?.zoteroItemKey &&
+        savedDocument.metadata.autoSyncToZotero !== false;
+      if (needsZoteroArchive) {
+        const archiveTarget = savedDocument.metadata!.zoteroItemKey!;
+        const archive = zoteroSyncQueueRef.current.catch(() => undefined).then(async () => {
+          const result = await saveMindMapToZoteroAttachment(
+            savedDocument,
+            archiveTarget,
+            { silent: true }
+          );
+          if (!result.success && saveGenerationRef.current === saveGeneration) {
+            setSaveStatus({ state: 'warning', message: `本地导图已保存；Zotero 附件归档失败：${result.message}` });
+          } else if (result.noteRequested && !result.savedNote && saveGenerationRef.current === saveGeneration) {
+            setSaveStatus({ state: 'warning', message: `导图附件已归档，但 Zotero 大纲笔记保存失败：${result.noteError || '请检查 Zotero 日志'}` });
+          } else if (saveGenerationRef.current === saveGeneration) {
+            setSaveStatus(warning
+              ? { state: 'warning', message: `Zotero 附件已归档；${warning}` }
+              : { state: 'saved', message: '已保存本地文件并归档到 Zotero 文献附件' });
+          }
+        }).catch((error) => {
+          if (saveGenerationRef.current === saveGeneration) {
+            setSaveStatus({ state: 'warning', message: `本地导图已保存；Zotero 附件归档失败：${error?.message || error}` });
+          }
+        });
+        zoteroSyncQueueRef.current = archive;
+      }
+
+      setSaveStatus(warning
+        ? { state: 'warning', message: warning }
+        : {
+          state: needsZoteroArchive ? 'saving' : 'saved',
+          message: needsZoteroArchive
+            ? '本地文件已保存，正在归档 Zotero 附件…'
+            : settings.webdav.enabled && settings.webdav.autoSyncOnSave
+            ? '已保存到本地；云端备份将在编辑暂停后运行'
+            : '已保存到本地',
+        });
+      window.clearTimeout(autoSyncTimerRef.current);
+      if (settings.webdav.enabled && settings.webdav.autoSyncOnSave) {
+        autoSyncTimerRef.current = window.setTimeout(async () => {
+          try {
+            if (!(await WebDAVService.hasServerPermission(settings.webdav.serverUrl))) {
+              throw new Error('请在设置中授权当前 WebDAV 服务器');
+            }
+            const backupData = await BackupService.getFullWorkspaceData();
+            const result = await WebDAVService.uploadBackup(settings.webdav, backupData);
+            if (needsZoteroArchive) await zoteroSyncQueueRef.current;
+            if (saveGenerationRef.current !== saveGeneration) return;
+            setSaveStatus((previous) => previous.state === 'warning' || previous.state === 'error'
+              ? previous
+              : result.success
+                ? { state: 'saved', message: needsZoteroArchive
+                  ? '本地文件、Zotero 附件和 WebDAV 备份已完成'
+                  : '已保存到本地并完成 WebDAV 备份' }
+                : { state: 'warning', message: `本地已保存；云端备份失败：${result.message}` });
+          } catch (error: any) {
+            if (saveGenerationRef.current === saveGeneration) {
+              setSaveStatus((previous) => previous.state === 'warning' || previous.state === 'error'
+                ? previous
+                : { state: 'warning', message: `本地已保存；云端备份失败：${error?.message || '网络错误'}` });
+            }
+          }
+        }, 15000);
+      }
+      };
+      saveQueueRef.current = saveQueueRef.current.then(runSave, runSave);
+    }, 600);
+    return () => clearTimeout(timeout);
+  }, [doc, isZoteroMode, relationships, settings.webdav, settings.autoSnapshotEnabled, settings.autoSnapshotIntervalMinutes]);
+
+  useEffect(() => {
+    if (!doc) return;
+    document.title = `${doc.title} - MindFlow 思维导图`;
+    const context = { type: 'MINDFLOW_DOCUMENT_CONTEXT', title: doc.title,
+        documentId: doc.id, parentItemUri: doc.metadata?.zoteroUri || doc.metadata?.zoteroItemKey,
+        attachmentKey: doc.metadata?.zoteroAttachmentKey,
+        attachmentLibraryID: doc.metadata?.zoteroAttachmentLibraryID,
+        unlinkedContainer: doc.metadata?.mindflowUnlinkedContainer, aiDraft: doc.metadata?.aiDraft };
+    if (window.parent !== window) {
+      if (!getZoteroInstance()?.MindFlow?.updateWorkspaceContext?.(window, context)) window.parent.postMessage(context, '*');
+    } else {
+      const host = getZoteroInstance()?.MindFlow;
+      if (!host?.updateWorkspaceContext?.(window, context)) host?.updateStandaloneContext?.(window, context);
+    }
+  }, [doc?.id, doc?.title, doc?.metadata]);
+
+  // Theme
+  const theme = useMemo(() => {
+    return getTheme(doc?.themeId);
+  }, [doc?.themeId]);
+
+  // Layout calculation
+  const layout = useMemo(() => {
+    if (!doc) return { nodes: [], connections: [], bounds: { minX: 0, maxX: 0, minY: 0, maxY: 0 } };
+    return computeLayout(doc.root, doc.layoutType, theme, {
+      rainbowBranches: settings.rainbowBranches,
+      curveStyle: settings.curveStyle,
+    });
+  }, [doc, theme, settings.rainbowBranches, settings.curveStyle]);
+
+  // Commit changes to root and push history
+  const commitRootChange = useCallback((newRoot: MindMapNode) => {
+    if (!doc) return;
+    historyRef.current.push(doc.root);
+    syncHistoryState();
+    setDoc(prev => prev ? { ...prev, root: newRoot, relationships, updatedAt: Date.now() } : null);
+  }, [doc, relationships, syncHistoryState]);
+
+  // Selection handlers
+  const handleSelectNode = useCallback((id: string | null, isMulti = false) => {
+    if (!id) {
+      setSelectedId(null);
+      setSelectedIds([]);
+      return;
+    }
+    if (isMulti) {
+      setSelectedIds((prev) => {
+        const set = new Set(prev);
+        if (selectedId) set.add(selectedId);
+        if (set.has(id)) {
+          set.delete(id);
+        } else {
+          set.add(id);
+        }
+        return Array.from(set);
+      });
+      setSelectedId(id);
+    } else {
+      setSelectedId(id);
+      setSelectedIds([]);
+    }
+    if (id && !isZenMode) {
+      setIsPropertySidebarOpen(true);
+    }
+  }, [selectedId, isZenMode]);
+
+  const handleSelectMultipleNodes = useCallback((ids: string[]) => {
+    setSelectedIds(ids);
+    if (ids.length > 0) {
+      setSelectedId(ids[ids.length - 1]);
+      if (!isZenMode) {
+        setIsPropertySidebarOpen(true);
+      }
+    } else {
+      setSelectedId(null);
+    }
+  }, [isZenMode]);
+
+  // Actions
+  const handleAddChild = useCallback(() => {
+    if (!doc) return;
+    const targetId = selectedId || doc.root.id;
+    let rootToUse = doc.root;
+    if (settings.autoExpandOnAddChild) {
+      rootToUse = updateNode(rootToUse, targetId, { isExpanded: true });
+    }
+    const { newRoot, newNodeId } = addChildNode(rootToUse, targetId, '分支主题');
+    commitRootChange(newRoot);
+    setSelectedId(newNodeId);
+    setSelectedIds([]);
+    setEditingId(newNodeId);
+    playAddNode(settings.soundEffects);
+  }, [doc, selectedId, settings.autoExpandOnAddChild, settings.soundEffects, commitRootChange]);
+
+  const handleAddSibling = useCallback((insertBefore = false) => {
+    if (!doc) return;
+    const targetId = selectedId || doc.root.id;
+    const { newRoot, newNodeId } = addSiblingNode(doc.root, targetId, '分支主题', insertBefore);
+    commitRootChange(newRoot);
+    setSelectedId(newNodeId);
+    setSelectedIds([]);
+    setEditingId(newNodeId);
+    playAddNode(settings.soundEffects);
+  }, [doc, selectedId, settings.soundEffects, commitRootChange]);
+
+  const handleCopyNode = useCallback((idToCopy?: string, writeSystemClipboard = false) => {
+    if (!doc) return;
+    const targetId = idToCopy || selectedId;
+    if (!targetId) return;
+    const target = findNode(doc.root, targetId);
+    if (target) {
+      clipboardSubtreeRef.current = JSON.parse(JSON.stringify(target));
+      clipboardNodeTokenRef.current = crypto.randomUUID();
+      clipboardNodeTextRef.current = target.text;
+      if (writeSystemClipboard) {
+        void navigator.clipboard.writeText(target.text).catch(error => {
+          console.warn('MindFlow clipboard write failed', error);
+        });
+      }
+    }
+  }, [doc, selectedId]);
+
+  useEffect(() => {
+    const handleCopy = (event: ClipboardEvent) => {
+      if (!doc || !selectedId || !clipboardSubtreeRef.current || !clipboardNodeTokenRef.current || editingId) return;
+      if (event.target instanceof Element && event.target.closest('input, textarea, [contenteditable]:not([contenteditable="false"])')) return;
+      if (!event.clipboardData) return;
+      event.clipboardData.setData('text/plain', clipboardNodeTextRef.current || '');
+      event.clipboardData.setData('application/x-mindflow-node', clipboardNodeTokenRef.current);
+      event.preventDefault();
+    };
+    window.addEventListener('copy', handleCopy);
+    return () => window.removeEventListener('copy', handleCopy);
+  }, [doc, selectedId, editingId]);
+
+  const handlePasteNode = useCallback((targetParentId?: string) => {
+    if (!doc || !clipboardSubtreeRef.current) return;
+    const parentId = targetParentId || selectedId || doc.root.id;
+    const { newRoot, newNodeId } = pasteSubtree(doc.root, parentId, clipboardSubtreeRef.current);
+    commitRootChange(newRoot);
+    setSelectedId(newNodeId);
+    setSelectedIds([]);
+    playAddNode(settings.soundEffects);
+  }, [doc, selectedId, commitRootChange, settings.soundEffects]);
+
+  const handleDuplicateNode = useCallback((idToDuplicate?: string) => {
+    if (!doc) return;
+    const targetId = idToDuplicate || selectedId;
+    if (!targetId || targetId === doc.root.id) return;
+    const { newRoot, newNodeId } = duplicateNode(doc.root, targetId);
+    commitRootChange(newRoot);
+    setSelectedId(newNodeId);
+    setSelectedIds([]);
+    playAddNode(settings.soundEffects);
+  }, [doc, selectedId, commitRootChange, settings.soundEffects]);
+
+  const handleDeleteNode = useCallback((idToDelete?: string) => {
+    if (!doc) return;
+    if (idToDelete) {
+      if (idToDelete === doc.root.id) return;
+      const { newRoot, nextSelectedId } = deleteNode(doc.root, idToDelete);
+      commitRootChange(newRoot);
+      setSelectedId(nextSelectedId);
+      setSelectedIds([]);
+      playDeleteNode(settings.soundEffects);
+      return;
+    }
+
+    const ids = selectedIds.length > 0
+      ? selectedIds.filter((id) => id !== doc.root.id)
+      : (selectedId && selectedId !== doc.root.id ? [selectedId] : []);
+
+    if (ids.length === 0) return;
+
+    if (ids.length === 1) {
+      const { newRoot, nextSelectedId } = deleteNode(doc.root, ids[0]);
+      commitRootChange(newRoot);
+      setSelectedId(nextSelectedId);
+      setSelectedIds([]);
+    } else {
+      const { newRoot, nextSelectedId } = deleteMultipleNodes(doc.root, ids);
+      commitRootChange(newRoot);
+      setSelectedId(nextSelectedId || doc.root.id);
+      setSelectedIds([]);
+    }
+    playDeleteNode(settings.soundEffects);
+  }, [doc, selectedId, selectedIds, commitRootChange, settings.soundEffects]);
+
+  const handleToggleCollapse = useCallback((id: string) => {
+    if (!doc) return;
+    const newRoot = toggleNodeCollapse(doc.root, id);
+    commitRootChange(newRoot);
+  }, [doc, commitRootChange]);
+
+  const handleMoveNode = useCallback((sourceId: string, targetId: string) => {
+    if (!doc) return;
+    const newRoot = moveNode(doc.root, sourceId, targetId);
+    commitRootChange(newRoot);
+  }, [doc, commitRootChange]);
+
+  const handleUpdateNodePatch = useCallback((id: string, patch: Partial<MindMapNode>) => {
+    if (!doc) return;
+    const newRoot = updateNode(doc.root, id, patch);
+    commitRootChange(newRoot);
+  }, [doc, commitRootChange]);
+
+  const handleImportNodeImage = useCallback(async (file: File, targetId?: string, createChild = false): Promise<void> => {
+    if (imageImportBusyRef.current) throw new Error('另一张图片正在处理中，请稍后再试');
+    imageImportBusyRef.current = true;
+    try {
+      const sourceDocId = doc?.id;
+      if (!sourceDocId) throw new Error('请先打开导图');
+      const image = await prepareNodeImage(file);
+      const quota = await BackupService.getStorageQuota();
+      const latest = latestDocRef.current;
+      if (!latest || latest.id !== sourceDocId) throw new Error('导图已切换，请重新选择图片');
+      const parentId = targetId || selectedId || latest.root.id;
+      const target = findNode(latest.root, parentId);
+      if (!target) throw new Error('目标节点已删除，请重新选择');
+      const previousBytes = createChild ? 0 : (target.image?.dataUrl.length || 0);
+      if (quota.usedBytes + image.dataUrl.length - previousBytes + 100_000 > quota.maxBytes) {
+        throw new Error('本地存储空间不足。请先导出完整备份并清理旧快照，或选择更小的图片');
+      }
+      let newRoot: MindMapNode;
+      let nextSelectedId = parentId;
+      if (createChild) {
+        const added = addChildNode(latest.root, parentId, '');
+        nextSelectedId = added.newNodeId;
+        newRoot = updateNode(added.newRoot, nextSelectedId, { type: 'image', image });
+      } else {
+        newRoot = updateNode(latest.root, parentId, { image });
+      }
+      historyRef.current.push(latest.root);
+      syncHistoryState();
+      setDoc({ ...latest, root: newRoot, updatedAt: Date.now() });
+      setSelectedId(nextSelectedId);
+      setSelectedIds([]);
+      setIsPropertySidebarOpen(true);
+    } finally {
+      imageImportBusyRef.current = false;
+    }
+  }, [doc?.id, selectedId, syncHistoryState]);
+
+  useEffect(() => {
+    const handlePaste = (event: ClipboardEvent) => {
+      if (!doc || aiWorkflow || editingId || isSettingsOpen || isShortcutsOpen || isCommandPaletteOpen || isTemplateModalOpen || isSearchOpen || isPresentationOpen) return;
+      if (event.target instanceof Element && event.target.closest('input, textarea, [contenteditable]:not([contenteditable="false"])')) return;
+
+      const imageItem = Array.from(event.clipboardData?.items || []).find(item => item.kind === 'file' && item.type.startsWith('image/'));
+      const copiedToken = event.clipboardData?.getData('application/x-mindflow-node');
+      const copiedText = event.clipboardData?.getData('text/plain');
+      const isInternalNode = !!clipboardSubtreeRef.current && (
+        (!!copiedToken && copiedToken === clipboardNodeTokenRef.current) ||
+        (!copiedToken && !imageItem && copiedText !== undefined && copiedText === clipboardNodeTextRef.current)
+      );
+      if (isInternalNode) {
+        event.preventDefault();
+        handlePasteNode();
+      } else if (imageItem) {
+        const file = imageItem.getAsFile();
+        if (!file) return;
+        event.preventDefault();
+        const targetId = selectedId || doc.root.id;
+        void handleImportNodeImage(file, targetId).catch(error => {
+          window.alert(`图片粘贴失败：${error?.message || '未知错误'}`);
+        });
+      }
+    };
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [doc, aiWorkflow, editingId, selectedId, isSettingsOpen, isShortcutsOpen, isCommandPaletteOpen, isTemplateModalOpen, isSearchOpen, isPresentationOpen, handleImportNodeImage, handlePasteNode]);
+
+
+
+  const handleCommitEdit = useCallback((id: string, newText: string) => {
+    setEditingId(null);
+    if (!doc) return;
+    const target = findNode(doc.root, id);
+    if (target && target.text !== newText && newText.trim()) {
+      handleUpdateNodePatch(id, { text: newText.trim() });
+    }
+  }, [doc, handleUpdateNodePatch]);
+
+  const handleUndo = useCallback(() => {
+    if (!doc) return;
+    const prev = historyRef.current.undo(doc.root);
+    if (prev) {
+      setDoc(prevDoc => prevDoc ? { ...prevDoc, root: prev } : null);
+      syncHistoryState();
+    }
+  }, [doc, syncHistoryState]);
+
+  const handleRedo = useCallback(() => {
+    if (!doc) return;
+    const next = historyRef.current.redo(doc.root);
+    if (next) {
+      setDoc(prevDoc => prevDoc ? { ...prevDoc, root: next } : null);
+      syncHistoryState();
+    }
+  }, [doc, syncHistoryState]);
+
+  // Select node and smoothly center canvas on it
+  const handleSelectAndCenterNode = useCallback((nodeId: string) => {
+    setSelectedId(nodeId);
+    const target = layout.nodes.find(n => n.id === nodeId);
+    if (target && containerRef.current) {
+      const cw = containerRef.current.clientWidth || 1000;
+      const ch = containerRef.current.clientHeight || 800;
+      setViewport(v => ({
+        ...v,
+        x: cw / 2 - (target.x + target.width / 2) * v.scale,
+        y: ch / 2 - (target.y + target.height / 2) * v.scale,
+      }));
+    }
+  }, [layout.nodes]);
+
+  const openDocumentAt = useCallback(async (documentId: string, nodeId?: string) => {
+    const token = ++activeDocLoadTokenRef.current;
+    const current = latestDocRef.current;
+    if (current?.id === documentId) {
+      if (nodeId && findNode(current.root, nodeId)) handleSelectAndCenterNode(nodeId);
+      else handleSelectAndCenterNode(current.root.id);
+      return;
+    }
+    if (!(await flushCurrentDocument()) || token !== activeDocLoadTokenRef.current) return;
+    try {
+      const selectedDoc = await StorageService.getDocument(documentId);
+      if (token !== activeDocLoadTokenRef.current) return;
+      if (!selectedDoc) {
+        setSaveStatus({ state: 'warning', message: '链接目标导图已不存在，当前导图保持打开。' });
+        return;
+      }
+      if (!(await flushCurrentDocument()) || token !== activeDocLoadTokenRef.current) return;
+      await StorageService.setActiveDocumentId(documentId);
+      if (token !== activeDocLoadTokenRef.current) return;
+      const loadedRelationships = selectedDoc.relationships || [];
+      cleanDocRef.current = selectedDoc;
+      cleanRelationshipsRef.current = loadedRelationships;
+      latestDocRef.current = selectedDoc;
+      latestRelationshipsRef.current = loadedRelationships;
+      currentDocIdRef.current = selectedDoc.id;
+      pendingNavigationRef.current = { documentId, nodeId };
+      setRelationships(loadedRelationships);
+      setDoc(selectedDoc);
+      setSelectedIds([]);
+      setSelectedId(selectedDoc.root.id);
+      historyRef.current.clear();
+      syncHistoryState();
+    } catch (error: any) {
+      setSaveStatus({ state: 'error', message: `打开导图失败：${error?.message || '读取本地数据失败'}` });
+    }
+  }, [doc, flushCurrentDocument, handleSelectAndCenterNode, syncHistoryState]);
+
+  useEffect(() => {
+    const pending = pendingNavigationRef.current;
+    if (!doc || pending?.documentId !== doc.id) return;
+    const target = layout.nodes.find(node => node.id === pending.nodeId)
+      || layout.nodes.find(node => node.id === doc.root.id);
+    pendingNavigationRef.current = null;
+    if (!target) return;
+    setSelectedId(target.id);
+    centerCanvas({ minX: target.x, maxX: target.x + target.width, minY: target.y, maxY: target.y + target.height });
+    if (pending.nodeId && target.id !== pending.nodeId) {
+      setSaveStatus({ state: 'warning', message: '目标主题已不存在，已打开目标导图的中心主题。' });
+    }
+  }, [doc, layout, centerCanvas]);
+
+  // Handle node right click
+  const handleContextMenuNode = useCallback((nodeId: string, clientX: number, clientY: number) => {
+    if (!doc) return;
+    const target = findNode(doc.root, nodeId);
+    if (target) {
+      setSelectedId(nodeId);
+      setCanvasContextMenuState(null);
+      setContextMenuState({ x: clientX, y: clientY, node: target });
+    }
+  }, [doc]);
+
+  // Handle canvas background right click
+  const handleContextMenuCanvas = useCallback((clientX: number, clientY: number) => {
+    setContextMenuState(null);
+    setCanvasContextMenuState({ x: clientX, y: clientY });
+  }, []);
+
+  // Relationships Handlers
+  const handleCreateRelationship = useCallback((fromId: string, toId: string) => {
+    if (fromId === toId || !doc) return;
+    const exists = relationships.some(
+      (r) => (r.fromId === fromId && r.toId === toId) || (r.fromId === toId && r.toId === fromId)
+    );
+    if (exists) return;
+
+    const newRel: RelationshipLink = {
+      id: generateId(),
+      fromId,
+      toId,
+      label: '关联',
+      style: 'dashed',
+      color: '#8b5cf6',
+    };
+    const nextRels = [...relationships, newRel];
+    latestRelationshipsRef.current = nextRels;
+    setRelationships(nextRels);
+    const updated = { ...doc, relationships: nextRels, updatedAt: Date.now() };
+    setDoc(updated);
+  }, [doc, relationships]);
+
+  const handleDeleteRelationship = useCallback((id: string) => {
+    if (!doc) return;
+    const nextRels = relationships.filter((r) => r.id !== id);
+    latestRelationshipsRef.current = nextRels;
+    setRelationships(nextRels);
+    const updated = { ...doc, relationships: nextRels, updatedAt: Date.now() };
+    setDoc(updated);
+  }, [doc, relationships]);
+
+  const handleEditRelationshipLabel = useCallback((id: string, label: string) => {
+    if (!doc) return;
+    const nextRels = relationships.map((r) => (r.id === id ? { ...r, label } : r));
+    latestRelationshipsRef.current = nextRels;
+    setRelationships(nextRels);
+    const updated = { ...doc, relationships: nextRels, updatedAt: Date.now() };
+    setDoc(updated);
+  }, [doc, relationships]);
+
+  // Search & Replace Handlers
+  const handleReplaceNodeText = useCallback((nodeId: string, fromText: string, toText: string) => {
+    if (!doc) return;
+    const newRoot = replaceNodeText(doc.root, nodeId, fromText, toText);
+    commitRootChange(newRoot);
+  }, [doc, commitRootChange]);
+
+  const handleReplaceAllNodeText = useCallback((fromText: string, toText: string) => {
+    if (!doc) return;
+    const { newRoot, count } = replaceAllNodeText(doc.root, fromText, toText);
+    if (count > 0) {
+      commitRootChange(newRoot);
+    }
+  }, [doc, commitRootChange]);
+
+  // Level Collapse / Expand Handler
+  const handleCollapseByLevel = useCallback((level: number) => {
+    if (!doc) return;
+    const newRoot = setCollapseByLevel(doc.root, level);
+    commitRootChange(newRoot);
+  }, [doc, commitRootChange]);
+
+  // Batch Selection Handlers
+  const handleBatchColor = useCallback((color: string) => {
+    if (!doc || selectedIds.length === 0) return;
+    const newRoot = updateMultipleNodes(doc.root, selectedIds, { color });
+    commitRootChange(newRoot);
+  }, [doc, selectedIds, commitRootChange]);
+
+
+
+  const handleBatchDelete = useCallback(() => {
+    if (!doc || selectedIds.length === 0) return;
+    const { newRoot, nextSelectedId } = deleteMultipleNodes(doc.root, selectedIds);
+    commitRootChange(newRoot);
+    setSelectedIds([]);
+    setSelectedId(nextSelectedId);
+    playDeleteNode(settings.soundEffects);
+  }, [doc, selectedIds, commitRootChange, settings.soundEffects]);
+
+  // Insert Inbox item to mind map
+  const handleInsertInboxItem = useCallback((item: InboxItem) => {
+    if (!doc) return;
+    const parentId = selectedId || doc.root.id;
+    const { newRoot, newNodeId } = addChildNode(doc.root, parentId, item.text);
+    const finalRoot = updateNode(newRoot, newNodeId, {
+      link: item.url,
+      note: item.title && item.title !== item.text ? item.title : undefined,
+    });
+    commitRootChange(finalRoot);
+    handleSelectAndCenterNode(newNodeId);
+  }, [doc, selectedId, commitRootChange, handleSelectAndCenterNode]);
+
+  // Apply template
+  const handleSelectTemplate = useCallback(async (tpl: TemplateDefinition) => {
+    const token = ++activeDocLoadTokenRef.current;
+    if (!(await flushCurrentDocument()) || token !== activeDocLoadTokenRef.current) return;
+    const archiveInZotero = isZoteroMode || zoteroHostConnectedRef.current;
+    if (!archiveInZotero && window.location.protocol === 'chrome:' && window.location.host === 'mindflow') {
+      setSaveStatus({ state: 'warning', message: 'Zotero 工作区尚未连接完成；请稍后重试，导图尚未创建。' });
+      return;
+    }
+    let selected: ZoteroItemData[] = [];
+    if (archiveInZotero) {
+      try {
+        const snapshot = await getZoteroSelectionSnapshot();
+        if (snapshot.available && snapshot.selectedCount === 1 && snapshot.items.length === 1) {
+          selected = snapshot.items;
+        }
+      } catch (_) {}
+    }
+    const target = selected[0];
+    if (token !== activeDocLoadTokenRef.current) return;
+    const newDoc: MindMapDocument = {
+      id: 'doc_' + generateId(),
+      title: tpl.title,
+      themeId: tpl.themeId,
+      layoutType: tpl.layoutType,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      root: tpl.createRoot(),
+      metadata: target ? {
+        zoteroItemKey: target.zoteroUri,
+        zoteroUri: target.zoteroUri,
+        zoteroItemTitle: target.title,
+        zoteroLibraryID: target.libraryID,
+        autoSyncToZotero: true,
+      } : undefined,
+    };
+    let savedDoc: MindMapDocument;
+    try {
+      savedDoc = await StorageService.saveDocument(newDoc);
+      if (token !== activeDocLoadTokenRef.current) return;
+      await StorageService.setActiveDocumentId(savedDoc.id);
+    } catch (error: any) {
+      setSaveStatus({ state: 'error', message: `模板导图未完成本地保存：${error?.message || error}` });
+      return;
+    }
+    if (token !== activeDocLoadTokenRef.current) return;
+    cleanDocRef.current = savedDoc;
+    cleanRelationshipsRef.current = [];
+    latestDocRef.current = savedDoc;
+    latestRelationshipsRef.current = cleanRelationshipsRef.current;
+    currentDocIdRef.current = savedDoc.id;
+    setRelationships(cleanRelationshipsRef.current);
+    setDoc(savedDoc);
+    setSelectedId(newDoc.root.id);
+    historyRef.current.clear();
+    syncHistoryState();
+    setIsTemplateModalOpen(false);
+    setIsWelcomeOpen(false);
+    setTimeout(() => centerCanvas(), 50);
+    if (archiveInZotero) {
+      setSaveStatus({ state: 'saving', message: '正在将模板导图归档至 Zotero…' });
+      try {
+        const result = await saveMindMapToZoteroAttachment(savedDoc, target?.zoteroUri, {
+          archiveToUnlinkedContainer: !target,
+        });
+        if (result.success && !(await persistArchiveAssociation(savedDoc.id, result))) return;
+        setSaveStatus({ state: result.success && (!result.noteRequested || result.savedNote) ? 'saved' : 'warning', message: result.message });
+      } catch (error: any) {
+        setSaveStatus({ state: 'warning', message: `模板导图已保存在本机，Zotero 归档失败：${error?.message || error}` });
+      }
+    }
+  }, [centerCanvas, flushCurrentDocument, isZoteroMode, persistArchiveAssociation, syncHistoryState]);
+
+  // Create clean blank document
+  const handleCreateBlankDoc = useCallback(async () => {
+    const loadToken = ++activeDocLoadTokenRef.current;
+    if (!(await flushCurrentDocument())) return;
+    if (loadToken !== activeDocLoadTokenRef.current) return;
+
+    // Prevent any pending initial action or workspace boot from running
+    workspaceBootRef.current = Promise.resolve();
+    initialZoteroActionRef.current = true;
+
+    // Clear any cached initial action arguments to ensure clean state
+    if (typeof window !== 'undefined') {
+      try { delete (window as any)._mindflowInitialAction; } catch (_) {}
+      try { if (window.frameElement) delete (window.frameElement as any)._mindflowInitialAction; } catch (_) {}
+      try { if (window.arguments?.[0]) (window.arguments[0] as any).mode = 'open'; } catch (_) {}
+    }
+
+    const blankDoc = createBlankDocument('新建思维导图');
+    blankDoc.themeId = settings.defaultThemeId;
+    blankDoc.layoutType = settings.defaultLayout;
+    blankDoc.metadata = {}; // Independent blank document, no residual literature binding
+
+    let savedDoc: MindMapDocument;
+    try {
+      savedDoc = await StorageService.saveDocument(blankDoc);
+      if (loadToken !== activeDocLoadTokenRef.current) return;
+      await StorageService.setActiveDocumentId(savedDoc.id);
+    } catch (error: any) {
+      setSaveStatus({ state: 'error', message: `新导图未完成本地保存：${error?.message || error}` });
+      return;
+    }
+
+    if (loadToken !== activeDocLoadTokenRef.current) return;
+
+    cleanDocRef.current = savedDoc;
+    cleanRelationshipsRef.current = [];
+    latestDocRef.current = savedDoc;
+    latestRelationshipsRef.current = cleanRelationshipsRef.current;
+    currentDocIdRef.current = savedDoc.id;
+    setRelationships(cleanRelationshipsRef.current);
+    setDoc(savedDoc);
+    setSelectedId(savedDoc.root.id);
+    setSelectedIds([]);
+    historyRef.current.clear();
+    syncHistoryState();
+    setIsWelcomeOpen(false);
+    setTimeout(() => {
+      centerCanvas();
+    }, 50);
+
+    setSaveStatus({ state: 'saved', message: '已创建空白导图。' });
+  }, [centerCanvas, flushCurrentDocument, settings.defaultThemeId, settings.defaultLayout, syncHistoryState]);
+
+  createBlankDocRef.current = handleCreateBlankDoc;
+
+  // Open settings handler: directly opens Zotero Preferences in Zotero environment
+  const handleOpenSettings = useCallback(() => {
+    if (isZoteroMode) {
+      const opened = openZoteroPreferences();
+      if (!opened) {
+        setIsSettingsOpen(true);
+      }
+    } else {
+      setIsSettingsOpen(true);
+    }
+  }, [isZoteroMode]);
+
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (aiWorkflow) return;
+      // Escape closes floating search or context menu
+      if (e.key === 'Escape') {
+        if (contextMenuState) {
+          setContextMenuState(null);
+          return;
+        }
+        if (canvasContextMenuState) {
+          setCanvasContextMenuState(null);
+          return;
+        }
+        if (isSearchOpen) {
+          setIsSearchOpen(false);
+          return;
+        }
+        if (isPresentationOpen) {
+          setIsPresentationOpen(false);
+          return;
+        }
+        if (isZenMode) {
+          setIsZenMode(false);
+          return;
+        }
+      }
+
+      // Command Palette: Ctrl+K or Cmd+K
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsCommandPaletteOpen(prev => !prev);
+        return;
+      }
+
+      // If editing text in input or textarea, skip global shortcuts
+      if (editingId) return;
+      const activeTag = document.activeElement?.tagName.toLowerCase();
+      if (activeTag === 'input' || activeTag === 'textarea') return;
+
+      // Fullscreen: F11
+      if (e.key === 'F11') {
+        e.preventDefault();
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen?.().catch(() => {});
+        } else {
+          document.exitFullscreen?.().catch(() => {});
+        }
+        return;
+      }
+
+      // Quick save & sync to Zotero attachment: Ctrl+S or Cmd+S
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        void (async () => {
+          if (!(await flushCurrentDocument())) return;
+          const latest = latestDocRef.current;
+          if (!latest || !isZoteroMode) {
+            setSaveStatus({ state: 'saved', message: '已保存到本地' });
+            return;
+          }
+          if (latest.metadata?.aiDraft) {
+            setSaveStatus({ state: 'saved', message: 'AI 草稿已保存到本机；审阅后点击“归档到 Zotero”。' });
+            return;
+          }
+          await zoteroSyncQueueRef.current;
+          const result = await saveMindMapToZoteroAttachment(latest);
+          if (result.success && result.parentItemUri &&
+              (latest.metadata?.zoteroAttachmentKey !== result.attachmentKey || latest.metadata?.zoteroItemKey !== result.parentItemUri ||
+               Boolean(latest.metadata?.mindflowUnlinkedContainer) !== Boolean(result.usedUnlinkedContainer)) &&
+              !(await persistArchiveAssociation(latest.id, result))) return;
+          setSaveStatus({ state: result.success && (!result.noteRequested || result.savedNote) ? 'saved' : 'warning', message: result.message });
+        })().catch((error) => setSaveStatus({ state: 'error', message: `保存失败：${error?.message || error}` }));
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        setIsSearchOpen(prev => !prev);
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === '1') {
+        e.preventDefault();
+        centerCanvas(layout.bounds);
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === '0') {
+        e.preventDefault();
+        if (containerRef.current) {
+          setViewport({
+            x: containerRef.current.clientWidth / 2,
+            y: containerRef.current.clientHeight / 2,
+            scale: 1,
+          });
+        }
+        return;
+      }
+
+      if (e.key === 'F5' || ((e.altKey || e.metaKey) && e.key.toLowerCase() === 'p')) {
+        e.preventDefault();
+        setIsPresentationOpen(true);
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          handleRedo();
+        } else {
+          handleUndo();
+        }
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        handleRedo();
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === ',') {
+        e.preventDefault();
+        handleOpenSettings();
+        return;
+      }
+
+      // Clipboard shortcuts: Ctrl+C (Copy), Ctrl+D (Duplicate). Paste is handled
+      // by the native paste event so image data remains available.
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+        handleCopyNode();
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
+        e.preventDefault();
+        handleDuplicateNode();
+        return;
+      }
+
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        handleAddChild();
+        return;
+      }
+
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          handleAddSibling(true);
+        } else {
+          handleAddSibling(false);
+        }
+        return;
+      }
+
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        handleDeleteNode();
+        return;
+      }
+
+      if (e.key === ' ' && selectedId) {
+        e.preventDefault();
+        setEditingId(selectedId);
+        return;
+      }
+
+      if (e.key === '?') {
+        setIsShortcutsOpen(true);
+        return;
+      }
+
+      // Directional arrow navigation
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && selectedId) {
+        e.preventDefault();
+        const dirMap: Record<string, 'up' | 'down' | 'left' | 'right'> = {
+          ArrowUp: 'up',
+          ArrowDown: 'down',
+          ArrowLeft: 'left',
+          ArrowRight: 'right',
+        };
+        const nextId = findAdjacentNode(selectedId, dirMap[e.key], layout.nodes);
+        if (nextId) {
+          setSelectedId(nextId);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    aiWorkflow, editingId, selectedId, layout.nodes, isZenMode, flushCurrentDocument, isZoteroMode,
+    persistArchiveAssociation,
+    handleAddChild, handleAddSibling, handleDeleteNode, handleUndo, handleRedo,
+    handleCopyNode, handleDuplicateNode
+  ]);
+
+  // The welcome-card action analyzes the selected Zotero paper/PDF. It must
+  // never substitute sample records when the host selection is unavailable.
+  const handleCreateFromZoteroItems = useCallback(() => {
+    if (!isZoteroMode) {
+      setSaveStatus({ state: 'warning', message: 'Zotero 连接尚未就绪；请从 Zotero 打开 MindFlow 后再选择论文。' });
+      return;
+    }
+    const items = getSelectedZoteroItems();
+    if (items.length === 0) {
+      setSaveStatus({ state: 'warning', message: '请先在 Zotero 文献列表中选中一篇论文或其 PDF 附件。' });
+      return;
+    }
+    if (items.length > 1) {
+      setSaveStatus({ state: 'warning', message: '论文研究导图一次分析一篇；请只选择一篇论文或它的 PDF 附件。' });
+      return;
+    }
+    void analyzeRequestRef.current(items[0].zoteroUri);
+  }, [isZoteroMode]);
+
+  const handleAnalyzeZoteroPaper = useCallback(async (referenceOverride?: string) => {
+    if (!isZoteroMode || aiAnalyzingRef.current) return;
+    const selected = getSelectedZoteroItems();
+    if (!referenceOverride && selected.length > 1) {
+      setSaveStatus({ state: 'warning', message: 'AI 论文分析一次只能处理一篇文献；请只选中一篇。' });
+      return;
+    }
+    const reference = referenceOverride || selected[0]?.zoteroUri || latestDocRef.current?.metadata?.zoteroItemKey;
+    if (!reference) {
+      setSaveStatus({ state: 'warning', message: '请先在 Zotero 文献列表选择一篇论文，或打开一份关联文献的导图。' });
+      return;
+    }
+    const token = ++aiRequestTokenRef.current;
+    const controller = new AbortController();
+    aiAbortRef.current = controller;
+    aiAnalyzingRef.current = true;
+    setIsAiAnalyzing(true);
+    setAiWorkflow({ reference, stage: 'preparing', preview: null, progress: null, error: '' });
+    setSaveStatus({ state: 'saving', message: '正在保存当前导图并整理 Zotero 论文资料…' });
+    try {
+      if (!(await flushCurrentDocument())) throw new Error('当前导图尚未保存，暂不能开始论文分析。');
+      if (controller.signal.aborted || token !== aiRequestTokenRef.current) return;
+      const preview = await prepareResearchAnalysis(reference, controller.signal);
+      if (controller.signal.aborted || token !== aiRequestTokenRef.current) return;
+      setAiWorkflow({ reference, stage: 'ready', preview, progress: null, error: '' });
+      setSaveStatus({ state: 'saved', message: '论文资料已准备；请确认分析范围后开始。' });
+    } catch (error: any) {
+      if (controller.signal.aborted || token !== aiRequestTokenRef.current) return;
+      const message = String(error?.message || error);
+      setAiWorkflow({ reference, stage: 'error', preview: null, progress: null, error: message });
+      setSaveStatus({ state: 'error', message: `论文资料准备失败：${message}` });
+      if (message.includes('MindFlow 设置')) handleOpenSettings();
+    } finally {
+      if (token === aiRequestTokenRef.current) {
+        if (aiAbortRef.current === controller) aiAbortRef.current = null;
+        aiAnalyzingRef.current = false;
+        setIsAiAnalyzing(false);
+      }
+    }
+  }, [flushCurrentDocument, handleOpenSettings, isZoteroMode]);
+  analyzeRequestRef.current = handleAnalyzeZoteroPaper;
+
+  const handleCancelAiAnalysis = useCallback(() => {
+    ++aiRequestTokenRef.current;
+    aiAbortRef.current?.abort();
+    aiAbortRef.current = null;
+    aiAnalyzingRef.current = false;
+    setIsAiAnalyzing(false);
+    setAiWorkflow(null);
+    setSaveStatus({ state: 'warning', message: 'AI 分析已取消；未创建或归档导图。' });
+  }, []);
+
+  const handleStartAiAnalysis = useCallback(async (mode: 'quick' | 'deep', sources: ResearchSourceSelection) => {
+    const workflow = aiWorkflow;
+    if (!workflow?.preview || aiAnalyzingRef.current) return;
+    const token = ++aiRequestTokenRef.current;
+    const controller = new AbortController();
+    aiAbortRef.current = controller;
+    aiAnalyzingRef.current = true;
+    setIsAiAnalyzing(true);
+    setAiWorkflow({ ...workflow, stage: 'running', progress: null, error: '' });
+    setSaveStatus({ state: 'saving', message: '正在分析论文；导图尚未创建。' });
+    try {
+      const analysis = await requestResearchAnalysis(workflow.reference, {
+        preparedId: workflow.preview.preparedId, mode, sources, signal: controller.signal,
+        expectedCalls: mode === 'deep' && sources.pdf ? workflow.preview.deepCalls : 1,
+        onProgress: (progress) => {
+          if (token === aiRequestTokenRef.current) {
+            setAiWorkflow((current) => current ? { ...current, progress } : current);
+          }
+        },
+      });
+      if (controller.signal.aborted || token !== aiRequestTokenRef.current) return;
+      setAiWorkflow((current) => current ? { ...current, stage: 'saving' } : current);
+      const newDoc = createResearchDocument(analysis, settings.defaultThemeId);
+      if (!(await flushCurrentDocument())) throw new Error('当前导图尚未保存，请稍后重试。');
+      const savedDoc = await StorageService.saveDocument(newDoc);
+      if (controller.signal.aborted || token !== aiRequestTokenRef.current) return;
+      await StorageService.setActiveDocumentId(savedDoc.id);
+      cleanDocRef.current = savedDoc;
+      cleanRelationshipsRef.current = [];
+      setRelationships(cleanRelationshipsRef.current);
+      setDoc(savedDoc);
+      setSelectedId(savedDoc.root.id);
+      setSelectedIds([]);
+      historyRef.current.clear();
+      syncHistoryState();
+      setIsWelcomeOpen(false);
+      setTimeout(() => centerCanvas(), 60);
+      setAiWorkflow(null);
+      const evidenceCount = Number(newDoc.metadata?.aiEvidenceCount) || 0;
+      const reviewCount = Number(newDoc.metadata?.aiReviewCount) || 0;
+      setSaveStatus(evidenceCount > 0
+        ? { state: 'saved', message: `AI 研究导图草稿已保存；${evidenceCount} 条有原文片段匹配，${reviewCount} 条需核对。请审阅后归档。` }
+        : { state: 'warning', message: 'AI 草稿已保存在本机，但没有条目通过原文片段核对；请逐条核查后再归档。' });
+    } catch (error: any) {
+      if (controller.signal.aborted || token !== aiRequestTokenRef.current) return;
+      const message = String(error?.message || error);
+      const previewInvalid = message.includes('预览已过期') || message.includes('配置已变化');
+      setAiWorkflow((current) => current ? {
+        ...current, stage: 'error', preview: previewInvalid ? null : current.preview, error: message,
+      } : current);
+      setSaveStatus({ state: 'error', message: `AI 论文分析失败：${message}` });
+    } finally {
+      if (token === aiRequestTokenRef.current) {
+        if (aiAbortRef.current === controller) aiAbortRef.current = null;
+        aiAnalyzingRef.current = false;
+        setIsAiAnalyzing(false);
+      }
+    }
+  }, [aiWorkflow, centerCanvas, flushCurrentDocument, settings.defaultThemeId, syncHistoryState]);
+
+  const handleArchiveAiDraft = useCallback(async () => {
+    if (aiArchivingRef.current || !doc?.metadata?.aiDraft) return;
+    aiArchivingRef.current = true;
+    setIsArchivingAiDraft(true);
+    try {
+      if (!(await flushCurrentDocument(true))) return;
+      const current = latestDocRef.current;
+      if (!current?.metadata?.aiDraft || !current.metadata.zoteroItemKey) return;
+      setSaveStatus({ state: 'saving', message: '正在将已审阅草稿归档到 Zotero 文献…' });
+      await zoteroSyncQueueRef.current;
+      const archivedDoc = { ...current, metadata: {
+        ...current.metadata, aiDraft: false, autoSyncToZotero: true,
+      } };
+      const archived = await saveMindMapToZoteroAttachment(archivedDoc, current.metadata.zoteroItemKey, { silent: true });
+      if (!archived.success) throw new Error(archived.message);
+      if (!(await persistArchiveAssociation(current.id, archived, true))) return;
+      setSaveStatus(archived.noteRequested && !archived.savedNote
+        ? { state: 'warning', message: `导图附件已归档，但 Zotero 大纲笔记保存失败：${archived.noteError || '请检查 Zotero 日志'}。本地草稿状态正在保存。` }
+        : { state: 'saving', message: '导图附件已归档至 Zotero；正在保存本地归档状态，后续编辑将自动同步。' });
+    } catch (error: any) {
+      setSaveStatus({ state: 'warning', message: `草稿仍保存在本机，Zotero 归档失败：${error?.message || error}` });
+    } finally {
+      aiArchivingRef.current = false;
+      setIsArchivingAiDraft(false);
+    }
+  }, [doc?.metadata?.aiDraft, flushCurrentDocument, persistArchiveAssociation]);
+
+  // Explicitly append selected literature as reference child branches to currently selected node
+  const handleAppendZoteroItems = useCallback(() => {
+    if (!doc) return;
+    if (!isZoteroMode) {
+      setSaveStatus({ state: 'warning', message: 'Zotero 连接尚未就绪；未追加示例文献。请从 Zotero 打开 MindFlow 后重试。' });
+      return;
+    }
+    const items = getSelectedZoteroItems();
+    if (!items.length) {
+      setSaveStatus({ state: 'warning', message: '请先在 Zotero 文献列表中选中要追加的文献。' });
+      return;
+    }
+
+    const parentId = selectedId || doc.root.id;
+    let currentRoot = doc.root;
+    for (const rawItem of items) {
+      const itemData = extractZoteroItemData(rawItem);
+      if (itemData) {
+        const itemNode = convertZoteroItemToNode(itemData, {
+          includeAbstract: settings.zoteroIncludeAbstract,
+          includeAnnotations: settings.zoteroIncludeAnnotations,
+          includeTags: false,
+        });
+        const { newRoot, newNodeId } = addChildNode(currentRoot, parentId, itemNode.text);
+        currentRoot = updateNode(newRoot, newNodeId, {
+          note: itemNode.note,
+          link: itemNode.link,
+          tags: itemNode.tags,
+          color: itemNode.color,
+          children: itemNode.children,
+        });
+      }
+    }
+
+    commitRootChange(currentRoot);
+    setSaveStatus({ state: 'saved', message: `已将 ${items.length} 篇文献作为参考分支追加至当前导图！` });
+  }, [addChildNode, commitRootChange, doc, isZoteroMode, selectedId, updateNode]);
+
+  const handleSaveToZoteroNote = useCallback(async () => {
+    if (!(await flushCurrentDocument())) return;
+    const current = latestDocRef.current;
+    if (!current) return;
+    const res = await saveMindMapToZoteroNote(current);
+    setSaveStatus({ state: res.success ? 'saved' : 'warning', message: res.message });
+  }, [flushCurrentDocument]);
+
+  const handleSaveToZoteroAttachment = useCallback(async () => {
+    if (!(await flushCurrentDocument())) return;
+    const current = latestDocRef.current;
+    if (!current) return;
+    if (current.metadata?.aiDraft) {
+      await handleArchiveAiDraft();
+      return;
+    }
+    let parentKey = current.metadata?.zoteroItemKey;
+    let archiveDoc = current;
+    if ((isZoteroMode || zoteroHostConnectedRef.current) &&
+        (!parentKey || current.metadata?.mindflowUnlinkedContainer)) {
+      const snapshot = await getZoteroSelectionSnapshot();
+      if (!snapshot.available) {
+        setSaveStatus({ state: 'warning', message: '无法读取 Zotero 当前选择；请返回文献列表选中目标条目后重试。' });
+        return;
+      }
+      if (snapshot.selectedCount !== 1 || snapshot.items.length !== 1) {
+        setSaveStatus({
+          state: 'warning',
+          message: '请选择且仅选择一篇 Zotero 文献作为导图附件的归档目标。',
+        });
+        return;
+      }
+      parentKey = snapshot.items[0].zoteroUri;
+      archiveDoc = { ...current, metadata: { ...current.metadata,
+        zoteroItemKey: parentKey, zoteroUri: parentKey, zoteroLibraryID: snapshot.items[0].libraryID,
+        zoteroAttachmentKey: undefined, zoteroAttachmentLibraryID: undefined } };
+    }
+    await zoteroSyncQueueRef.current;
+    const res = await saveMindMapToZoteroAttachment(archiveDoc, parentKey, { silent: false });
+    if (res?.success) {
+      if (res.parentItemUri &&
+          (current.metadata?.zoteroAttachmentKey !== res.attachmentKey || current.metadata?.zoteroItemKey !== res.parentItemUri ||
+           Boolean(current.metadata?.mindflowUnlinkedContainer) !== Boolean(res.usedUnlinkedContainer)) &&
+          !(await persistArchiveAssociation(current.id, res))) return;
+      setSaveStatus({ state: res.noteRequested && !res.savedNote ? 'warning' : 'saved',
+        message: res.message || '已成功归档至 Zotero 文献条目！' });
+    } else {
+      setSaveStatus({ state: 'warning', message: res?.message || '归档失败，请检查 Zotero 状态后重试。' });
+    }
+  }, [flushCurrentDocument, handleArchiveAiDraft, isZoteroMode, persistArchiveAssociation]);
+
+  // Import file handler
+  const handleImportFile = async (file: File) => {
+    const token = ++activeDocLoadTokenRef.current;
+    if (!(await flushCurrentDocument()) || token !== activeDocLoadTokenRef.current) return;
+    if (file.size > MAX_BACKUP_BYTES) {
+      setSaveStatus({ state: 'warning', message: '导入文件超过 20 MB 安全上限。' });
+      return;
+    }
+    const fileName = file.name.toLowerCase();
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      if (!(await flushCurrentDocument()) || token !== activeDocLoadTokenRef.current) return;
+      const content = event.target?.result as string;
+      if (!content) return;
+
+      if (fileName.endsWith('.json') || fileName.endsWith('.mindflow')) {
+        try {
+          const sourceDoc = validateMindMapDocument(JSON.parse(content), '导入文件');
+          const importedDoc: MindMapDocument = {
+            ...sourceDoc,
+            id: 'doc_' + generateId(),
+            revision: 0,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            metadata: { ...detachedMetadata(sourceDoc.metadata), aiDraft: false },
+          };
+          StorageService.saveDocument(importedDoc).then(async (savedDoc) => {
+            if (token !== activeDocLoadTokenRef.current) return;
+            await StorageService.setActiveDocumentId(savedDoc.id);
+            if (token !== activeDocLoadTokenRef.current) return;
+            cleanDocRef.current = savedDoc;
+            cleanRelationshipsRef.current = savedDoc.relationships || [];
+            latestDocRef.current = savedDoc;
+            latestRelationshipsRef.current = cleanRelationshipsRef.current;
+            currentDocIdRef.current = savedDoc.id;
+            setRelationships(cleanRelationshipsRef.current);
+            setDoc(savedDoc);
+            setSelectedId(importedDoc.root.id);
+            setSelectedIds([]);
+            historyRef.current.clear();
+            syncHistoryState();
+            setTimeout(() => centerCanvas(), 50);
+          }).catch((error) => alert(`导入失败：${error?.message || '无法保存导图'}`));
+        } catch (error: any) {
+          alert(`JSON 导入失败：${error?.message || '文件格式无效'}`);
+        }
+      } else if (fileName.endsWith('.md') || fileName.endsWith('.markdown')) {
+        const importedRoot = importFromMarkdown(content);
+        const newDoc: MindMapDocument = {
+          id: 'doc_' + generateId(),
+          title: file.name.replace(/\.[^/.]+$/, ''),
+          themeId: doc?.themeId || 'classic-blue',
+          layoutType: 'mindmap',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          root: importedRoot,
+        };
+        StorageService.saveDocument(newDoc).then(async (savedDoc) => {
+          if (token !== activeDocLoadTokenRef.current) return;
+          await StorageService.setActiveDocumentId(savedDoc.id);
+            if (token !== activeDocLoadTokenRef.current) return;
+          cleanDocRef.current = savedDoc;
+          cleanRelationshipsRef.current = [];
+          latestDocRef.current = savedDoc;
+          latestRelationshipsRef.current = cleanRelationshipsRef.current;
+          currentDocIdRef.current = savedDoc.id;
+          setRelationships(cleanRelationshipsRef.current);
+          setDoc(savedDoc);
+          setSelectedId(newDoc.root.id);
+          setSelectedIds([]);
+          historyRef.current.clear();
+          syncHistoryState();
+          setTimeout(() => centerCanvas(), 50);
+        }).catch((error) => alert(`Markdown 导入失败：${error?.message || '无法保存导图'}`));
+      } else if (fileName.endsWith('.opml')) {
+        const importedRoot = importFromOPML(content);
+        const newDoc: MindMapDocument = {
+          id: 'doc_' + generateId(),
+          title: file.name.replace(/\.[^/.]+$/, ''),
+          themeId: doc?.themeId || 'classic-blue',
+          layoutType: 'mindmap',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          root: importedRoot,
+        };
+        StorageService.saveDocument(newDoc).then(async (savedDoc) => {
+          if (token !== activeDocLoadTokenRef.current) return;
+          await StorageService.setActiveDocumentId(savedDoc.id);
+            if (token !== activeDocLoadTokenRef.current) return;
+          cleanDocRef.current = savedDoc;
+          cleanRelationshipsRef.current = [];
+          latestDocRef.current = savedDoc;
+          latestRelationshipsRef.current = cleanRelationshipsRef.current;
+          currentDocIdRef.current = savedDoc.id;
+          setRelationships(cleanRelationshipsRef.current);
+          setDoc(savedDoc);
+          setSelectedId(newDoc.root.id);
+          setSelectedIds([]);
+          historyRef.current.clear();
+          syncHistoryState();
+          setTimeout(() => centerCanvas(), 50);
+        }).catch((error) => alert(`OPML 导入失败：${error?.message || '无法保存导图'}`));
+      }
+    };
+    reader.onerror = () => setSaveStatus({ state: 'error', message: `读取文件失败：${reader.error?.message || '文件不可读取'}` });
+    reader.readAsText(file);
+  };
+
+  if (!doc) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-slate-50 text-slate-400 text-sm">
+        {saveStatus.state === 'error' ? saveStatus.message : '正在加载思维导图...'}
+      </div>
+    );
+  }
+
+  const selectedNode = selectedId ? findNode(doc.root, selectedId) : null;
+  const inspectorDockSide = dockPosition === 'left' ? 'right' : 'left';
+
+  return (
+    <div className={`mindflow-app w-full h-full flex ${settings.toolbarPosition === 'bottom' ? 'flex-col-reverse' : 'flex-col'} overflow-hidden ${theme.isDark ? 'dark' : ''}`}>
+      {/* Top Toolbar (Hidden in Zen mode) */}
+      {!isZenMode && (
+        <Toolbar
+          title={doc.title}
+          saveStatus={saveStatus}
+          onTitleChange={(t) => setDoc(prev => prev ? { ...prev, title: t } : null)}
+          canUndo={canUndo}
+          canRedo={canRedo}
+          onUndo={handleUndo}
+          onRedo={handleRedo}
+          onAddChild={handleAddChild}
+          onImportNodeImage={(file) => { void handleImportNodeImage(file, undefined, true).catch(error => alert(`图片导入失败：${error?.message || '未知错误'}`)); }}
+          onAddSibling={() => handleAddSibling(false)}
+          onDeleteNode={handleDeleteNode}
+          hasSelection={!!selectedId && selectedId !== doc.root.id}
+          currentLayout={doc.layoutType}
+          onLayoutChange={(l: LayoutType) => setDoc(prev => prev ? { ...prev, layoutType: l } : null)}
+          currentThemeId={doc.themeId}
+          onThemeChange={(th: string) => setDoc(prev => prev ? { ...prev, themeId: th } : null)}
+          scale={viewport.scale}
+          onZoomIn={() => setViewport(v => ({ ...v, scale: Math.min(v.scale * (1 + settings.zoomStep), 3.0) }))}
+          onZoomOut={() => setViewport(v => ({ ...v, scale: Math.max(v.scale / (1 + settings.zoomStep), 0.25) }))}
+          onResetZoom={() => centerCanvas(layout.bounds)}
+          isOutlineOpen={isWorkbenchOpen && workbenchTab === 'outline'}
+          onToggleOutline={() => {
+            if (isWorkbenchOpen && workbenchTab === 'outline') {
+              setIsWorkbenchOpen(false);
+            } else {
+              setWorkbenchTab('outline');
+              setIsWorkbenchOpen(true);
+            }
+          }}
+          isInboxOpen={isWorkbenchOpen && workbenchTab === 'inbox'}
+          onToggleInbox={() => {
+            if (isWorkbenchOpen && workbenchTab === 'inbox') {
+              setIsWorkbenchOpen(false);
+            } else {
+              setWorkbenchTab('inbox');
+              setIsWorkbenchOpen(true);
+            }
+          }}
+          onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+          onOpenSearch={() => setIsSearchOpen(prev => !prev)}
+          onStartPresentation={() => setIsPresentationOpen(true)}
+          onFitScreen={() => centerCanvas(layout.bounds)}
+          onOpenTemplates={() => setIsTemplateModalOpen(true)}
+          onToggleZen={() => setIsZenMode(true)}
+          onOpenShortcuts={() => setIsShortcutsOpen(true)}
+          onOpenSettings={handleOpenSettings}
+          isPro={true}
+          toolbarButtons={settings.toolbarButtons}
+          onExportPNG={() => { void exportToPNG(layout.nodes, layout.connections, layout.bounds, theme, doc.title, { watermark: false }).catch(error => alert(`PNG 导出失败：${error?.message || '图片无法解码'}`)); }}
+          onExportSVG={() => exportToSVG(layout.nodes, layout.connections, layout.bounds, theme, doc.title, { watermark: false })}
+          onExportMarkdown={() => exportToMarkdown(doc.root, doc.title)}
+          onExportJSON={() => exportToJSON({ ...doc, relationships })}
+          onExportOPML={() => exportToOPML(doc.root, doc.title)}
+          onExportHTML={() => exportToInteractiveHTML(layout.nodes, layout.connections, layout.bounds, theme, doc.title, { watermark: false })}
+          onExportPDF={printToPDF}
+          onCollapseByLevel={handleCollapseByLevel}
+          onImportFile={handleImportFile}
+          isSidepanelMode={isSidepanelMode}
+          isZoteroMode={isZoteroMode}
+          onCreateFromZoteroItems={handleCreateFromZoteroItems}
+          onAppendZoteroItems={handleAppendZoteroItems}
+          onSaveToZoteroNote={handleSaveToZoteroNote}
+          onSaveToZoteroAttachment={handleSaveToZoteroAttachment}
+          onAnalyzeZoteroPaper={() => { void handleAnalyzeZoteroPaper(); }}
+          isAiAnalyzing={isAiAnalyzing}
+        />
+      )}
+
+      {isZoteroMode && doc.metadata?.aiDraft && (
+        <div role="status" className="flex flex-wrap items-center justify-between gap-2 border-b border-blue-200 bg-blue-50 px-4 py-2 text-xs text-blue-950 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-100">
+          <span><strong>AI 研究导图草稿</strong> · 已保存到本机。请在画布修改节点、核对原文后归档到关联文献。</span>
+          <button type="button" onClick={() => { void handleArchiveAiDraft(); }} disabled={isArchivingAiDraft}
+            className="rounded-lg bg-blue-600 px-3 py-1.5 font-semibold text-white hover:bg-blue-700 disabled:opacity-60">
+            {isArchivingAiDraft ? '正在归档…' : '归档到 Zotero'}
+          </button>
+        </div>
+      )}
+
+      {/* Floating Exit Button for Zen Mode */}
+      {isZenMode && (
+        <button
+          onClick={() => setIsZenMode(false)}
+          title="退出禅模式 (Esc)"
+          className="absolute top-4 right-4 z-40 px-3 py-1.5 bg-white/90 dark:bg-slate-800/90 shadow-lg rounded-xl text-xs font-semibold text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-slate-700 flex items-center gap-1.5 border border-purple-200 dark:border-purple-800 transition-all backdrop-blur-md"
+        >
+          <Minimize2 className="w-3.5 h-3.5" />
+          <span>退出专注模式 (Esc)</span>
+        </button>
+      )}
+
+      {/* Main Workspace Area */}
+      <div ref={containerRef} className="flex-1 relative overflow-hidden flex">
+        {/* Left / Right Workbench (Documents, Outline, Inbox, Backup) */}
+        {!isZenMode && (
+          <LeftWorkbench
+            currentDoc={doc}
+            selectedId={selectedId}
+            isOpen={isWorkbenchOpen}
+            activeTab={workbenchTab}
+            dockPosition={dockPosition}
+            isZoteroMode={isZoteroMode}
+            onToggleOpen={() => setIsWorkbenchOpen(!isWorkbenchOpen)}
+            onTabChange={(tab) => setWorkbenchTab(tab)}
+            focusedTag={focusedTag}
+            onFocusTag={setFocusedTag}
+            onToggleDockPosition={handleToggleDockPosition}
+            onSelectDoc={(id) => { void openDocumentAt(id); }}
+            onNewDoc={() => setIsWelcomeOpen(true)}
+            onSelectNode={handleSelectAndCenterNode}
+            onUpdateNodeText={(id, text) => handleUpdateNodePatch(id, { text })}
+            onAddChildNode={(parentId) => {
+              const { newRoot, newNodeId } = addChildNode(doc.root, parentId, '新条目');
+              commitRootChange(newRoot);
+              setSelectedId(newNodeId);
+            }}
+            onDeleteNode={(id) => {
+              const { newRoot, nextSelectedId } = deleteNode(doc.root, id);
+              commitRootChange(newRoot);
+              setSelectedId(nextSelectedId);
+            }}
+            onInsertInboxItem={handleInsertInboxItem}
+            onRestoreSnapshot={(restored) => {
+              if (currentDocIdRef.current !== restored.id) return;
+              latestDocRef.current = restored;
+              latestRelationshipsRef.current = restored.relationships || [];
+              cleanDocRef.current = restored;
+              cleanRelationshipsRef.current = restored.relationships || [];
+              setDoc(restored);
+              setRelationships(restored.relationships || []);
+              setSelectedId(restored.root.id);
+              historyRef.current.clear();
+              syncHistoryState();
+              setTimeout(() => centerCanvas(), 50);
+            }}
+            onReloadWorkspace={reloadWorkspace}
+            onFlushCurrentDocument={flushCurrentDocument}
+            onOpenSettings={handleOpenSettings}
+          />
+        )}
+
+        {/* Central Infinite Canvas */}
+        <div className="flex-1 h-full relative overflow-hidden">
+          <CanvasErrorBoundary rootNode={doc.root} onReset={() => centerCanvas(layout.bounds)}>
+            <Canvas
+              nodes={layout.nodes}
+              connections={layout.connections}
+              relationships={relationships}
+              bounds={layout.bounds}
+              theme={theme}
+              selectedId={selectedId}
+              selectedIds={selectedIds}
+              editingId={editingId}
+              viewport={viewport}
+              canvasBackground={settings.canvasBackground}
+              zoomStep={settings.zoomStep}
+              onViewportChange={setViewport}
+              onSelectNode={handleSelectNode}
+              onSelectMultipleNodes={handleSelectMultipleNodes}
+              onStartEditNode={(id) => setEditingId(id)}
+              onCommitEditNode={handleCommitEdit}
+              onCancelEditNode={() => setEditingId(null)}
+              onToggleCollapse={handleToggleCollapse}
+              onOpenInternalLink={(documentId, nodeId) => { void openDocumentAt(documentId, nodeId); }}
+              onMoveNode={handleMoveNode}
+              searchMatchedIds={searchMatchedIds}
+              focusedTag={focusedTag}
+              onContextMenuNode={handleContextMenuNode}
+              onContextMenuCanvas={handleContextMenuCanvas}
+              onAddChildNode={handleAddChild}
+              onAddSiblingNode={() => handleAddSibling(false)}
+              onImportNodeImage={(id, file) => handleImportNodeImage(file, id)}
+              onDeleteSelectedNode={(id) => handleDeleteNode(id)}
+              onQuickColorNode={(id, color) => handleUpdateNodePatch(id, { color })}
+              onCreateRelationship={handleCreateRelationship}
+              onDeleteRelationship={handleDeleteRelationship}
+              onEditRelationshipLabel={handleEditRelationshipLabel}
+              onBatchColor={handleBatchColor}
+              onBatchDelete={handleBatchDelete}
+            />
+          </CanvasErrorBoundary>
+
+          {/* In-Canvas Search Floating Widget */}
+          <CanvasSearch
+            isOpen={isSearchOpen}
+            onClose={() => setIsSearchOpen(false)}
+            rootNode={doc.root}
+            onJumpToNode={handleSelectAndCenterNode}
+            onHighlightMatches={setSearchMatchedIds}
+            onReplaceCurrent={handleReplaceNodeText}
+            onReplaceAll={handleReplaceAllNodeText}
+          />
+
+          {/* Minimap Widget (Hidden in Zen or Sidepanel mode) */}
+          {!isSidepanelMode && !isZenMode && (
+            <div className={`absolute bottom-4 z-20 ${dockPosition === 'left' ? 'right-4' : 'left-4'}`}>
+              <Minimap
+                nodes={layout.nodes}
+                bounds={layout.bounds}
+                viewport={viewport}
+                containerWidth={containerSize.width}
+                containerHeight={containerSize.height}
+                onNavigate={(newX, newY) => setViewport(v => ({ ...v, x: newX, y: newY }))}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Opposite Inspector Sidebar (Node Style, Task, Icons, Tags, Note, Link) */}
+        {!isZenMode && isPropertySidebarOpen && selectedNode && (
+          <PropertySidebar
+            selectedNode={selectedNode}
+            currentDoc={doc}
+            onUpdateNode={handleUpdateNodePatch}
+            onImportImage={(id, file) => handleImportNodeImage(file, id)}
+            onOpenInternalLink={(documentId, nodeId) => { void openDocumentAt(documentId, nodeId); }}
+            onClose={() => setIsPropertySidebarOpen(false)}
+            dockSide={inspectorDockSide}
+          />
+        )}
+      </div>
+
+      {/* Command Palette (Ctrl+K) */}
+      <CommandPalette
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
+        nodes={layout.nodes}
+        onSelectAndCenterNode={handleSelectAndCenterNode}
+        onAddChild={handleAddChild}
+        onAddSibling={() => handleAddSibling(false)}
+        onToggleOutline={() => {
+          setWorkbenchTab('outline');
+          setIsWorkbenchOpen(true);
+        }}
+        onToggleInbox={() => {
+          setWorkbenchTab('inbox');
+          setIsWorkbenchOpen(true);
+        }}
+        onToggleZen={() => setIsZenMode(prev => !prev)}
+        onChangeLayout={(l) => setDoc(prev => prev ? { ...prev, layoutType: l } : null)}
+        onChangeTheme={(th) => setDoc(prev => prev ? { ...prev, themeId: th } : null)}
+        onExportPNG={() => { void exportToPNG(layout.nodes, layout.connections, layout.bounds, theme, doc.title, { watermark: false }).catch(error => alert(`PNG 导出失败：${error?.message || '图片无法解码'}`)); }}
+        onExportSVG={() => exportToSVG(layout.nodes, layout.connections, layout.bounds, theme, doc.title, { watermark: false })}
+        onExportMarkdown={() => exportToMarkdown(doc.root, doc.title)}
+        onExportPDF={printToPDF}
+        onOpenShortcuts={() => setIsShortcutsOpen(true)}
+        onOpenSettings={handleOpenSettings}
+        onCreateBlank={handleCreateBlankDoc}
+        onOpenWelcome={() => setIsWelcomeOpen(true)}
+      />
+
+      {/* Template Selection Modal */}
+      <TemplateModal
+        isOpen={isTemplateModalOpen}
+        onClose={() => setIsTemplateModalOpen(false)}
+        onSelectTemplate={handleSelectTemplate}
+      />
+
+      {/* Welcome / Quick-Start Hub Modal */}
+      <WelcomeModal
+        isOpen={isWelcomeOpen}
+        onClose={() => setIsWelcomeOpen(false)}
+        onCreateBlank={handleCreateBlankDoc}
+        onImportZotero={handleCreateFromZoteroItems}
+        onOpenTemplates={() => setIsTemplateModalOpen(true)}
+        onTriggerImportFile={() => importFileInputRef.current?.click()}
+        onOpenDocument={(id) => { void openDocumentAt(id); }}
+        showOnStartup={settings.showWelcomeOnStartup}
+        onToggleShowOnStartup={(val) => {
+          setSettings((s) => ({ ...s, showWelcomeOnStartup: val }));
+          void SettingsService.updateSettings({ showWelcomeOnStartup: val });
+        }}
+        isZoteroMode={isZoteroMode}
+      />
+
+      {/* Hidden file input for file import from WelcomeModal */}
+      <input
+        ref={importFileInputRef}
+        type="file"
+        accept=".mindflow,.json,.md,.markdown,.opml"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) {
+            void handleImportFile(file);
+          }
+          e.target.value = '';
+        }}
+      />
+
+      {/* Shortcuts Cheat Sheet Modal */}
+      <ShortcutsModal
+        isOpen={isShortcutsOpen}
+        onClose={() => setIsShortcutsOpen(false)}
+      />
+
+      {/* Settings & Preferences Modal */}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        settings={settings}
+        onUpdateSettings={(newSettings) => {
+          setSettings(newSettings);
+          setDockPosition(newSettings.workbenchDockPosition);
+        }}
+        onReloadWorkspace={reloadWorkspace}
+        onFlushCurrentDocument={flushCurrentDocument}
+      />
+
+      <AIResearchModal
+        isOpen={Boolean(aiWorkflow)}
+        stage={aiWorkflow?.stage || 'preparing'}
+        preview={aiWorkflow?.preview || null}
+        progress={aiWorkflow?.progress || null}
+        error={aiWorkflow?.error || ''}
+        onStart={(mode, sources) => { void handleStartAiAnalysis(mode, sources); }}
+        onRetry={(mode, sources) => {
+          if (aiWorkflow?.preview) void handleStartAiAnalysis(mode, sources);
+          else if (aiWorkflow?.reference) void handleAnalyzeZoteroPaper(aiWorkflow.reference);
+        }}
+        onCancel={handleCancelAiAnalysis}
+        onClose={() => setAiWorkflow(null)}
+        onRefresh={() => { if (aiWorkflow?.reference) void handleAnalyzeZoteroPaper(aiWorkflow.reference); }}
+        onSettings={handleOpenSettings}
+      />
+
+      {/* Node Context Menu (Right Click) */}
+      {contextMenuState && (
+        <ContextMenu
+          x={contextMenuState.x}
+          y={contextMenuState.y}
+          node={contextMenuState.node}
+          onClose={() => setContextMenuState(null)}
+          onAddChild={(id) => {
+            const { newRoot, newNodeId } = addChildNode(doc.root, id, '分支主题');
+            commitRootChange(newRoot);
+            setSelectedId(newNodeId);
+            setSelectedIds([]);
+            playAddNode(settings.soundEffects);
+          }}
+          onAddSibling={() => handleAddSibling(false)}
+          onDelete={(id) => handleDeleteNode(id)}
+          onCopyNode={(id) => handleCopyNode(id, true)}
+          onDuplicateNode={(id) => handleDuplicateNode(id)}
+          onPasteSubtree={(id) => handlePasteNode(id)}
+          hasClipboardContent={!!clipboardSubtreeRef.current}
+          onToggleCollapse={handleToggleCollapse}
+          onStartEdit={(id) => setEditingId(id)}
+          onFocusSubtree={(id) => handleSelectAndCenterNode(id)}
+          onLocateZoteroItem={(uri) => locateItemInZotero(uri)}
+          onOpenZoteroPdf={(uri) => openItemPdfInZotero(uri)}
+        />
+      )}
+
+      {/* Canvas Context Menu (Right Click on Empty Canvas) */}
+      {canvasContextMenuState && (
+        <CanvasContextMenu
+          x={canvasContextMenuState.x}
+          y={canvasContextMenuState.y}
+          onClose={() => setCanvasContextMenuState(null)}
+          onCenterCanvas={() => centerCanvas(layout.bounds)}
+          onResetZoom={() => setViewport((v) => ({ ...v, scale: 1.0 }))}
+          onFitView={() => centerCanvas(layout.bounds)}
+          onAddRootChild={() => {
+            if (!doc) return;
+            const { newRoot, newNodeId } = addChildNode(doc.root, doc.root.id, '新分支主题');
+            commitRootChange(newRoot);
+            setSelectedId(newNodeId);
+            playAddNode(settings.soundEffects);
+          }}
+          onPasteSubtree={() => {
+            if (doc && clipboardSubtreeRef.current) {
+              handlePasteNode(doc.root.id);
+            }
+          }}
+          hasClipboardContent={!!clipboardSubtreeRef.current}
+          canvasBackground={settings.canvasBackground}
+          onChangeCanvasBackground={(bg) => setSettings((prev) => ({ ...prev, canvasBackground: bg }))}
+          onToggleTheme={() => {
+            const nextTheme = theme.isDark ? 'classic-blue' : 'dark-nebula';
+            setDoc((prev) => (prev ? { ...prev, themeId: nextTheme } : null));
+          }}
+          isDark={theme.isDark}
+        />
+      )}
+
+      {/* Fullscreen Presentation Mode */}
+      <PresentationMode
+        isOpen={isPresentationOpen}
+        onClose={() => setIsPresentationOpen(false)}
+        rootNode={doc.root}
+        theme={theme}
+      />
+    </div>
+  );
+};

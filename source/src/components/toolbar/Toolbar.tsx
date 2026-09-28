@@ -1,0 +1,804 @@
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  Plus, CornerDownRight, Trash2, Undo2, Redo2,
+  Palette, Layout, ListTree, Download, Upload,
+  HelpCircle, Maximize2, Minimize2, ZoomIn, ZoomOut,
+  ChevronDown, Check, Inbox, Sparkles, Command, Settings,
+  Presentation, Search as SearchIcon, Scan, Layers, ImagePlus, GraduationCap,
+  Expand, GitBranch, Image, Shapes, FileText, Braces, ListTree as ListTreeIcon, Globe, Paperclip
+} from 'lucide-react';
+import { LayoutType, ThemeColors } from '../../core/model/types';
+import { THEMES } from '../../core/theme/themes';
+import { ToolbarButtonsConfig } from '../../core/model/settingsTypes';
+import { MindFlowMark } from '../brand/MindFlowMark';
+
+interface ToolbarProps {
+  title: string;
+  saveStatus?: { state: 'saving' | 'saved' | 'warning' | 'error'; message: string };
+  onTitleChange: (newTitle: string) => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  onUndo: () => void;
+  onRedo: () => void;
+  onAddChild: () => void;
+  onImportNodeImage?: (file: File) => void;
+  onAddSibling: () => void;
+  onDeleteNode: () => void;
+  hasSelection: boolean;
+  currentLayout: LayoutType;
+  onLayoutChange: (layout: LayoutType) => void;
+  currentThemeId: string;
+  onThemeChange: (themeId: string) => void;
+  scale: number;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onResetZoom: () => void;
+  onFitScreen?: () => void;
+  isOutlineOpen: boolean;
+  onToggleOutline: () => void;
+  isInboxOpen?: boolean;
+  onToggleInbox?: () => void;
+  onOpenCommandPalette?: () => void;
+  onOpenSearch?: () => void;
+  onStartPresentation?: () => void;
+  onOpenTemplates?: () => void;
+  onToggleZen?: () => void;
+  onOpenShortcuts: () => void;
+  onOpenSettings?: () => void;
+  isPro?: boolean;
+  toolbarButtons?: ToolbarButtonsConfig;
+  onExportPNG: () => void;
+  onExportSVG: () => void;
+  onExportMarkdown: () => void;
+  onExportJSON: () => void;
+  onExportOPML?: () => void;
+  onExportHTML?: () => void;
+  onExportPDF?: () => void;
+  onCollapseByLevel?: (level: number) => void;
+  onImportFile: (file: File) => void;
+  isSidepanelMode?: boolean;
+  isZoteroMode?: boolean;
+  onCreateFromZoteroItems?: () => void;
+  onAppendZoteroItems?: () => void;
+  onSaveToZoteroNote?: () => void;
+  onSaveToZoteroAttachment?: () => void;
+  onAnalyzeZoteroPaper?: () => void;
+  isAiAnalyzing?: boolean;
+}
+
+export const Toolbar: React.FC<ToolbarProps> = ({
+  title,
+  saveStatus,
+  onTitleChange,
+  canUndo,
+  canRedo,
+  onUndo,
+  onRedo,
+  onAddChild,
+  onImportNodeImage,
+  onAddSibling,
+  onDeleteNode,
+  hasSelection,
+  currentLayout,
+  onLayoutChange,
+  currentThemeId,
+  onThemeChange,
+  scale,
+  onZoomIn,
+  onZoomOut,
+  onResetZoom,
+  onFitScreen,
+  isOutlineOpen,
+  onToggleOutline,
+  isInboxOpen,
+  onToggleInbox,
+  onOpenCommandPalette,
+  onOpenSearch,
+  onStartPresentation,
+  onOpenTemplates,
+  onToggleZen,
+  onOpenShortcuts,
+  onOpenSettings,
+  isPro: _isPro = false,
+  toolbarButtons,
+  onExportPNG,
+  onExportSVG,
+  onExportMarkdown,
+  onExportJSON,
+  onExportOPML,
+  onExportHTML,
+  onExportPDF,
+  onCollapseByLevel,
+  onImportFile,
+  isSidepanelMode,
+  isZoteroMode = false,
+  onCreateFromZoteroItems,
+  onAppendZoteroItems,
+  onSaveToZoteroNote,
+  onSaveToZoteroAttachment,
+  onAnalyzeZoteroPaper,
+  isAiAnalyzing = false,
+}) => {
+  const buttons = toolbarButtons || {
+    history: true,
+    insert: true,
+    layout: true,
+    theme: true,
+    outline: true,
+    inbox: true,
+    templates: true,
+    zen: true,
+    export: true,
+    zoom: true,
+  };
+
+  const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
+  const [isLayoutMenuOpen, setIsLayoutMenuOpen] = useState(false);
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+  const [isLevelMenuOpen, setIsLevelMenuOpen] = useState(false);
+  const [isZoteroMenuOpen, setIsZoteroMenuOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const nodeImageInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const handleToggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen?.().catch(() => {});
+    } else {
+      document.exitFullscreen?.().catch(() => {});
+    }
+  };
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      onImportFile(file);
+    }
+    e.target.value = '';
+  };
+
+  return (
+    <header className="min-h-14 shrink-0 py-2 px-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 flex flex-wrap 2xl:flex-nowrap items-center justify-between gap-2 z-30 select-none">
+      {/* Left: App Logo & Document Title */}
+      <div className="flex items-center gap-3 min-w-0 shrink-0">
+        <div className="flex items-center gap-2 flex-shrink-0" title="MindFlow" aria-label="MindFlow">
+          <MindFlowMark className="w-8 h-8 flex-shrink-0" />
+
+        </div>
+
+        <div className="h-4 w-px bg-slate-200 dark:bg-slate-700 hidden sm:block" />
+
+        {/* Editable Title */}
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => onTitleChange(e.target.value)}
+          className="bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 focus:bg-white dark:focus:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100 px-2 py-1 rounded-md border border-transparent focus:border-blue-400 outline-none transition-colors truncate max-w-[140px] sm:max-w-[240px]"
+          title="点击修改思维导图标题"
+        />
+        {saveStatus && (
+          <span
+            role="status"
+            aria-live="polite"
+            title={saveStatus.message}
+            className={`hidden sm:inline text-[10px] whitespace-nowrap ${
+              saveStatus.state === 'error'
+                ? 'text-red-600 dark:text-red-400'
+                : saveStatus.state === 'warning'
+                ? 'text-amber-600 dark:text-amber-400'
+                : saveStatus.state === 'saving'
+                ? 'text-slate-400'
+                : 'text-emerald-600 dark:text-emerald-400'
+            }`}
+          >
+            {saveStatus.state === 'saving' ? '保存中…' : saveStatus.state === 'error' ? '保存失败' : saveStatus.state === 'warning' ? '备份有问题' : '已保存'}
+          </span>
+        )}
+      </div>
+
+      {/* Center: Core Action Buttons */}
+      {(buttons.history || buttons.insert) && (
+        <div className="flex w-max flex-nowrap shrink-0 items-center gap-1 whitespace-nowrap bg-slate-100/80 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200/60 dark:border-slate-700/60">
+          {/* Undo / Redo */}
+          {buttons.history && (
+            <>
+              <button
+                onClick={onUndo}
+                disabled={!canUndo}
+                title="撤销 (Ctrl+Z)"
+                className="p-1.5 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+              >
+                <Undo2 className="w-4 h-4" />
+              </button>
+              <button
+                onClick={onRedo}
+                disabled={!canRedo}
+                title="重做 (Ctrl+Y)"
+                className="p-1.5 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+              >
+                <Redo2 className="w-4 h-4" />
+              </button>
+            </>
+          )}
+
+          {buttons.history && buttons.insert && (
+            <div className="h-3.5 w-px bg-slate-200 dark:bg-slate-700 mx-0.5" />
+          )}
+
+          {/* Insert Child */}
+          {buttons.insert && (
+            <>
+              <button
+                onClick={onAddChild}
+                title="插入子主题 (Tab)"
+                className="flex shrink-0 flex-nowrap items-center gap-1 px-2 py-1 rounded-lg whitespace-nowrap text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700 transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5 shrink-0 text-slate-500 dark:text-slate-400" />
+                <span className="hidden xl:inline whitespace-nowrap">子主题</span>
+                <kbd className="hidden 2xl:inline shrink-0 text-[10px] text-slate-400 bg-slate-200/60 dark:bg-slate-700 px-1 rounded">Tab</kbd>
+              </button>
+
+              {onImportNodeImage && <>
+                <button onClick={() => nodeImageInputRef.current?.click()} title="添加图片节点（可再编辑文字）"
+                  aria-label="添加图片节点"
+                  className="flex shrink-0 flex-nowrap items-center gap-1 px-2 py-1 rounded-lg whitespace-nowrap text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700 transition-colors">
+                  <ImagePlus className="w-3.5 h-3.5 shrink-0 text-slate-500 dark:text-slate-400" />
+                  <span className="hidden xl:inline whitespace-nowrap">图片节点</span>
+                </button>
+                <input ref={nodeImageInputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" aria-label="选择节点图片"
+                  onChange={event => { const file = event.target.files?.[0]; if (file) onImportNodeImage(file); event.target.value = ''; }} />
+              </>}
+
+              {/* Insert Sibling */}
+              <button
+                onClick={onAddSibling}
+                title="插入同级主题 (Enter)"
+                className="flex shrink-0 flex-nowrap items-center gap-1 px-2 py-1 rounded-lg whitespace-nowrap text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700 transition-colors"
+              >
+                <CornerDownRight className="w-3.5 h-3.5 shrink-0 text-slate-500 dark:text-slate-400" />
+                <span className="hidden xl:inline whitespace-nowrap">同级主题</span>
+                <kbd className="hidden 2xl:inline shrink-0 text-[10px] text-slate-400 bg-slate-200/60 dark:bg-slate-700 px-1 rounded">Enter</kbd>
+              </button>
+            </>
+          )}
+
+          {/* Delete */}
+          <button
+            onClick={onDeleteNode}
+            disabled={!hasSelection}
+            title="删除主题 (Delete)"
+            className="p-1.5 rounded-lg text-slate-600 dark:text-slate-300 hover:text-red-600 hover:bg-white dark:hover:bg-slate-700 disabled:opacity-30 transition-colors"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Right: Layout, Theme, Outline, Export, Zoom & Extensions */}
+      <div className="flex items-center gap-1.5 flex-shrink-0">
+
+        {/* Layout dropdown */}
+        {buttons.layout && (
+          <div className="relative">
+            <button
+              onClick={() => {
+                setIsLayoutMenuOpen(!isLayoutMenuOpen);
+                setIsThemeMenuOpen(false);
+                setIsExportMenuOpen(false);
+              }}
+              title="切换导图布局结构"
+              className="flex items-center gap-1 p-1.5 sm:px-2 sm:py-1 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            >
+              <Layout className="w-4 h-4 text-slate-500" />
+              <span className="hidden md:inline">
+                {currentLayout === 'mindmap' ? '思维导图' : currentLayout === 'logic-right' ? '逻辑图' : '组织架构'}
+              </span>
+              <ChevronDown className="w-3 h-3 opacity-60" />
+            </button>
+
+            {isLayoutMenuOpen && (
+              <div className="absolute right-0 mt-1 w-36 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 py-1 z-50 animate-in fade-in zoom-in-95 duration-100">
+                <button
+                  onClick={() => { onLayoutChange('mindmap'); setIsLayoutMenuOpen(false); }}
+                  className={`w-full text-left px-3 py-1.5 text-xs flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-700 ${currentLayout === 'mindmap' ? 'text-blue-600 font-semibold' : 'text-slate-700 dark:text-slate-300'}`}
+                >
+                  <span>思维导图 (左右)</span>
+                  {currentLayout === 'mindmap' && <Check className="w-3 h-3" />}
+                </button>
+                <button
+                  onClick={() => { onLayoutChange('logic-right'); setIsLayoutMenuOpen(false); }}
+                  className={`w-full text-left px-3 py-1.5 text-xs flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-700 ${currentLayout === 'logic-right' ? 'text-blue-600 font-semibold' : 'text-slate-700 dark:text-slate-300'}`}
+                >
+                  <span>逻辑图 (单向右)</span>
+                  {currentLayout === 'logic-right' && <Check className="w-3 h-3" />}
+                </button>
+                <button
+                  onClick={() => { onLayoutChange('org-down'); setIsLayoutMenuOpen(false); }}
+                  className={`w-full text-left px-3 py-1.5 text-xs flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-700 ${currentLayout === 'org-down' ? 'text-blue-600 font-semibold' : 'text-slate-700 dark:text-slate-300'}`}
+                >
+                  <span>组织架构 (向下)</span>
+                  {currentLayout === 'org-down' && <Check className="w-3 h-3" />}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Theme dropdown */}
+        {buttons.theme && (
+          <div className="relative">
+            <button
+              onClick={() => {
+                setIsThemeMenuOpen(!isThemeMenuOpen);
+                setIsLayoutMenuOpen(false);
+                setIsExportMenuOpen(false);
+              }}
+              title="选择设计主题"
+              className="p-1.5 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            >
+              <Palette className="w-4 h-4 text-slate-500" />
+            </button>
+
+            {isThemeMenuOpen && (
+              <div className="absolute right-0 mt-1 w-52 max-h-80 overflow-y-auto bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 py-1.5 z-50">
+                <div className="px-3 py-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                  选择设计主题
+                </div>
+                {Object.values(THEMES).map((thm: ThemeColors) => (
+                  <button
+                    key={thm.id}
+                    onClick={() => { onThemeChange(thm.id); setIsThemeMenuOpen(false); }}
+                    className="w-full px-3 py-1.5 text-xs flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="w-3 h-3 rounded-full border border-slate-300" style={{ backgroundColor: thm.rootBg }} />
+                      <span>{thm.name}</span>
+                    </div>
+                    {currentThemeId === thm.id && <Check className="w-3 h-3 text-blue-600" />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Command Palette button */}
+        {onOpenCommandPalette && (
+          <button
+            onClick={onOpenCommandPalette}
+            title="全局命令面板与搜索 (Ctrl+K)"
+            className="flex items-center gap-1 px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-300 rounded-lg text-xs font-medium transition-colors"
+          >
+            <Command className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+            <span className="hidden xl:inline text-[11px]">命令</span>
+            <kbd className="hidden lg:inline text-[10px] text-slate-400 bg-white dark:bg-slate-700 px-1 rounded border border-slate-200 dark:border-slate-600">⌘K</kbd>
+          </button>
+        )}
+
+        {/* Inbox button */}
+        {buttons.inbox && onToggleInbox && (
+          <button
+            onClick={onToggleInbox}
+            title="灵感与网页收集箱 (Inbox)"
+            className={`p-1.5 rounded-lg transition-colors ${
+              isInboxOpen
+                ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-600'
+                : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
+          >
+            <Inbox className="w-4 h-4" />
+          </button>
+        )}
+
+        {/* Templates button */}
+        {buttons.templates && onOpenTemplates && (
+          <button
+            onClick={onOpenTemplates}
+            title="模版库 (SWOT/读书笔记/敏捷规划)"
+            className="p-1.5 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          >
+            <Sparkles className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+          </button>
+        )}
+
+        {/* Branch Level Fold / Expand menu */}
+        {onCollapseByLevel && (
+          <div className="relative">
+            <button
+              onClick={() => {
+                setIsLevelMenuOpen(!isLevelMenuOpen);
+                setIsExportMenuOpen(false);
+                setIsThemeMenuOpen(false);
+                setIsLayoutMenuOpen(false);
+              }}
+              title="分支层级折叠与展开"
+              className={`p-1.5 rounded-lg transition-colors ${isLevelMenuOpen ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+            >
+              <Layers className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+            </button>
+            {isLevelMenuOpen && (
+              <div className="absolute left-0 mt-1 w-44 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
+                <div className="px-3 py-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                  视图层级折叠
+                </div>
+                <button
+                  onClick={() => { onCollapseByLevel(99); setIsLevelMenuOpen(false); }}
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center justify-between"
+                >
+                  <span className="flex items-center gap-2"><Expand className="w-3.5 h-3.5" />展开全部节点</span>
+                </button>
+                <button
+                  onClick={() => { onCollapseByLevel(2); setIsLevelMenuOpen(false); }}
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center justify-between"
+                >
+                  <span className="flex items-center gap-2"><GitBranch className="w-3.5 h-3.5" />展开至 2 级分支</span>
+                </button>
+                <button
+                  onClick={() => { onCollapseByLevel(1); setIsLevelMenuOpen(false); }}
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center justify-between"
+                >
+                  <span className="flex items-center gap-2"><ListTreeIcon className="w-3.5 h-3.5" />仅显示 1 级主干</span>
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Outline view toggle */}
+        {buttons.outline && (
+          <button
+            onClick={onToggleOutline}
+            title="切换大纲模式"
+            className={`p-1.5 rounded-lg transition-colors ${isOutlineOpen ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+          >
+            <ListTree className="w-4 h-4" />
+          </button>
+        )}
+
+        {/* Zen Mode toggle */}
+        {buttons.zen && onToggleZen && (
+          <button
+            onClick={onToggleZen}
+            title="开启禅模式 (Zen Focus Mode)"
+            className="p-1.5 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          >
+            <Maximize2 className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+          </button>
+        )}
+
+        {/* In-canvas Search */}
+        {onOpenSearch && (
+          <button
+            onClick={onOpenSearch}
+            title="在导图中搜索 (Ctrl+F)"
+            className="p-1.5 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          >
+            <SearchIcon className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+          </button>
+        )}
+
+        {/* Presentation Mode */}
+        {onStartPresentation && (
+          <button
+            onClick={onStartPresentation}
+            title="全屏路演/演示模式 (Presentation Mode)"
+            className="p-1.5 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 transition-colors"
+          >
+            <Presentation className="w-4 h-4" />
+          </button>
+        )}
+
+        {/* Export / Import dropdown */}
+        {buttons.export && (
+          <div className="relative">
+            <button
+              onClick={() => {
+                setIsExportMenuOpen(!isExportMenuOpen);
+                setIsThemeMenuOpen(false);
+                setIsLayoutMenuOpen(false);
+              }}
+              title="导入与导出"
+              className="flex items-center gap-1 p-1.5 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            >
+              <Download className="w-4 h-4 text-slate-500" />
+              <ChevronDown className="w-3 h-3 opacity-60" />
+            </button>
+
+            {isExportMenuOpen && (
+              <div className="absolute right-0 mt-1 w-44 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 py-1.5 z-50">
+                <div className="px-3 py-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                  导出格式
+                </div>
+                <button
+                  onClick={() => { onExportPNG(); setIsExportMenuOpen(false); }}
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
+                >
+                  <Image className="mr-2 w-4 h-4" />高清图片 (PNG)
+                </button>
+                <button
+                  onClick={() => { onExportSVG(); setIsExportMenuOpen(false); }}
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
+                >
+                  <Shapes className="mr-2 w-4 h-4" />矢量图形 (SVG)
+                </button>
+                <button
+                  onClick={() => { onExportMarkdown(); setIsExportMenuOpen(false); }}
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
+                >
+                  <FileText className="mr-2 w-4 h-4" />Markdown 大纲 (.md)
+                </button>
+                <button
+                  onClick={() => { onExportJSON(); setIsExportMenuOpen(false); }}
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
+                >
+                  <Braces className="mr-2 w-4 h-4" />JSON 工程备份
+                </button>
+                <button
+                  onClick={() => { onExportOPML?.(); setIsExportMenuOpen(false); }}
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
+                >
+                  <ListTreeIcon className="mr-2 w-4 h-4" />OPML 2.0 大纲 (.opml)
+                </button>
+                <button
+                  onClick={() => { onExportHTML?.(); setIsExportMenuOpen(false); }}
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
+                >
+                  <Globe className="mr-2 w-4 h-4" />独立离线交互网页 (.html)
+                </button>
+                <button
+                  onClick={() => { onExportPDF?.(); setIsExportMenuOpen(false); }}
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
+                >
+                  <FileText className="mr-2 w-4 h-4" />矢量 PDF 打印排版 (PDF)
+                </button>
+                {onSaveToZoteroNote && (
+                  <button
+                    onClick={() => { onSaveToZoteroNote(); setIsExportMenuOpen(false); }}
+                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-sky-600 dark:text-sky-400 font-medium"
+                  >
+                    <GraduationCap className="mr-2 w-4 h-4" />存为 Zotero 导图笔记
+                  </button>
+                )}
+
+                <div className="h-px bg-slate-200 dark:bg-slate-700 my-1" />
+
+                <div className="px-3 py-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                  导入
+                </div>
+                <button
+                  onClick={() => { fileInputRef.current?.click(); setIsExportMenuOpen(false); }}
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-1.5"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>导入 Markdown / JSON / OPML</span>
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Zotero Academic Hub */}
+        <div className="relative">
+          <button
+            onClick={() => {
+              setIsZoteroMenuOpen(!isZoteroMenuOpen);
+              setIsExportMenuOpen(false);
+              setIsLevelMenuOpen(false);
+              setIsThemeMenuOpen(false);
+              setIsLayoutMenuOpen(false);
+            }}
+            title="Zotero 学术文献联动"
+            className={`flex items-center gap-1 p-1.5 rounded-lg transition-colors ${
+              isZoteroMenuOpen
+                ? 'bg-sky-100 dark:bg-sky-950/50 text-sky-600'
+                : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
+          >
+            <GraduationCap className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+            <span className="hidden xl:inline text-xs font-medium text-sky-600 dark:text-sky-400">Zotero</span>
+            <ChevronDown className="w-3 h-3 opacity-60 text-sky-600 dark:text-sky-400" />
+          </button>
+
+          {isZoteroMenuOpen && (
+            <div className="absolute right-0 mt-1 w-64 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
+              <div className="px-3 py-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                <span>Zotero 伴读联动</span>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded font-normal ${
+                  isZoteroMode
+                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                    : 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
+                }`}>
+                  {isZoteroMode ? '已连接 Zotero' : '独立演示模式'}
+                </span>
+              </div>
+
+              {isZoteroMode && onAnalyzeZoteroPaper && (
+                <button
+                  type="button"
+                  disabled={isAiAnalyzing}
+                  onClick={() => { onAnalyzeZoteroPaper(); setIsZoteroMenuOpen(false); }}
+                  title="将选中文献的摘要、笔记、批注及可读取的 PDF 文字发送至已配置的 AI 服务"
+                  className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-2 disabled:opacity-50"
+                >
+                  <Sparkles className="w-4 h-4 text-violet-600 shrink-0" />
+                  <span><span className="block font-semibold">{isAiAnalyzing ? '正在解析论文…' : 'AI 解析论文并生成导图'}</span>
+                    <span className="block text-[10px] text-slate-400">研究问题、体系、证据、意义与局限</span></span>
+                </button>
+              )}
+
+              {onCreateFromZoteroItems && (
+                <button
+                  onClick={() => {
+                    onCreateFromZoteroItems();
+                    setIsZoteroMenuOpen(false);
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-2 cursor-pointer"
+                >
+                  <FileText className="w-4 h-4 shrink-0" />
+                  <div>
+                    <div className="font-semibold text-slate-800 dark:text-slate-200">从选中文献新建导图</div>
+                    <div className="text-[10px] text-slate-400">独立导图文件，专属归档至该文献附件</div>
+                  </div>
+                </button>
+              )}
+
+              {onAppendZoteroItems && (
+                <button
+                  onClick={() => {
+                    onAppendZoteroItems();
+                    setIsZoteroMenuOpen(false);
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-2 cursor-pointer"
+                >
+                  <Download className="w-4 h-4 shrink-0" />
+                  <div>
+                    <div className="font-medium text-slate-800 dark:text-slate-200">追加文献至当前分支</div>
+                    <div className="text-[10px] text-slate-400">作为参考引用节点追加进当前导图</div>
+                  </div>
+                </button>
+              )}
+
+              {onSaveToZoteroAttachment && (
+                <button
+                  onClick={() => {
+                    onSaveToZoteroAttachment();
+                    setIsZoteroMenuOpen(false);
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-2"
+                >
+                  <Paperclip className="w-4 h-4 shrink-0" />
+                  <div>
+                    <div className="font-medium text-slate-800 dark:text-slate-200">存为文献条目附件 (.mindflow)</div>
+                    <div className="text-[10px] text-slate-400">作为源文件附件挂载，本地存储 + 云同步</div>
+                  </div>
+                </button>
+              )}
+
+              {onSaveToZoteroNote && (
+                <button
+                  onClick={() => {
+                    onSaveToZoteroNote();
+                    setIsZoteroMenuOpen(false);
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-2"
+                >
+                  <FileText className="w-4 h-4 shrink-0" />
+                  <div>
+                    <div className="font-medium text-slate-800 dark:text-slate-200">存为 Zotero 大纲笔记</div>
+                    <div className="text-[10px] text-slate-400">生成富文本大纲存入文献库</div>
+                  </div>
+                </button>
+              )}
+
+              <div className="h-px bg-slate-200 dark:bg-slate-700 my-1" />
+
+              <div className="px-3 py-1 text-[10px] text-slate-400 leading-relaxed">
+                {isZoteroMode
+                  ? '在 Zotero 文献库中选中条目后，点击上方即可一键导入'
+                  : '提示：安装 MindFlow Zotero 插件（.xpi）后可直接与本地文献库实时双向联动'}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".mindflow,.json,.md,.markdown,.opml"
+          onChange={handleFileInputChange}
+          className="hidden"
+        />
+
+        {/* Shortcuts Cheat Sheet */}
+        <button
+          onClick={onOpenShortcuts}
+          title="快捷键大全 (?)"
+          className="p-1.5 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+        >
+          <HelpCircle className="w-4 h-4 text-slate-500" />
+        </button>
+
+        {/* Settings button */}
+        {onOpenSettings && (
+          <button
+            onClick={onOpenSettings}
+            title="系统设置与偏好 (Ctrl+,)"
+            className="p-1.5 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          >
+            <Settings className="w-4 h-4 text-slate-500" />
+          </button>
+        )}
+
+        {/* Fullscreen Toggle */}
+        <button
+          onClick={handleToggleFullscreen}
+          title={isFullscreen ? '退出全屏模式 (F11 / Esc)' : '全屏沉浸研读 (F11)'}
+          className="p-1.5 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+        >
+          {isFullscreen ? (
+            <Minimize2 className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+          ) : (
+            <Maximize2 className="w-4 h-4 text-slate-500" />
+          )}
+        </button>
+
+        {/* Zoom & Fit controls */}
+        {buttons.zoom && (
+          <div className="hidden sm:flex items-center gap-0.5 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg">
+            {onFitScreen && (
+              <button
+                onClick={onFitScreen}
+                title="自适应全屏居中 (Ctrl+1)"
+                className="p-1 rounded text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700"
+              >
+                <Scan className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+              </button>
+            )}
+            <button
+              onClick={onZoomOut}
+              title="缩小画布"
+              className="p-1 rounded text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700"
+            >
+              <ZoomOut className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={onResetZoom}
+              title="重置为 100% 原始大小 (Ctrl+0)"
+              className="px-1.5 text-[11px] font-medium text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 rounded"
+            >
+              {Math.round(scale * 100)}%
+            </button>
+            <button
+              onClick={onZoomIn}
+              title="放大画布"
+              className="p-1 rounded text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700"
+            >
+              <ZoomIn className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* Open in full tab button if in sidepanel mode */}
+        {isSidepanelMode && (
+          <button
+            onClick={() => {
+              window.open('index.html', '_blank');
+            }}
+            title="在独立大标签页中全屏打开"
+            className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors"
+          >
+            <Maximize2 className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+    </header>
+  );
+};

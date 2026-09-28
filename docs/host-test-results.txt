@@ -1,0 +1,190 @@
+TAP version 13
+# Subtest: tombstoned documents never appear as readable after interrupted deletion
+ok 1 - tombstoned documents never appear as readable after interrupted deletion
+  ---
+  duration_ms: 4.3758
+  ...
+# Subtest: two host snapshot updates merge instead of losing the earlier version
+ok 2 - two host snapshot updates merge instead of losing the earlier version
+  ---
+  duration_ms: 2.0991
+  ...
+# Subtest: direct workspace context accepts the owning wrapped window and records actual document ID
+ok 3 - direct workspace context accepts the owning wrapped window and records actual document ID
+  ---
+  duration_ms: 1.3929
+  ...
+# Subtest: direct handshake delivers a pending action once to the actual owning frame
+ok 4 - direct handshake delivers a pending action once to the actual owning frame
+  ---
+  duration_ms: 0.8838
+  ...
+# Subtest: host serializes concurrent compare-and-save as one mutation
+ok 5 - host serializes concurrent compare-and-save as one mutation
+  ---
+  duration_ms: 1.4261
+  ...
+# Subtest: delete checks revision inside the same host queue as writes
+ok 6 - delete checks revision inside the same host queue as writes
+  ---
+  duration_ms: 1.9816
+  ...
+# Subtest: deletion marker hides a file when physical cleanup fails
+ok 7 - deletion marker hides a file when physical cleanup fails
+  ---
+  duration_ms: 1.153
+  ...
+# Subtest: explicit backup restore removes the deletion marker
+ok 8 - explicit backup restore removes the deletion marker
+  ---
+  duration_ms: 1.4268
+  ...
+# Subtest: one unreadable workspace record cannot block exporting other records
+ok 9 - one unreadable workspace record cannot block exporting other records
+  ---
+  duration_ms: 1.1722
+  ...
+# Subtest: closing captures latest state before the iframe is destroyed
+ok 10 - closing captures latest state before the iframe is destroyed
+  ---
+  duration_ms: 1.3552
+  ...
+# Subtest: close conflict saves a detached recovery copy rather than overwriting another editor
+ok 11 - close conflict saves a detached recovery copy rather than overwriting another editor
+  ---
+  duration_ms: 2.0145
+  ...
+# Subtest: host rejects duplicate nodes and unsafe IDs before any write
+ok 12 - host rejects duplicate nodes and unsafe IDs before any write
+  ---
+  duration_ms: 1.8938
+  ...
+# Subtest: stale revision-one writer cannot recreate a deleted document
+ok 13 - stale revision-one writer cannot recreate a deleted document
+  ---
+  duration_ms: 0.9145
+  ...
+# Subtest: archive refuses a document deleted from workspace
+ok 14 - archive refuses a document deleted from workspace
+  ---
+  duration_ms: 1.6846
+  ...
+# Subtest: explicit missing group item never falls through to same user-library key
+ok 15 - explicit missing group item never falls through to same user-library key
+  ---
+  duration_ms: 1.6512
+  ...
+# Subtest: bare ambiguous keys, mismatched scopes and missing groups are rejected
+ok 16 - bare ambiguous keys, mismatched scopes and missing groups are rejected
+  ---
+  duration_ms: 1.0528
+  ...
+# Subtest: eight-digit item keys stay keys; numeric API IDs remain explicit numbers
+ok 17 - eight-digit item keys stay keys; numeric API IDs remain explicit numbers
+  ---
+  duration_ms: 0.7871
+  ...
+# Subtest: same embedded document ID from two different papers opens separate tabs
+ok 18 - same embedded document ID from two different papers opens separate tabs
+  ---
+  duration_ms: 1.4247
+  ...
+# Subtest: two maps under same parent never reuse each other
+ok 19 - two maps under same parent never reuse each other
+  ---
+  duration_ms: 0.8709
+  ...
+# Subtest: same attachment key in different libraries never collides
+ok 20 - same attachment key in different libraries never collides
+  ---
+  duration_ms: 0.793
+  ...
+# Subtest: exact reopen uses Zotero getTabContent and preserves live edits
+ok 21 - exact reopen uses Zotero getTabContent and preserves live edits
+  ---
+  duration_ms: 0.7698
+  ...
+# Subtest: same-name collections and multi-library topics have distinct identities
+ok 22 - same-name collections and multi-library topics have distinct identities
+  ---
+  duration_ms: 0.7355
+  ...
+# Subtest: forceNew always bypasses an existing tab
+ok 23 - forceNew always bypasses an existing tab
+  ---
+  duration_ms: 1.0846
+  ...
+# Subtest: toolbar reader target uses selectedID rather than stale library selection
+ok 24 - toolbar reader target uses selectedID rather than stale library selection
+  ---
+  duration_ms: 1.6462
+  ...
+# Subtest: only the owning frame can update its tab title and binding
+ok 25 - only the owning frame can update its tab title and binding
+  ---
+  duration_ms: 1.9383
+  ...
+# Subtest: document filenames, primary payload and backup IDs must agree
+ok 26 - document filenames, primary payload and backup IDs must agree
+  ---
+  duration_ms: 1.043
+  ...
+# Subtest: attachment enumeration excludes wrong parents, libraries and trash
+ok 27 - attachment enumeration excludes wrong parents, libraries and trash
+  ---
+  duration_ms: 1.372
+  ...
+# Subtest: archive never binds an unlinked map to current selection
+ok 28 - archive never binds an unlinked map to current selection
+  ---
+  duration_ms: 1.1402
+  ...
+# Subtest: archive verifies actual content and parent registration before success
+ok 29 - archive verifies actual content and parent registration before success
+  ---
+  duration_ms: 15.2449
+  ...
+# Subtest: filename token collision never overwrites another document
+ok 30 - filename token collision never overwrites another document
+  ---
+  duration_ms: 1.8167
+  ...
+# Subtest: update failure never falls back to duplicate import
+ok 31 - update failure never falls back to duplicate import
+  ---
+  duration_ms: 1.103
+  ...
+# Subtest: read-back corruption fails and cleans only newly created attachment
+ok 32 - read-back corruption fails and cleans only newly created attachment
+  ---
+  duration_ms: 0.9571
+  ...
+# Subtest: explicit source attachment cannot move or silently become another parent
+ok 33 - explicit source attachment cannot move or silently become another parent
+  ---
+  duration_ms: 0.8586
+  ...
+# Subtest: concurrent same-document archives create one attachment
+ok 34 - concurrent same-document archives create one attachment
+  ---
+  duration_ms: 1.0761
+  ...
+# Subtest: stale workspace revision cannot overwrite latest attachment
+ok 35 - stale workspace revision cannot overwrite latest attachment
+  ---
+  duration_ms: 0.7886
+  ...
+# Subtest: undo-close explicitly restores a canonical detached workspace identity
+ok 36 - undo-close explicitly restores a canonical detached workspace identity
+  ---
+  duration_ms: 1.6147
+  ...
+1..36
+# tests 36
+# suites 0
+# pass 36
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 202.7598

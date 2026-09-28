@@ -1,0 +1,43 @@
+{
+  "name": "mindflow",
+  "version": "10.0.0",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "build": "node ../scripts/build-local.mjs",
+    "build:zotero": "node ../scripts/build-local.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vite-node tests/test-zotero.ts"
+  },
+  "keywords": [
+    "zotero",
+    "zotero10",
+    "mindmap",
+    "research",
+    "react",
+    "typescript"
+  ],
+  "author": "groele",
+  "license": "MIT",
+  "description": "MindFlow for Zotero 10 - 专为现代 Zotero 10 打造的高颜值全功能学术思维导图与文献研读伴读插件",
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.47.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "tailwind-merge": "^3.7.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/node": "^26.6.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "autoprefixer": "^10.6.1",
+    "postcss": "^8.5.28",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0",
+    "vite-node": "^6.0.0"
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "version": "10.0.3",
+  "dataDirectory": "tests\\native-test-20260928-201524\\data",
+  "results": [
+    {
+      "name": "real Zotero process restart restores every saved workspace tab ID",
+      "pass": true
+    },
+    {
+      "name": "restart loads canonical saved titles, tree contents and exact attachment sources",
+      "pass": false,
+      "error": "Error: Timeout: restored document doc_node_74ojz3c_mul7nusl",
+      "stack": "waitFor@workspace:/tests/native-test-20260928-201524/profile/extensions/mindflow@groele.org/native-regression.js:16:11\n",
+      "tabs": [
+        {
+          "id": "zotero-pane",
+          "uri": "resource://zotero/note-editor/editor.html",
+          "body": ""
+        },
+        {
+          "id": "tab-2V0qt33X",
+          "docId": "doc_node_kusx1xn_mul7npnv",
+          "uri": "chrome://mindflow/content/index.html",
+          "body": "备份有问题\n思维导图\n100%\nMindFlow Native Test Paper A\n导航",
+          "mode": "open_document"
+        },
+        {
+          "id": "tab-KrhIgbJr",
+          "docId": "doc_node_2q3g3yi_mul7nnhc",
+          "uri": "chrome://mindflow/content/index.html",
+          "body": "备份有问题\n思维导图\n100%\nNative Map B\n导航",
+          "mode": "open_document"
+        },
+        {
+          "id": "tab-y3Dx60Ej",
+          "docId": "doc_node_dpur672_mul7npwr",
+          "uri": "chrome://mindflow/content/index.html",
+          "body": "备份有问题\n思维导图\n100%\nMindFlow Native Test Paper A\n导航",
+          "mode": "open_document"
+        },
+        {
+          "id": "tab-9a0wE38y",
+          "docId": "doc_node_ygwkklc_mul7ohuc",
+          "uri": "chrome://mindflow/content/index.html",
+          "body": "备份有问题\n思维导图\n100%\nNative Root Closing Draft\n分支主题\n导航",
+          "mode": "open_document"
+        }
+      ]
+    },
+    {
+      "name": "restart creates no additional archives under the source papers",
+      "pass": true
+    }
+  ]
+}

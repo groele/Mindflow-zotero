@@ -56,10 +56,12 @@
 
       // 4. Synchronously bind initial action from frameElement or arguments
       try {
-        if (window.arguments && window.arguments[0]) {
-          window._mindflowInitialAction = window.arguments[0];
-        } else if (window.frameElement && window.frameElement._mindflowInitialAction) {
-          window._mindflowInitialAction = window.frameElement._mindflowInitialAction;
+        if (!window._mindflowInitialAction) {
+          if (window.frameElement && window.frameElement._mindflowInitialAction) {
+            window._mindflowInitialAction = window.frameElement._mindflowInitialAction;
+          } else if (window.arguments && window.arguments[0]) {
+            window._mindflowInitialAction = window.arguments[0].wrappedJSObject || window.arguments[0];
+          }
         }
       } catch (e) {
         console.warn('[MindFlow] Note on initial action:', e);
