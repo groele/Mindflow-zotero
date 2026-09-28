@@ -4,13 +4,18 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
     "build:zotero": "node scripts/build-zotero.mjs",
-    "preview": "vite preview",
-    "test": "vite-node scripts/test-core.js"
+    "test": "vite-node scripts/test-core.js",
+    "icons": "node scripts/generate-icons.js"
   },
-  "keywords": ["zotero", "zotero10", "mindmap", "research", "react", "typescript"],
+  "keywords": [
+    "zotero",
+    "zotero10",
+    "mindmap",
+    "research",
+    "react",
+    "typescript"
+  ],
   "author": "groele",
   "license": "MIT",
   "description": "MindFlow for Zotero 10 - 专为现代 Zotero 10 打造的高颜值全功能学术思维导图与文献研读伴读插件",

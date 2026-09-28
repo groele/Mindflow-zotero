@@ -8,7 +8,6 @@ const ROOT = process.cwd();
 const SUPERSAMPLE = 4;
 const SIZES = [16, 48, 128];
 const OUTPUTS = [
-  path.join(ROOT, 'public', 'icons'),
   path.join(ROOT, 'zotero', 'chrome', 'content', 'icons'),
 ];
 

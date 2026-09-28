@@ -1,4 +1,4 @@
-name: MindFlow CI/CD Pipeline
+name: MindFlow Zotero CI/CD
 
 on:
   push:
@@ -10,8 +10,8 @@ on:
 
 jobs:
   build-and-test:
-    name: Test, Build & Package
-    runs-on: ubuntu-latest
+    name: Test & Build Zotero XPI
+    runs-on: windows-latest
 
     steps:
       - name: Checkout Code
@@ -29,17 +29,14 @@ jobs:
       - name: Run Core Test Suites
         run: npm test
 
-      - name: Build Chrome Extension (MV3)
-        run: npm run build
+      - name: Build Zotero XPI
+        run: npm run build:zotero
 
-      - name: Package Extension for Chrome Web Store
-        run: node scripts/package-extension.js
-
-      - name: Upload Build Artifacts
+      - name: Upload Zotero XPI
         uses: actions/upload-artifact@v4
         with:
-          name: mindflow-webstore-zip
-          path: dist-zip/*.zip
+          name: mindflow-zotero-xpi
+          path: dist-zip/*.xpi
           retention-days: 14
 
   release:
