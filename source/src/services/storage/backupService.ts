@@ -1,7 +1,7 @@
 import { MindMapDocument, InboxItem } from '../../core/model/types';
 import { APP_VERSION } from '../../core/version';
 import { StorageService } from './storageService';
-import { InboxService } from './inboxService';
+import { InboxService, validateInboxItems } from './inboxService';
 import { generateId } from '../../core/model/treeOps';
 import { SettingsService } from './settingsService';
 import { validateMindMapDocument } from './documentValidation';
@@ -80,13 +80,7 @@ function validateWorkspaceData(value: unknown): WorkspaceBackupData {
   }
 
   if (value.inboxItems !== undefined) {
-    if (!Array.isArray(value.inboxItems)) throw new Error('备份中的收集箱数据格式无效');
-    for (const item of value.inboxItems) {
-      if (!isRecord(item) || typeof item.id !== 'string' || typeof item.text !== 'string' ||
-          !Number.isFinite(item.createdAt) || typeof item.isProcessed !== 'boolean') {
-        throw new Error('备份中包含格式无效的收集箱记录');
-      }
-    }
+    validateInboxItems(value.inboxItems);
   }
 
   if (value.snapshots !== undefined) {
@@ -298,16 +292,7 @@ export class BackupService {
 
     // Save inbox items
     if (data.inboxItems && Array.isArray(data.inboxItems)) {
-      const currentInbox = await InboxService.getItems();
-      const existingIds = new Set(currentInbox.map(i => i.id));
-      for (const item of data.inboxItems) {
-        if (!existingIds.has(item.id)) {
-          currentInbox.push(item);
-        }
-      }
-      // Save merged inbox
-      const serialized = JSON.stringify(currentInbox);
-      safeStorage.setItem('mindflow_inbox_items', serialized);
+      await InboxService.mergeItems(data.inboxItems);
     }
 
     // Restore snapshots

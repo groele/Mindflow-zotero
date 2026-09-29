@@ -106,6 +106,26 @@
       check(![...header.querySelectorAll('span')].some(n=>n.textContent.trim()==='MindFlow'),'Brand label still visible');
       const button=win.document.getElementById('mindflow-toolbar-button');
       check(button && !button.getAttribute('label'),'Native toolbar label remains');
+      const getIcon=node=>node?.querySelector('.toolbarbutton-icon') || node?.shadowRoot?.querySelector('.toolbarbutton-icon');
+      const icon=getIcon(button);
+      const reference=getIcon(win.document.getElementById('zotero-tb-note-add') || win.document.getElementById('zotero-tb-note'));
+      check(icon && reference,'Native toolbar icons are unavailable');
+      const selected=tabs.selectedID;
+      try {
+        tabs.select('zotero-pane');
+        await waitFor(()=>reference.getBoundingClientRect().width>0,'visible native toolbar');
+        const actual=icon.getBoundingClientRect(),native=reference.getBoundingClientRect();
+        await IOUtils.writeUTF8(PathUtils.join(Zotero.DataDirectory.dir,'toolbar-icon-metrics.json'),JSON.stringify({
+          mindflow:{width:actual.width,height:actual.height},native:{width:native.width,height:native.height},
+          image:button.getAttribute('image'),label:button.getAttribute('label'),ariaLabel:button.getAttribute('aria-label')},null,2));
+        check(Math.abs(actual.width-native.width)<0.1 && Math.abs(actual.height-native.height)<0.1,'MindFlow icon size differs from adjacent native icon');
+        const canvas=win.document.createElementNS('http://www.w3.org/1999/xhtml','canvas');
+        const buttonBounds=button.getBoundingClientRect();
+        canvas.width=win.innerWidth;canvas.height=Math.ceil(buttonBounds.height+16);
+        canvas.getContext('2d').drawWindow(win,0,Math.max(0,buttonBounds.top-8),canvas.width,canvas.height,'rgb(255,255,255)');
+        const binary=win.atob(canvas.toDataURL('image/png').split(',')[1]);
+        await IOUtils.write(PathUtils.join(Zotero.DataDirectory.dir,'toolbar-icon-preview.png'),Uint8Array.from(binary,c=>c.charCodeAt(0)));
+      } finally { tabs.select(selected); }
     });
     await run('close and reopen B reuses its isolated workspace ID', async () => {
       const before=tabs._tabs.find(t=>t.id===tabB).data.docId;tabs.close(tabB);
@@ -156,6 +176,19 @@
       check(host.itemPaneSectionID,'item pane missing');
       const button=win.document.getElementById('mindflow-toolbar-button');
       check(button.getAttribute('aria-label')==='MindFlow' && button.getAttribute('tooltiptext'),'toolbar lacks accessible name');
+    });
+    await run('item-pane sidenav keeps the MindFlow entry icon-only', async () => {
+      tabs.select('zotero-pane');
+      win.ZoteroPane?.selectItem?.(a.id);
+      const sidenav = await waitFor(() => win.document.querySelector('item-pane-sidenav'), 'item pane sidenav');
+      const custom = await waitFor(
+        () => sidenav.querySelector('.btn[data-pane*="mindflow"]'),
+        'MindFlow item-pane sidenav button'
+      );
+      check(!custom.textContent.trim(), 'sidenav button contains visible text');
+      check(!custom.getAttribute('label'), 'sidenav button exposes a visual label');
+      check(custom.getAttribute('tooltiptext') === 'MindFlow 导图',
+        'sidenav tooltip localization is missing or incorrect');
     });
     await run('typing then immediate native tab close retains the latest title', async () => {
       tabs.select(tabA);
@@ -289,6 +322,136 @@
       const saved=JSON.parse(await host.workspaceStorage('get',{key:'mindflow_snapshots_native_snapshots'}));
       check(saved.length===2,'one concurrent snapshot was lost');
     });
+    // Additional editor regressions use their own workspace and close it before
+    // the original session-restart matrix. They run against the packaged code.
+    let auditTab;
+    const auditDoc = await host.workspaceStorage('commitDocument', { expectedRevision: 0, doc: {
+      ...map('Logic Audit'), id: 'logic_audit', revision: 0,
+      root: { id: 'audit_root', text: 'Logic Audit Root', children: [
+        { id: 'audit_connected', text: 'Audit Connected', children: [{ id: 'audit_hidden', text: 'Audit Hidden', children: [] }] },
+        { id: 'audit_survivor', text: 'Audit Survivor', children: [] } ] },
+      relationships: [{ id: 'audit_rel', fromId: 'audit_root', toId: 'audit_hidden', label: 'Evidence' }],
+    } });
+    host.openMindFlow({ mode: 'open_document', doc: auditDoc, workspaceDocumentId: auditDoc.id, forceNew: true }, win);
+    auditTab = tabs.selectedID;
+    await waitFor(() => titleFor(auditTab) === 'Logic Audit', 'editor audit workspace');
+    const auditFrame = () => frameFor(auditTab);
+    const auditState = async () => auditFrame().contentWindow.wrappedJSObject._mindflowCaptureState?.()?.doc ||
+      JSON.parse(await host.workspaceStorage('get', { key: `mindflow_doc_${tabs._tabs.find(t => t.id === auditTab).data.docId}` }));
+    const auditClick = text => {
+      const document = auditFrame().contentDocument;
+      document.activeElement?.blur?.();
+      const node = document.querySelector(`span[title="${text}"]`); check(node, 'audit node missing: ' + text); node.click();
+    };
+    const auditKey = (key, options = {}) => {
+      const frame = auditFrame(); frame.contentDocument.activeElement?.blur?.();
+      frame.contentDocument.body.dispatchEvent(new frame.contentWindow.KeyboardEvent('keydown', { key, bubbles: true, ...options }));
+    };
+    const auditButton = title => { const button = auditFrame().contentDocument.querySelector(`button[title="${title}"]`); check(button, 'audit button missing: ' + title); button.click(); };
+    await run('editor deleting a connected branch prunes all descendant links and saves to disk', async () => {
+      auditClick('Audit Connected'); await Zotero.Promise.delay(80); auditKey('Delete');
+      await Zotero.Promise.delay(900);
+      const saved = JSON.parse(await host.workspaceStorage('get', { key: 'mindflow_doc_logic_audit' }));
+      check(saved.root.children.length === 1 && saved.relationships.length === 0, 'deleted branch or dangling relationship was not saved');
+    });
+    await run('editor undo restores deleted descendants and their relationship together', async () => {
+      auditButton('撤销 (Ctrl+Z)'); await Zotero.Promise.delay(100);
+      const state = await auditState(); check(state.root.children.length === 2 && state.relationships.length === 1, 'undo lost subtree or relationship');
+    });
+    await run('editor redo deletes the branch and relationship together', async () => {
+      auditButton('重做 (Ctrl+Y)'); await Zotero.Promise.delay(100);
+      const state = await auditState(); check(state.root.children.length === 1 && state.relationships.length === 0, 'redo left stale relationship');
+    });
+    await run('editor relation creation, deletion and undo use the same history as nodes', async () => {
+      auditClick('Audit Survivor'); await Zotero.Promise.delay(80); auditButton('建立跨分支关联线'); await Zotero.Promise.delay(80);
+      auditClick('Logic Audit Root'); await Zotero.Promise.delay(80);
+      check((await auditState()).relationships.length === 1, 'relationship creation failed');
+      auditButton('撤销 (Ctrl+Z)'); await Zotero.Promise.delay(80);
+      check((await auditState()).relationships.length === 0 && (await auditState()).root.children.length === 1, 'relation undo changed unrelated tree');
+      auditButton('重做 (Ctrl+Y)'); await Zotero.Promise.delay(80);
+      auditButton('删除此关联线'); await Zotero.Promise.delay(80);
+      check((await auditState()).relationships.length === 0, 'relationship deletion failed');
+      auditButton('撤销 (Ctrl+Z)'); await Zotero.Promise.delay(80);
+      check((await auditState()).relationships.length === 1, 'deleted relationship cannot be restored');
+    });
+    await run('editor undo of insertion leaves a valid selection for the next Tab insertion', async () => {
+      auditClick('Logic Audit Root'); await Zotero.Promise.delay(80); auditButton('插入子主题 (Tab)'); await Zotero.Promise.delay(80);
+      auditKey('Escape'); await Zotero.Promise.delay(80); auditButton('撤销 (Ctrl+Z)'); await Zotero.Promise.delay(80);
+      auditKey('Tab'); await Zotero.Promise.delay(80);
+      check((await auditState()).root.children.length === 2, 'Tab used an undone nonexistent node as parent');
+      auditKey('Escape'); await Zotero.Promise.delay(80);
+    });
+    await run('editor shortcuts modal cannot edit underlying nodes with Tab or Delete', async () => {
+      auditClick('Audit Survivor'); await Zotero.Promise.delay(80);
+      const before = JSON.stringify((await auditState()).root);
+      auditButton('快捷键大全 (?)'); await Zotero.Promise.delay(80); auditKey('Tab'); auditKey('Delete'); await Zotero.Promise.delay(80);
+      check(JSON.stringify((await auditState()).root) === before, 'modal keyboard edited background map');
+      const label = [...auditFrame().contentDocument.querySelectorAll('span')].find(n => n.textContent === '全键盘操作指南与快捷键');
+      check(label, 'shortcuts modal missing'); label.parentElement.parentElement.querySelector('button').click();
+    });
+    await run('editor outline Enter during Chinese composition does not commit text', async () => {
+      auditButton('结构大纲 (Outline)'); await Zotero.Promise.delay(80);
+      const frame = auditFrame(), document = frame.contentDocument;
+      const label = await waitFor(() => [...document.querySelectorAll('span[title="双击可编辑文本"]')].find(n => n.textContent === 'Logic Audit Root'), 'outline root ready');
+      label.dispatchEvent(new frame.contentWindow.MouseEvent('dblclick', { bubbles: true }));
+      const input = await waitFor(() => document.querySelector('input[data-mindflow-node-draft="audit_root"]'), 'outline input');
+      input.dispatchEvent(new frame.contentWindow.KeyboardEvent('keydown', { key: 'Enter', isComposing: true, bubbles: true }));
+      await Zotero.Promise.delay(80); check(document.querySelector('input[data-mindflow-node-draft="audit_root"]'), 'composition Enter prematurely committed');
+    });
+    await run('editor document switch saves uncommitted outline text before changing maps', async () => {
+      const other = await host.workspaceStorage('commitDocument', { expectedRevision: 0, doc: { ...map('Audit Other Document'), id: 'audit_other', revision: 0,
+        root: { id: 'other_root', text: 'Audit Other Root', children: [{ id: 'other_child', text: 'Audit Other Child', children: [] }] } } });
+      const frame = auditFrame(), document = frame.contentDocument;
+      let input = document.querySelector('input[data-mindflow-node-draft="audit_root"]');
+      if (!input) {
+        const label = [...document.querySelectorAll('span[title="双击可编辑文本"]')].find(n => n.textContent === 'Logic Audit Root');
+        check(label, 'outline root missing for switch'); label.dispatchEvent(new frame.contentWindow.MouseEvent('dblclick', { bubbles: true }));
+        input = await waitFor(() => document.querySelector('input[data-mindflow-node-draft="audit_root"]'), 'switch outline input');
+      }
+      Object.getOwnPropertyDescriptor(frame.contentWindow.HTMLInputElement.prototype, 'value').set.call(input, 'Audit Pending Switch');
+      input.dispatchEvent(new frame.contentWindow.Event('input', { bubbles: true })); await Zotero.Promise.delay(50);
+      auditButton('文档库 (Documents)');
+      const row = await waitFor(() => [...document.querySelectorAll('span')].find(n => n.textContent === other.title)?.closest('div.group'), 'switch target row');
+      row.click(); await waitFor(() => titleFor(auditTab) === other.title, 'switch completed');
+      const saved = JSON.parse(await host.workspaceStorage('get', { key: 'mindflow_doc_logic_audit' }));
+      check(saved.root.text === 'Audit Pending Switch', 'switch lost uncommitted node draft');
+    });
+    await run('editor Ctrl deselection of last selected node prevents accidental deletion', async () => {
+      auditClick('Audit Other Child'); await Zotero.Promise.delay(80);
+      const frame = auditFrame(), label = frame.contentDocument.querySelector('span[title="Audit Other Child"]');
+      label.dispatchEvent(new frame.contentWindow.MouseEvent('click', { bubbles: true, ctrlKey: true })); await Zotero.Promise.delay(80);
+      auditKey('Delete'); await Zotero.Promise.delay(80);
+      check((await auditState()).root.children.length === 1, 'deselected node was still deleted');
+    });
+    await run('native concurrent inbox operations preserve entries in a verified durable file', async () => {
+      const item = id => ({ id, text: id, createdAt: Date.now(), isProcessed: false });
+      await Promise.all(['native_inbox_a', 'native_inbox_b'].map(id => host.workspaceStorage('mutateInbox', { additions: [item(id)] })));
+      const path = PathUtils.join(Zotero.DataDirectory.dir, 'mindflow', 'workspace', 'mindflow_inbox_items.json');
+      const items = JSON.parse(await IOUtils.readUTF8(path)); check(items.length === 2, 'concurrent inbox addition lost a record');
+    });
+    await run('inbox insertion is marked processed only after map save and retry adds no duplicate', async () => {
+      auditButton('灵感与收集箱 (Inbox)');
+      const document = auditFrame().contentDocument;
+      const insert = await waitFor(() => [...document.querySelectorAll('p')].find(n => n.textContent === 'native_inbox_a')?.parentElement.querySelector('button'), 'inbox insertion control');
+      const currentId = tabs._tabs.find(t => t.id === auditTab).data.docId;
+      const before = (await auditState()).root.children.length;
+      const original = host.workspaceStorage;
+      host.workspaceStorage = async function(action, payload) {
+        if (action === 'commitDocument' && payload?.doc?.id === currentId) throw new Error('injected inbox save failure');
+        return original.call(this, action, payload);
+      };
+      try {
+        insert.click(); await Zotero.Promise.delay(180);
+        const inbox = JSON.parse(await original.call(host, 'get', { key: 'mindflow_inbox_items' }));
+        check(!inbox.find(item => item.id === 'native_inbox_a').isProcessed, 'failed map save marked inbox processed');
+        check((await auditState()).root.children.length === before + 1, 'insertion draft was discarded');
+      } finally { host.workspaceStorage = original; }
+      insert.click();
+      await waitFor(async () => JSON.parse(await original.call(host, 'get', { key: 'mindflow_inbox_items' })).find(item => item.id === 'native_inbox_a').isProcessed, 'successful inbox insertion persisted');
+      const saved = JSON.parse(await original.call(host, 'get', { key: `mindflow_doc_${currentId}` }));
+      check(saved.root.children.length === before + 1, 'save retry duplicated the inserted branch');
+    });
+    tabs.close(auditTab); await host._closeSaveQueue;
     try {
       tabs.select(tabA);
       const canvas=win.document.createElementNS('http://www.w3.org/1999/xhtml','canvas');

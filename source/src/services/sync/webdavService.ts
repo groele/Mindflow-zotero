@@ -18,6 +18,11 @@ const VERSIONED_BACKUP = /^mindflow-workspace-\d{8}T\d{6}Z-[a-f0-9]{8}\.json$/;
 export class WebDAVService {
   private static uploadQueue: Promise<unknown> = Promise.resolve();
 
+  public static sameAutoSyncConfig(a: WebDAVConfig, b: WebDAVConfig): boolean {
+    return (['enabled', 'autoSyncOnSave', 'serverUrl', 'basePath', 'username', 'password'] as const)
+      .every(field => a[field] === b[field]);
+  }
+
   private static backupPath(config: WebDAVConfig, fileName: string): string {
     return (config.basePath || '/').replace(/\/+$/, '') + '/' + fileName;
   }

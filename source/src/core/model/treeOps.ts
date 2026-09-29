@@ -14,6 +14,7 @@ export function cloneTree(node: MindMapNode, regenerateIds = false): MindMapNode
     icons: node.icons ? [...node.icons] : undefined,
     internalLink: node.internalLink ? { ...node.internalLink } : undefined,
     image: node.image ? { ...node.image } : undefined,
+    task: node.task ? { ...node.task } : undefined,
     children: node.children ? node.children.map(child => cloneTree(child, regenerateIds)) : []
   };
 }
@@ -366,12 +367,8 @@ export function replaceNodeText(
   const newRoot = cloneTree(root);
   const target = findNode(newRoot, targetId);
   if (target) {
-    if (target.text.includes(fromText)) {
-      target.text = target.text.split(fromText).join(toText);
-    }
-    if (target.note && target.note.includes(fromText)) {
-      target.note = target.note.split(fromText).join(toText);
-    }
+    target.text = replaceLiteral(target.text, fromText, toText).text;
+    if (target.note) target.note = replaceLiteral(target.note, fromText, toText).text;
   }
   return newRoot;
 }
@@ -387,15 +384,13 @@ export function replaceAllNodeText(
   let count = 0;
 
   function walk(node: MindMapNode) {
-    if (node.text.includes(fromText)) {
-      const occurrences = node.text.split(fromText).length - 1;
-      count += occurrences;
-      node.text = node.text.split(fromText).join(toText);
-    }
-    if (node.note && node.note.includes(fromText)) {
-      const occurrences = node.note.split(fromText).length - 1;
-      count += occurrences;
-      node.note = node.note.split(fromText).join(toText);
+    const text = replaceLiteral(node.text, fromText, toText);
+    count += text.count;
+    node.text = text.text;
+    if (node.note) {
+      const note = replaceLiteral(node.note, fromText, toText);
+      count += note.count;
+      node.note = note.text;
     }
     if (node.children) {
       for (const child of node.children) {
@@ -406,4 +401,25 @@ export function replaceAllNodeText(
 
   walk(newRoot);
   return { newRoot, count };
+}
+
+export function replaceLiteral(text: string, query: string, replacement: string): { text: string; count: number } {
+  if (!query) return { text, count: 0 };
+  const pattern = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+  let count = 0;
+  return { text: text.replace(pattern, () => { count++; return replacement; }), count };
+}
+
+// Reveal a search/link target while preserving the target's own fold state.
+export function expandAncestors(root: MindMapNode, id: string): MindMapNode {
+  if (root.id === id) return root;
+  for (let i = 0; i < root.children.length; i++) {
+    const child = root.children[i];
+    if (!findNode(child, id)) continue;
+    const expanded = expandAncestors(child, id);
+    if (root.isExpanded !== false && expanded === child) return root;
+    const children = [...root.children]; children[i] = expanded;
+    return { ...root, isExpanded: true, children };
+  }
+  return root;
 }

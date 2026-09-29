@@ -1,0 +1,27 @@
+FAIL: cloned tasks cannot mutate original or undo history: Expected values to be strictly equal:
+
+'done' !== 'todo'
+
+FAIL: replace-current uses the same case-insensitive matching as search: Expected values to be strictly equal:
++ actual - expected
+
++ 'MoS2 TMD MOS2'
+- 'TMD TMD TMD'
+
+FAIL: replace-all counts actual case-insensitive occurrences: Expected values to be strictly equal:
+
+1 !== 4
+
+FAIL: concurrent inbox additions preserve both records: Expected values to be strictly equal:
+
+1 !== 2
+
+FAIL: corrupt inbox entries are rejected before rendering: Missing expected rejection.
+FAIL: concurrent setting edits merge different fields: Expected values to be strictly equal:
+
+true !== false
+
+PASS: settings read and reset return independent nested values
+FAIL: malformed OPML does not silently become a successful empty map: Missing expected exception.
+FAIL: backup rejects duplicate inbox IDs before any writes: Missing expected rejection.
+1 baseline checks passed; 8 failed

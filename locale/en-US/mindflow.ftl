@@ -7,6 +7,8 @@ mindflow-reader-send = Send Excerpt to MindFlow Map
 mindflow-item-pane-header = MindFlow Maps
     .label = MindFlow Maps
     .tooltiptext = MindFlow Maps
+mindflow-item-pane-sidenav =
+    .tooltiptext = MindFlow Maps
 mindflow-item-pane-count =
     { $count ->
         [0] No MindFlow maps for this item yet

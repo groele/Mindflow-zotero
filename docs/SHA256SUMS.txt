@@ -1,1 +1,2 @@
 cc0989a82acfb8e4588ac4715de530b5d5def781c4c0a6e010c2935c377b3337  mindflow-zotero-10.0.0.xpi
+da631aad1c652295da93067799ba82fed6c14c57eb612ec217f792aeb596c2e3  mindflow-zotero-10.0.3.xpi

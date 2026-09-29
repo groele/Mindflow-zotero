@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { isZoteroEnvironment, setZoteroPref, requestZoteroWindowMode, openZoteroPreferences } from '../../services/zotero/zoteroBridge';
 import { AppSettings, WebDAVConfig } from '../../core/model/settingsTypes';
-import { SettingsService } from '../../services/storage/settingsService';
+import { SettingsService, SettingsPatch } from '../../services/storage/settingsService';
 import { WebDAVService, WebDAVSyncResult, RemoteBackupVersion } from '../../services/sync/webdavService';
 import { BackupService, StorageQuotaInfo } from '../../services/storage/backupService';
 import { THEMES } from '../../core/theme/themes';
@@ -73,15 +73,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSaveSettings = async (patch: Partial<AppSettings>) => {
-    const updated = await SettingsService.updateSettings(patch);
-    setCurrentSettings(updated);
-    onUpdateSettings(updated);
-    if (isZoteroEnvironment()) {
-      if (patch.aiEndpoint !== undefined) setZoteroPref('aiEndpoint', patch.aiEndpoint);
-      if (patch.aiModel !== undefined) setZoteroPref('aiModel', patch.aiModel);
-      if (patch.aiApiKey !== undefined) setZoteroPref('aiApiKey', patch.aiApiKey);
-      if (patch.aiMaxPdfPages !== undefined) setZoteroPref('aiMaxPdfPages', patch.aiMaxPdfPages);
+  const handleSaveSettings = async (patch: SettingsPatch) => {
+    try {
+      const updated = await SettingsService.updateSettings(patch);
+      setCurrentSettings(updated);
+      onUpdateSettings(updated);
+      if (isZoteroEnvironment()) {
+        if (patch.aiEndpoint !== undefined) setZoteroPref('aiEndpoint', patch.aiEndpoint);
+        if (patch.aiModel !== undefined) setZoteroPref('aiModel', patch.aiModel);
+        if (patch.aiApiKey !== undefined) setZoteroPref('aiApiKey', patch.aiApiKey);
+        if (patch.aiMaxPdfPages !== undefined) setZoteroPref('aiMaxPdfPages', patch.aiMaxPdfPages);
+      }
+    } catch (error: any) {
+      window.alert(`设置保存失败：${error?.message || error}`);
     }
   };
 
@@ -127,7 +131,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const handleWebDAVFieldChange = <K extends keyof WebDAVConfig>(field: K, value: WebDAVConfig[K]) => {
     const newWebDAV = {
-      ...currentSettings.webdav,
       [field]: value,
     };
     handleSaveSettings({ webdav: newWebDAV });
@@ -153,7 +156,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     if (preset === 'jianguoyun') {
       handleSaveSettings({
         webdav: {
-          ...currentSettings.webdav,
           enabled: true,
           serverUrl: 'https://dav.jianguoyun.com/dav/',
           basePath: '/MindFlow/',
@@ -162,7 +164,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     } else if (preset === 'nextcloud') {
       handleSaveSettings({
         webdav: {
-          ...currentSettings.webdav,
           enabled: true,
           serverUrl: 'https://your-domain.com/remote.php/dav/files/USERNAME/',
           basePath: '/MindFlow/',
@@ -171,7 +172,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     } else if (preset === 'synology') {
       handleSaveSettings({
         webdav: {
-          ...currentSettings.webdav,
           enabled: true,
           serverUrl: 'https://your-nas:5006/home/',
           basePath: '/MindFlow/',

@@ -30,7 +30,7 @@ interface LeftWorkbenchProps {
   onUpdateNodeText: (id: string, text: string) => void;
   onAddChildNode: (parentId: string) => void;
   onDeleteNode: (id: string) => void;
-  onInsertInboxItem: (item: InboxItem) => void;
+  onInsertInboxItem: (item: InboxItem) => Promise<boolean>;
   onRestoreSnapshot: (restoredDoc: MindMapDocument) => void;
   onReloadWorkspace: () => void;
   onFlushCurrentDocument: () => Promise<boolean>;
@@ -70,6 +70,8 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
   // Inbox state
   const [inboxItems, setInboxItems] = useState<InboxItem[]>([]);
   const [inboxInput, setInboxInput] = useState('');
+  const operationBusyRef = useRef(false);
+  const [operationError, setOperationError] = useState<string | null>(null);
 
   // Backup state
   const [snapshots, setSnapshots] = useState<DocSnapshot[]>([]);
@@ -83,17 +85,33 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
 
   // Load data for active tab
   useEffect(() => {
-    if (isOpen) {
-      if (activeTab === 'docs') {
-        StorageService.getDocumentList().then(setDocList);
-      } else if (activeTab === 'inbox') {
-        InboxService.getItems().then(setInboxItems);
-      } else if (activeTab === 'backup') {
-        BackupService.getSnapshots(currentDoc.id).then(setSnapshots);
-        BackupService.getStorageQuota().then(setQuota);
+    let disposed = false;
+    const load = async () => {
+      if (isOpen) {
+        if (activeTab === 'docs') {
+          const list = await StorageService.getDocumentList();
+          if (!disposed) setDocList(list);
+        } else if (activeTab === 'inbox') {
+          const list = await InboxService.getItems();
+          if (!disposed) setInboxItems(list);
+        } else if (activeTab === 'backup') {
+          const [snaps, space] = await Promise.all([BackupService.getSnapshots(currentDoc.id), BackupService.getStorageQuota()]);
+          if (!disposed) { setSnapshots(snaps); setQuota(space); }
+        }
       }
-    }
+    };
+    void load().catch(error => { if (!disposed) setOperationError(`读取失败：${error?.message || error}`); });
+    return () => { disposed = true; };
   }, [isOpen, activeTab, currentDoc.id]);
+
+  const runOperation = async (operation: () => Promise<void>) => {
+    if (operationBusyRef.current) return;
+    operationBusyRef.current = true;
+    setOperationError(null);
+    try { await operation(); }
+    catch (error: any) { setOperationError(`操作失败：${error?.message || error}`); }
+    finally { operationBusyRef.current = false; }
+  };
 
   const showBackupNotice = (msg: string) => {
     setBackupNotice(msg);
@@ -117,31 +135,39 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
   // --- Handlers for Inbox ---
   const handleAddInboxItem = async () => {
     if (!inboxInput.trim()) return;
-    await InboxService.addItem(inboxInput.trim());
-    setInboxInput('');
-    const items = await InboxService.getItems();
-    setInboxItems(items);
+    const text = inboxInput.trim();
+    await runOperation(async () => {
+      await InboxService.addItem(text);
+      setInboxInput(current => current.trim() === text ? '' : current);
+      setInboxItems(await InboxService.getItems());
+    });
   };
 
   const handleDeleteInboxItem = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    await InboxService.deleteItem(id);
-    const items = await InboxService.getItems();
-    setInboxItems(items);
+    await runOperation(async () => {
+      await InboxService.deleteItem(id);
+      setInboxItems(await InboxService.getItems());
+    });
   };
 
   const handleClearProcessedInbox = async () => {
-    await InboxService.clearProcessed();
-    const items = await InboxService.getItems();
-    setInboxItems(items);
+    await runOperation(async () => {
+      await InboxService.clearProcessed();
+      setInboxItems(await InboxService.getItems());
+    });
   };
 
   // --- Handlers for Backup ---
   const handleCreateSnapshot = async () => {
-    await BackupService.createSnapshot(currentDoc);
-    const snaps = await BackupService.getSnapshots(currentDoc.id);
-    setSnapshots(snaps);
-    showBackupNotice('已生成新快照！');
+    await runOperation(async () => {
+      if (!(await onFlushCurrentDocument())) return;
+      const saved = await StorageService.getDocument(currentDoc.id, { trackRevision: false });
+      if (!saved) throw new Error('当前导图已不存在');
+      await BackupService.createSnapshot(saved);
+      setSnapshots(await BackupService.getSnapshots(currentDoc.id));
+      showBackupNotice('已生成新快照！');
+    });
   };
 
   const handleRestoreSnapshot = async (snapId: string) => {
@@ -161,15 +187,18 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
 
   const handleDeleteSnapshot = async (snapId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    await BackupService.deleteSnapshot(currentDoc.id, snapId);
-    const snaps = await BackupService.getSnapshots(currentDoc.id);
-    setSnapshots(snaps);
+    await runOperation(async () => {
+      await BackupService.deleteSnapshot(currentDoc.id, snapId);
+      setSnapshots(await BackupService.getSnapshots(currentDoc.id));
+    });
   };
 
   const handleExportWorkspace = async () => {
-    if (!(await onFlushCurrentDocument())) return;
-    await BackupService.exportFullWorkspaceBackup();
-    showBackupNotice('全量工作区导出成功！');
+    await runOperation(async () => {
+      if (!(await onFlushCurrentDocument())) return;
+      await BackupService.exportFullWorkspaceBackup();
+      showBackupNotice('全量工作区导出成功！');
+    });
   };
 
   const handleImportWorkspace = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -237,6 +266,8 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
                 setEditingOutlineId(null);
               }}
               onKeyDown={(e) => {
+                if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
+                e.stopPropagation();
                 if (e.key === 'Enter') {
                   if (editingOutlineText.trim()) {
                     onUpdateNodeText(node.id, editingOutlineText.trim());
@@ -427,6 +458,7 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
             </button>
           </div>
 
+          {operationError && <div role="alert" className="px-3 py-2 text-xs text-red-600 bg-red-50 dark:bg-red-950/30">{operationError}</div>}
           {/* TAB 1: DOCUMENTS */}
           {activeTab === 'docs' && (
             <div className="flex flex-col h-full overflow-hidden">
@@ -544,7 +576,7 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
                     placeholder="捕捉闪念/文献灵感..."
                     value={inboxInput}
                     onChange={(e) => setInboxInput(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') handleAddInboxItem(); }}
+                    onKeyDown={(e) => { if (!e.nativeEvent.isComposing && e.nativeEvent.keyCode !== 229 && e.key === 'Enter') void handleAddInboxItem(); }}
                     className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs outline-none focus:border-blue-400"
                   />
                   <button
@@ -585,11 +617,11 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
                       </p>
                       <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-700/60 text-[11px]">
                         <button
-                          onClick={() => {
-                            onInsertInboxItem(item);
-                            InboxService.markProcessed(item.id, true);
-                            InboxService.getItems().then(setInboxItems);
-                          }}
+                          onClick={() => void runOperation(async () => {
+                            if (!(await onInsertInboxItem(item))) return;
+                            await InboxService.markProcessed(item.id, true);
+                            setInboxItems(await InboxService.getItems());
+                          })}
                           className="flex items-center gap-1 font-semibold text-blue-600 hover:text-blue-700"
                         >
                           <ArrowRight className="w-3 h-3" />

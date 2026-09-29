@@ -28,7 +28,7 @@ V10 汇集 [首轮 42 项审查与改进](审查与修复清单.md) 和 [全流�
 | 真实进程重启与最后输入恢复 | 3 | 0 |
 | 合计 | 86 | 0 |
 
-准确安装包大小和 SHA-256 见 [package-verification.json](package-verification.json)；完整结果见 [validation-summary.json](validation-summary.json)。GitHub Release 同时提供 XPI 和 `SHA256SUMS.txt`，可核验下载内容。
+准确安装包大小和 SHA-256 见 [package-verification.json](package-verification-10.0.0.json)；完整结果见 [validation-summary.json](validation-summary.json)。GitHub Release 同时提供 XPI 和 `SHA256SUMS.txt`，可核验下载内容。
 
 ## 安装与边界
 

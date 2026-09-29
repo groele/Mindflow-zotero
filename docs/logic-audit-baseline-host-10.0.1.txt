@@ -1,0 +1,315 @@
+TAP version 13
+# Subtest: host inbox concurrent additions preserve both durable records
+not ok 1 - host inbox concurrent additions preserve both durable records
+  ---
+  duration_ms: 6.5467
+  location: 'D:\\Dev Studio\\mindflow zotero\\scripts\\test-host.mjs:10:1'
+  failureType: 'testCodeFailure'
+  error: '不支持的 MindFlow 存储操作'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    Object.workspaceStorage (evalmachine.<anonymous>:804:13)
+    file:///D:/Dev%20Studio/mindflow%20zotero/scripts/test-host.mjs:12:53
+    Array.map (<anonymous>)
+    TestContext.<anonymous> (file:///D:/Dev%20Studio/mindflow%20zotero/scripts/test-host.mjs:12:36)
+    Test.runInAsyncScope (node:async_hooks:211:14)
+    Test.run (node:internal/test_runner/test:979:25)
+    Test.start (node:internal/test_runner/test:877:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: host inbox migrates legacy preferences and serializes restore plus processing
+not ok 2 - host inbox migrates legacy preferences and serializes restore plus processing
+  ---
+  duration_ms: 2.025
+  location: 'D:\\Dev Studio\\mindflow zotero\\scripts\\test-host.mjs:16:1'
+  failureType: 'testCodeFailure'
+  error: '不支持的 MindFlow 存储操作'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    Object.workspaceStorage (evalmachine.<anonymous>:804:13)
+    TestContext.<anonymous> (file:///D:/Dev%20Studio/mindflow%20zotero/scripts/test-host.mjs:19:29)
+    Test.runInAsyncScope (node:async_hooks:211:14)
+    Test.run (node:internal/test_runner/test:979:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:677:18)
+    Test.postRun (node:internal/test_runner/test:1090:19)
+    Test.run (node:internal/test_runner/test:1018:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: invalid inbox additions cannot overwrite a valid inbox
+not ok 3 - invalid inbox additions cannot overwrite a valid inbox
+  ---
+  duration_ms: 1.8524
+  location: 'D:\\Dev Studio\\mindflow zotero\\scripts\\test-host.mjs:26:1'
+  failureType: 'testCodeFailure'
+  error: '不支持的 MindFlow 存储操作'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    Object.workspaceStorage (evalmachine.<anonymous>:804:13)
+    TestContext.<anonymous> (file:///D:/Dev%20Studio/mindflow%20zotero/scripts/test-host.mjs:28:16)
+    Test.runInAsyncScope (node:async_hooks:211:14)
+    Test.run (node:internal/test_runner/test:979:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:677:18)
+    Test.postRun (node:internal/test_runner/test:1090:19)
+    Test.run (node:internal/test_runner/test:1018:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:677:7)
+  ...
+# Subtest: inbox write verification failure is reported rather than a successful operation
+not ok 4 - inbox write verification failure is reported rather than a successful operation
+  ---
+  duration_ms: 2.5458
+  location: 'D:\\Dev Studio\\mindflow zotero\\scripts\\test-host.mjs:32:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /校验失败/. Input:
+    
+    'Error: 不支持的 MindFlow 存储操作'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: '不支持的 MindFlow 存储操作'
+  stack: |-
+    Object.workspaceStorage (evalmachine.<anonymous>:804:13)
+    file:///D:/Dev%20Studio/mindflow%20zotero/scripts/test-host.mjs:35:37
+    waitForActual (node:assert:861:21)
+    Function.rejects (node:assert:996:31)
+    TestContext.<anonymous> (file:///D:/Dev%20Studio/mindflow%20zotero/scripts/test-host.mjs:35:16)
+    Test.runInAsyncScope (node:async_hooks:211:14)
+    Test.run (node:internal/test_runner/test:979:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:677:18)
+    Test.postRun (node:internal/test_runner/test:1090:19)
+    Test.run (node:internal/test_runner/test:1018:12)
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///D:/Dev%20Studio/mindflow%20zotero/scripts/test-host.mjs:35:3)
+    async Test.run (node:internal/test_runner/test:980:9)
+    async Test.processPendingSubtests (node:internal/test_runner/test:677:7)
+  ...
+# Subtest: AI HTTP timeout remains effective when a caller supplies cancellation signal
+not ok 5 - AI HTTP timeout remains effective when a caller supplies cancellation signal
+  ---
+  duration_ms: 267.4729
+  location: 'D:\\Dev Studio\\mindflow zotero\\scripts\\test-host.mjs:43:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The validation function is expected to return "true". Received false
+    
+    Caught error:
+    
+    Error: timeout guard never fired
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    async TestContext.<anonymous> (file:///D:/Dev%20Studio/mindflow%20zotero/scripts/test-host.mjs:47:5)
+    async Test.run (node:internal/test_runner/test:980:9)
+    async Test.processPendingSubtests (node:internal/test_runner/test:677:7)
+  ...
+# Subtest: explicit AI cancellation is not mislabeled as a timeout
+not ok 6 - explicit AI cancellation is not mislabeled as a timeout
+  ---
+  duration_ms: 1.3247
+  location: 'D:\\Dev Studio\\mindflow zotero\\scripts\\test-host.mjs:53:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The validation function is expected to return "true". Received false
+    
+    Caught error:
+    
+    Error: 请求超时（超过 1 秒无响应），请检查网络连接或接口地址。
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    async TestContext.<anonymous> (file:///D:/Dev%20Studio/mindflow%20zotero/scripts/test-host.mjs:57:3)
+    async Test.run (node:internal/test_runner/test:980:9)
+    async Test.processPendingSubtests (node:internal/test_runner/test:677:7)
+  ...
+# Subtest: tombstoned documents never appear as readable after interrupted deletion
+ok 7 - tombstoned documents never appear as readable after interrupted deletion
+  ---
+  duration_ms: 1.2196
+  ...
+# Subtest: two host snapshot updates merge instead of losing the earlier version
+ok 8 - two host snapshot updates merge instead of losing the earlier version
+  ---
+  duration_ms: 1.5114
+  ...
+# Subtest: direct workspace context accepts the owning wrapped window and records actual document ID
+ok 9 - direct workspace context accepts the owning wrapped window and records actual document ID
+  ---
+  duration_ms: 1.6822
+  ...
+# Subtest: direct handshake delivers a pending action once to the actual owning frame
+ok 10 - direct handshake delivers a pending action once to the actual owning frame
+  ---
+  duration_ms: 1.0051
+  ...
+# Subtest: host serializes concurrent compare-and-save as one mutation
+ok 11 - host serializes concurrent compare-and-save as one mutation
+  ---
+  duration_ms: 1.9938
+  ...
+# Subtest: delete checks revision inside the same host queue as writes
+ok 12 - delete checks revision inside the same host queue as writes
+  ---
+  duration_ms: 1.0863
+  ...
+# Subtest: deletion marker hides a file when physical cleanup fails
+ok 13 - deletion marker hides a file when physical cleanup fails
+  ---
+  duration_ms: 0.9752
+  ...
+# Subtest: explicit backup restore removes the deletion marker
+ok 14 - explicit backup restore removes the deletion marker
+  ---
+  duration_ms: 1.3363
+  ...
+# Subtest: one unreadable workspace record cannot block exporting other records
+ok 15 - one unreadable workspace record cannot block exporting other records
+  ---
+  duration_ms: 1.5504
+  ...
+# Subtest: closing captures latest state before the iframe is destroyed
+ok 16 - closing captures latest state before the iframe is destroyed
+  ---
+  duration_ms: 1.4605
+  ...
+# Subtest: close conflict saves a detached recovery copy rather than overwriting another editor
+ok 17 - close conflict saves a detached recovery copy rather than overwriting another editor
+  ---
+  duration_ms: 2.128
+  ...
+# Subtest: host rejects duplicate nodes and unsafe IDs before any write
+ok 18 - host rejects duplicate nodes and unsafe IDs before any write
+  ---
+  duration_ms: 0.8473
+  ...
+# Subtest: stale revision-one writer cannot recreate a deleted document
+ok 19 - stale revision-one writer cannot recreate a deleted document
+  ---
+  duration_ms: 0.7782
+  ...
+# Subtest: archive refuses a document deleted from workspace
+ok 20 - archive refuses a document deleted from workspace
+  ---
+  duration_ms: 1.5513
+  ...
+# Subtest: explicit missing group item never falls through to same user-library key
+ok 21 - explicit missing group item never falls through to same user-library key
+  ---
+  duration_ms: 0.8271
+  ...
+# Subtest: bare ambiguous keys, mismatched scopes and missing groups are rejected
+ok 22 - bare ambiguous keys, mismatched scopes and missing groups are rejected
+  ---
+  duration_ms: 0.7182
+  ...
+# Subtest: eight-digit item keys stay keys; numeric API IDs remain explicit numbers
+ok 23 - eight-digit item keys stay keys; numeric API IDs remain explicit numbers
+  ---
+  duration_ms: 1.2263
+  ...
+# Subtest: same embedded document ID from two different papers opens separate tabs
+ok 24 - same embedded document ID from two different papers opens separate tabs
+  ---
+  duration_ms: 0.7107
+  ...
+# Subtest: two maps under same parent never reuse each other
+ok 25 - two maps under same parent never reuse each other
+  ---
+  duration_ms: 0.7469
+  ...
+# Subtest: same attachment key in different libraries never collides
+ok 26 - same attachment key in different libraries never collides
+  ---
+  duration_ms: 0.6702
+  ...
+# Subtest: exact reopen uses Zotero getTabContent and preserves live edits
+ok 27 - exact reopen uses Zotero getTabContent and preserves live edits
+  ---
+  duration_ms: 0.7286
+  ...
+# Subtest: same-name collections and multi-library topics have distinct identities
+ok 28 - same-name collections and multi-library topics have distinct identities
+  ---
+  duration_ms: 0.7061
+  ...
+# Subtest: forceNew always bypasses an existing tab
+ok 29 - forceNew always bypasses an existing tab
+  ---
+  duration_ms: 2.0568
+  ...
+# Subtest: toolbar reader target uses selectedID rather than stale library selection
+ok 30 - toolbar reader target uses selectedID rather than stale library selection
+  ---
+  duration_ms: 1.1687
+  ...
+# Subtest: only the owning frame can update its tab title and binding
+ok 31 - only the owning frame can update its tab title and binding
+  ---
+  duration_ms: 2.0798
+  ...
+# Subtest: document filenames, primary payload and backup IDs must agree
+ok 32 - document filenames, primary payload and backup IDs must agree
+  ---
+  duration_ms: 0.9388
+  ...
+# Subtest: attachment enumeration excludes wrong parents, libraries and trash
+ok 33 - attachment enumeration excludes wrong parents, libraries and trash
+  ---
+  duration_ms: 1.1502
+  ...
+# Subtest: archive never binds an unlinked map to current selection
+ok 34 - archive never binds an unlinked map to current selection
+  ---
+  duration_ms: 1.0871
+  ...
+# Subtest: archive verifies actual content and parent registration before success
+ok 35 - archive verifies actual content and parent registration before success
+  ---
+  duration_ms: 15.0997
+  ...
+# Subtest: filename token collision never overwrites another document
+ok 36 - filename token collision never overwrites another document
+  ---
+  duration_ms: 1.1163
+  ...
+# Subtest: update failure never falls back to duplicate import
+ok 37 - update failure never falls back to duplicate import
+  ---
+  duration_ms: 1.0555
+  ...
+# Subtest: read-back corruption fails and cleans only newly created attachment
+ok 38 - read-back corruption fails and cleans only newly created attachment
+  ---
+  duration_ms: 1.1067
+  ...
+# Subtest: explicit source attachment cannot move or silently become another parent
+ok 39 - explicit source attachment cannot move or silently become another parent
+  ---
+  duration_ms: 1.0389
+  ...
+# Subtest: concurrent same-document archives create one attachment
+ok 40 - concurrent same-document archives create one attachment
+  ---
+  duration_ms: 1.11
+  ...
+# Subtest: stale workspace revision cannot overwrite latest attachment
+ok 41 - stale workspace revision cannot overwrite latest attachment
+  ---
+  duration_ms: 1.4963
+  ...
+# Subtest: undo-close explicitly restores a canonical detached workspace identity
+ok 42 - undo-close explicitly restores a canonical detached workspace identity
+  ---
+  duration_ms: 0.9812
+  ...
+1..42
+# tests 42
+# suites 0
+# pass 36
+# fail 6
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 498.3468

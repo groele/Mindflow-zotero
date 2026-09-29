@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MindMapNode } from '../../core/model/types';
 import {
   X, ChevronRight, ChevronDown, Plus, Trash2,
@@ -77,6 +77,7 @@ const OutlineItem: React.FC<OutlineItemProps> = ({
   const [isExpanded, setIsExpanded] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(node.text);
+  useEffect(() => { if (!isEditing) setEditText(node.text); }, [node.text, isEditing]);
 
   const hasChildren = node.children && node.children.length > 0;
   const isSelected = selectedId === node.id;
@@ -114,13 +115,16 @@ const OutlineItem: React.FC<OutlineItemProps> = ({
         {isEditing ? (
           <input
             type="text"
+            data-mindflow-node-draft={node.id}
             autoFocus
             value={editText}
             onChange={(e) => setEditText(e.target.value)}
             onBlur={handleCommit}
             onKeyDown={(e) => {
+              if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
+              e.stopPropagation();
               if (e.key === 'Enter') handleCommit();
-              if (e.key === 'Escape') setIsEditing(false);
+              if (e.key === 'Escape') { setEditText(node.text); setIsEditing(false); }
             }}
             onClick={(e) => e.stopPropagation()}
             className="flex-1 bg-white border border-blue-400 px-1 py-0.5 rounded outline-none text-xs"

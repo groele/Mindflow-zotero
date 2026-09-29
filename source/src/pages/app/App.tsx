@@ -7,8 +7,9 @@ import {
   addChildNode, addSiblingNode, updateNode, deleteNode,
   toggleNodeCollapse, moveNode, findNode, findAdjacentNode, generateId,
   duplicateNode, pasteSubtree, deleteMultipleNodes, updateMultipleNodes,
-  setCollapseByLevel, replaceNodeText, replaceAllNodeText
+  setCollapseByLevel, replaceNodeText, replaceAllNodeText, expandAncestors, replaceLiteral
 } from '../../core/model/treeOps';
+import { validRelationships, captureNodeDrafts, retargetDocumentLinks } from '../../core/model/editorState';
 import { computeLayout } from '../../core/layout/layoutEngine';
 import { prepareNodeImage } from '../../core/model/nodeImage';
 import { getTheme } from '../../core/theme/themes';
@@ -89,6 +90,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   const clipboardNodeTokenRef = useRef<string | null>(null);
   const clipboardNodeTextRef = useRef<string | null>(null);
   const imageImportBusyRef = useRef(false);
+  const inboxInsertionsRef = useRef(new Map<string, { documentId: string; nodeId: string }>());
 
   // Workbench & Sidebar Layout (Ergonomic left-right docking)
   const [isWorkbenchOpen, setIsWorkbenchOpen] = useState(false);
@@ -118,6 +120,8 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
 
   // Settings State
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  const latestWebdavRef = useRef(settings.webdav);
+  latestWebdavRef.current = settings.webdav;
   const [saveStatus, setSaveStatus] = useState<{
     state: 'saving' | 'saved' | 'warning' | 'error';
     message: string;
@@ -138,6 +142,22 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   latestDocRef.current = doc;
   latestRelationshipsRef.current = relationships;
   useEffect(() => () => window.clearTimeout(autoSyncTimerRef.current), []);
+  useEffect(() => {
+    window.clearTimeout(autoSyncTimerRef.current);
+  }, [settings.webdav.enabled, settings.webdav.autoSyncOnSave, settings.webdav.serverUrl,
+    settings.webdav.basePath, settings.webdav.username, settings.webdav.password]);
+
+  useEffect(() => {
+    saveGenerationRef.current += 1;
+    setEditingId(null);
+    setContextMenuState(null);
+    setCanvasContextMenuState(null);
+    setIsPresentationOpen(false);
+  }, [doc?.id]);
+
+  const captureCurrentDrafts = useCallback(() => captureNodeDrafts(latestDocRef.current,
+    Array.from(document.querySelectorAll<HTMLInputElement>('[data-mindflow-node-draft]'),
+      input => ({ id: input.dataset.mindflowNodeDraft || '', text: input.value }))), []);
 
   // Load Settings on mount & handle Welcome display
   useEffect(() => {
@@ -251,6 +271,14 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       return false;
     }
     try {
+      const captured = captureCurrentDrafts();
+      if (captured && captured !== latestDocRef.current) {
+        historyRef.current.push({ root: latestDocRef.current!.root, relationships: latestRelationshipsRef.current });
+        syncHistoryState();
+        latestDocRef.current = captured;
+        setDoc(captured);
+        setEditingId(null);
+      }
       pendingSaveTokenRef.current += 1;
       await saveQueueRef.current;
       const latest = latestDocRef.current;
@@ -294,34 +322,38 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       setSaveStatus({ state: 'error', message: `切换已停止：当前导图保存失败：${error?.message || '存储不可用'}` });
       return false;
     }
-  }, []);
+  }, [captureCurrentDrafts, syncHistoryState]);
+
+  const showWorkbenchTab = useCallback(async (tab: WorkbenchTab, toggle = false) => {
+    const sourceId = currentDocIdRef.current;
+    if (!(await flushCurrentDocument()) || sourceId !== currentDocIdRef.current) return;
+    setWorkbenchTab(tab);
+    setIsWorkbenchOpen(!(toggle && isWorkbenchOpen && workbenchTab === tab));
+  }, [flushCurrentDocument, isWorkbenchOpen, workbenchTab]);
+
+  const toggleZen = useCallback(async () => {
+    if (await flushCurrentDocument()) setIsZenMode(previous => !previous);
+  }, [flushCurrentDocument]);
 
   useEffect(() => {
     const editor = window as any;
     editor._mindflowCaptureState = () => {
-      let latest = latestDocRef.current;
-      if (latest) {
-        for (const input of document.querySelectorAll<HTMLInputElement>('[data-mindflow-node-draft]')) {
-          const id = input.dataset.mindflowNodeDraft;
-          const text = input.value.trim();
-          if (id && text && findNode(latest.root, id)?.text !== text) {
-            latest = { ...latest, root: updateNode(latest.root, id, { text }) };
-          }
-        }
-      }
+      const latest = captureCurrentDrafts();
       if (!latest || (latest === cleanDocRef.current && latestRelationshipsRef.current === cleanRelationshipsRef.current)) return null;
       return { doc: { ...latest, relationships: latestRelationshipsRef.current } };
     };
     return () => { delete editor._mindflowCaptureState; };
-  }, []);
+  }, [captureCurrentDrafts]);
 
   // Reload current workspace (e.g. after full backup restore)
   const reloadWorkspace = useCallback(async () => {
     const token = ++activeDocLoadTokenRef.current;
-    const loadedDoc = await StorageService.getActiveDocument();
+    const currentId = currentDocIdRef.current;
+    const loadedDoc = (currentId ? await StorageService.getDocument(currentId) : null) || await StorageService.getActiveDocument();
     if (token !== activeDocLoadTokenRef.current) return;
     // Guard against race conditions: don't overwrite if current doc is already active and same or newer
-    if (currentDocIdRef.current && currentDocIdRef.current === loadedDoc.id && latestDocRef.current?.updatedAt && loadedDoc.updatedAt <= latestDocRef.current.updatedAt) {
+    if (currentDocIdRef.current === loadedDoc.id && latestDocRef.current &&
+        (loadedDoc.revision || 0) <= (latestDocRef.current.revision || 0) && loadedDoc.updatedAt <= latestDocRef.current.updatedAt) {
       return;
     }
     const loadedRelationships = loadedDoc.relationships || [];
@@ -961,6 +993,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       window.clearTimeout(autoSyncTimerRef.current);
       if (settings.webdav.enabled && settings.webdav.autoSyncOnSave) {
         autoSyncTimerRef.current = window.setTimeout(async () => {
+          if (!WebDAVService.sameAutoSyncConfig(settings.webdav, latestWebdavRef.current)) return;
           try {
             if (!(await WebDAVService.hasServerPermission(settings.webdav.serverUrl))) {
               throw new Error('请在设置中授权当前 WebDAV 服务器');
@@ -1022,12 +1055,19 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   }, [doc, theme, settings.rainbowBranches, settings.curveStyle]);
 
   // Commit changes to root and push history
-  const commitRootChange = useCallback((newRoot: MindMapNode) => {
-    if (!doc) return;
-    historyRef.current.push(doc.root);
+  const commitRootChange = useCallback((newRoot: MindMapNode, nextRelationships = latestRelationshipsRef.current) => {
+    const current = latestDocRef.current;
+    if (!current || current.id !== doc?.id) return;
+    const valid = validRelationships(newRoot, nextRelationships);
+    if (newRoot === current.root && valid === latestRelationshipsRef.current) return;
+    historyRef.current.push({ root: current.root, relationships: latestRelationshipsRef.current });
     syncHistoryState();
-    setDoc(prev => prev ? { ...prev, root: newRoot, relationships, updatedAt: Date.now() } : null);
-  }, [doc, relationships, syncHistoryState]);
+    const updated = { ...current, root: newRoot, relationships: valid, updatedAt: Date.now() };
+    latestDocRef.current = updated;
+    latestRelationshipsRef.current = valid;
+    setRelationships(valid);
+    setDoc(updated);
+  }, [doc?.id, syncHistoryState]);
 
   // Selection handlers
   const handleSelectNode = useCallback((id: string | null, isMulti = false) => {
@@ -1037,17 +1077,12 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       return;
     }
     if (isMulti) {
-      setSelectedIds((prev) => {
-        const set = new Set(prev);
-        if (selectedId) set.add(selectedId);
-        if (set.has(id)) {
-          set.delete(id);
-        } else {
-          set.add(id);
-        }
-        return Array.from(set);
-      });
-      setSelectedId(id);
+      const set = new Set(selectedIds);
+      if (selectedId) set.add(selectedId);
+      if (set.has(id)) set.delete(id); else set.add(id);
+      const next = Array.from(set);
+      setSelectedIds(next);
+      setSelectedId(next.includes(id) ? id : next[next.length - 1] || null);
     } else {
       setSelectedId(id);
       setSelectedIds([]);
@@ -1055,7 +1090,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     if (id && !isZenMode) {
       setIsPropertySidebarOpen(true);
     }
-  }, [selectedId, isZenMode]);
+  }, [selectedId, selectedIds, isZenMode]);
 
   const handleSelectMultipleNodes = useCallback((ids: string[]) => {
     setSelectedIds(ids);
@@ -1202,18 +1237,14 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     imageImportBusyRef.current = true;
     try {
       const sourceDocId = doc?.id;
+      const sourceLoadToken = activeDocLoadTokenRef.current;
       if (!sourceDocId) throw new Error('请先打开导图');
       const image = await prepareNodeImage(file);
-      const quota = await BackupService.getStorageQuota();
       const latest = latestDocRef.current;
-      if (!latest || latest.id !== sourceDocId) throw new Error('导图已切换，请重新选择图片');
+      if (!latest || latest.id !== sourceDocId || sourceLoadToken !== activeDocLoadTokenRef.current) throw new Error('导图已切换，请重新选择图片');
       const parentId = targetId || selectedId || latest.root.id;
       const target = findNode(latest.root, parentId);
       if (!target) throw new Error('目标节点已删除，请重新选择');
-      const previousBytes = createChild ? 0 : (target.image?.dataUrl.length || 0);
-      if (quota.usedBytes + image.dataUrl.length - previousBytes + 100_000 > quota.maxBytes) {
-        throw new Error('本地存储空间不足。请先导出完整备份并清理旧快照，或选择更小的图片');
-      }
       let newRoot: MindMapNode;
       let nextSelectedId = parentId;
       if (createChild) {
@@ -1223,16 +1254,14 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       } else {
         newRoot = updateNode(latest.root, parentId, { image });
       }
-      historyRef.current.push(latest.root);
-      syncHistoryState();
-      setDoc({ ...latest, root: newRoot, updatedAt: Date.now() });
+      commitRootChange(newRoot);
       setSelectedId(nextSelectedId);
       setSelectedIds([]);
       setIsPropertySidebarOpen(true);
     } finally {
       imageImportBusyRef.current = false;
     }
-  }, [doc?.id, selectedId, syncHistoryState]);
+  }, [doc?.id, selectedId, commitRootChange]);
 
   useEffect(() => {
     const handlePaste = (event: ClipboardEvent) => {
@@ -1276,24 +1305,45 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
 
   const handleUndo = useCallback(() => {
     if (!doc) return;
-    const prev = historyRef.current.undo(doc.root);
+    const prev = historyRef.current.undo({ root: doc.root, relationships });
     if (prev) {
-      setDoc(prevDoc => prevDoc ? { ...prevDoc, root: prev } : null);
+      const updated = { ...doc, ...prev, updatedAt: Date.now() };
+      latestDocRef.current = updated;
+      latestRelationshipsRef.current = prev.relationships;
+      setDoc(updated);
+      setRelationships(prev.relationships);
+      setSelectedId(id => id && findNode(prev.root, id) ? id : prev.root.id);
+      setSelectedIds(ids => ids.filter(id => !!findNode(prev.root, id)));
+      setEditingId(null);
       syncHistoryState();
     }
-  }, [doc, syncHistoryState]);
+  }, [doc, relationships, syncHistoryState]);
 
   const handleRedo = useCallback(() => {
     if (!doc) return;
-    const next = historyRef.current.redo(doc.root);
+    const next = historyRef.current.redo({ root: doc.root, relationships });
     if (next) {
-      setDoc(prevDoc => prevDoc ? { ...prevDoc, root: next } : null);
+      const updated = { ...doc, ...next, updatedAt: Date.now() };
+      latestDocRef.current = updated;
+      latestRelationshipsRef.current = next.relationships;
+      setDoc(updated);
+      setRelationships(next.relationships);
+      setSelectedId(id => id && findNode(next.root, id) ? id : next.root.id);
+      setSelectedIds(ids => ids.filter(id => !!findNode(next.root, id)));
+      setEditingId(null);
       syncHistoryState();
     }
-  }, [doc, syncHistoryState]);
+  }, [doc, relationships, syncHistoryState]);
 
   // Select node and smoothly center canvas on it
   const handleSelectAndCenterNode = useCallback((nodeId: string) => {
+    const current = latestDocRef.current;
+    if (!current || !findNode(current.root, nodeId)) return;
+    const revealed = expandAncestors(current.root, nodeId);
+    if (revealed !== current.root) {
+      pendingNavigationRef.current = { documentId: current.id, nodeId };
+      commitRootChange(revealed);
+    }
     setSelectedId(nodeId);
     const target = layout.nodes.find(n => n.id === nodeId);
     if (target && containerRef.current) {
@@ -1305,7 +1355,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
         y: ch / 2 - (target.y + target.height / 2) * v.scale,
       }));
     }
-  }, [layout.nodes]);
+  }, [layout.nodes, commitRootChange]);
 
   const openDocumentAt = useCallback(async (documentId: string, nodeId?: string) => {
     const token = ++activeDocLoadTokenRef.current;
@@ -1326,6 +1376,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       if (!(await flushCurrentDocument()) || token !== activeDocLoadTokenRef.current) return;
       await StorageService.setActiveDocumentId(documentId);
       if (token !== activeDocLoadTokenRef.current) return;
+      if (nodeId) selectedDoc.root = expandAncestors(selectedDoc.root, nodeId);
       const loadedRelationships = selectedDoc.relationships || [];
       cleanDocRef.current = selectedDoc;
       cleanRelationshipsRef.current = loadedRelationships;
@@ -1377,7 +1428,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
 
   // Relationships Handlers
   const handleCreateRelationship = useCallback((fromId: string, toId: string) => {
-    if (fromId === toId || !doc) return;
+    if (fromId === toId || !doc || !findNode(doc.root, fromId) || !findNode(doc.root, toId)) return;
     const exists = relationships.some(
       (r) => (r.fromId === fromId && r.toId === toId) || (r.fromId === toId && r.toId === fromId)
     );
@@ -1392,43 +1443,40 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       color: '#8b5cf6',
     };
     const nextRels = [...relationships, newRel];
-    latestRelationshipsRef.current = nextRels;
-    setRelationships(nextRels);
-    const updated = { ...doc, relationships: nextRels, updatedAt: Date.now() };
-    setDoc(updated);
-  }, [doc, relationships]);
+    commitRootChange(doc.root, nextRels);
+  }, [doc, relationships, commitRootChange]);
 
   const handleDeleteRelationship = useCallback((id: string) => {
     if (!doc) return;
     const nextRels = relationships.filter((r) => r.id !== id);
-    latestRelationshipsRef.current = nextRels;
-    setRelationships(nextRels);
-    const updated = { ...doc, relationships: nextRels, updatedAt: Date.now() };
-    setDoc(updated);
-  }, [doc, relationships]);
+    commitRootChange(doc.root, nextRels);
+  }, [doc, relationships, commitRootChange]);
 
   const handleEditRelationshipLabel = useCallback((id: string, label: string) => {
     if (!doc) return;
     const nextRels = relationships.map((r) => (r.id === id ? { ...r, label } : r));
-    latestRelationshipsRef.current = nextRels;
-    setRelationships(nextRels);
-    const updated = { ...doc, relationships: nextRels, updatedAt: Date.now() };
-    setDoc(updated);
-  }, [doc, relationships]);
+    commitRootChange(doc.root, nextRels);
+  }, [doc, relationships, commitRootChange]);
 
   // Search & Replace Handlers
   const handleReplaceNodeText = useCallback((nodeId: string, fromText: string, toText: string) => {
-    if (!doc) return;
+    if (!doc) return 0;
+    const target = findNode(doc.root, nodeId);
+    if (!target) return 0;
+    const count = replaceLiteral(target.text, fromText, toText).count + replaceLiteral(target.note || '', fromText, toText).count;
+    if (!count) return 0;
     const newRoot = replaceNodeText(doc.root, nodeId, fromText, toText);
     commitRootChange(newRoot);
+    return count;
   }, [doc, commitRootChange]);
 
   const handleReplaceAllNodeText = useCallback((fromText: string, toText: string) => {
-    if (!doc) return;
+    if (!doc) return 0;
     const { newRoot, count } = replaceAllNodeText(doc.root, fromText, toText);
     if (count > 0) {
       commitRootChange(newRoot);
     }
+    return count;
   }, [doc, commitRootChange]);
 
   // Level Collapse / Expand Handler
@@ -1457,17 +1505,27 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   }, [doc, selectedIds, commitRootChange, settings.soundEffects]);
 
   // Insert Inbox item to mind map
-  const handleInsertInboxItem = useCallback((item: InboxItem) => {
-    if (!doc) return;
+  const handleInsertInboxItem = useCallback(async (item: InboxItem): Promise<boolean> => {
+    if (!doc) return false;
+    const pending = inboxInsertionsRef.current.get(item.id);
+    if (pending?.documentId === doc.id && findNode(doc.root, pending.nodeId)) {
+      const saved = await flushCurrentDocument();
+      if (saved) inboxInsertionsRef.current.delete(item.id);
+      return saved;
+    }
     const parentId = selectedId || doc.root.id;
     const { newRoot, newNodeId } = addChildNode(doc.root, parentId, item.text);
     const finalRoot = updateNode(newRoot, newNodeId, {
       link: item.url,
       note: item.title && item.title !== item.text ? item.title : undefined,
     });
+    inboxInsertionsRef.current.set(item.id, { documentId: doc.id, nodeId: newNodeId });
     commitRootChange(finalRoot);
     handleSelectAndCenterNode(newNodeId);
-  }, [doc, selectedId, commitRootChange, handleSelectAndCenterNode]);
+    const saved = await flushCurrentDocument();
+    if (saved) inboxInsertionsRef.current.delete(item.id);
+    return saved;
+  }, [doc, selectedId, commitRootChange, handleSelectAndCenterNode, flushCurrentDocument]);
 
   // Apply template
   const handleSelectTemplate = useCallback(async (tpl: TemplateDefinition) => {
@@ -1612,6 +1670,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   // Global keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.isComposing || e.keyCode === 229) return;
       if (aiWorkflow) return;
       // Escape closes floating search or context menu
       if (e.key === 'Escape') {
@@ -1637,6 +1696,9 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
         }
       }
 
+      if (isSettingsOpen || isShortcutsOpen || isTemplateModalOpen || isWelcomeOpen || isPresentationOpen) return;
+      if (isCommandPaletteOpen && !((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k')) return;
+
       // Command Palette: Ctrl+K or Cmd+K
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
@@ -1648,6 +1710,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       if (editingId) return;
       const activeTag = document.activeElement?.tagName.toLowerCase();
       if (activeTag === 'input' || activeTag === 'textarea') return;
+      if (document.activeElement?.closest('[contenteditable]:not([contenteditable="false"])')) return;
 
       // Fullscreen: F11
       if (e.key === 'F11') {
@@ -1676,6 +1739,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
           }
           await zoteroSyncQueueRef.current;
           const result = await saveMindMapToZoteroAttachment(latest);
+          if (currentDocIdRef.current !== latest.id) return;
           if (result.success && result.parentItemUri &&
               (latest.metadata?.zoteroAttachmentKey !== result.attachmentKey || latest.metadata?.zoteroItemKey !== result.parentItemUri ||
                Boolean(latest.metadata?.mindflowUnlinkedContainer) !== Boolean(result.usedUnlinkedContainer)) &&
@@ -1803,6 +1867,8 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
     aiWorkflow, editingId, selectedId, layout.nodes, isZenMode, flushCurrentDocument, isZoteroMode,
+    isSettingsOpen, isShortcutsOpen, isTemplateModalOpen, isWelcomeOpen, isPresentationOpen,
+    isCommandPaletteOpen, isSearchOpen, contextMenuState, canvasContextMenuState,
     persistArchiveAssociation,
     handleAddChild, handleAddSibling, handleDeleteNode, handleUndo, handleRedo,
     handleCopyNode, handleDuplicateNode
@@ -2002,13 +2068,14 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
 
     commitRootChange(currentRoot);
     setSaveStatus({ state: 'saved', message: `已将 ${items.length} 篇文献作为参考分支追加至当前导图！` });
-  }, [addChildNode, commitRootChange, doc, isZoteroMode, selectedId, updateNode]);
+  }, [commitRootChange, doc, isZoteroMode, selectedId, settings.zoteroIncludeAbstract, settings.zoteroIncludeAnnotations]);
 
   const handleSaveToZoteroNote = useCallback(async () => {
     if (!(await flushCurrentDocument())) return;
     const current = latestDocRef.current;
     if (!current) return;
     const res = await saveMindMapToZoteroNote(current);
+    if (currentDocIdRef.current !== current.id) return;
     setSaveStatus({ state: res.success ? 'saved' : 'warning', message: res.message });
   }, [flushCurrentDocument]);
 
@@ -2043,6 +2110,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     }
     await zoteroSyncQueueRef.current;
     const res = await saveMindMapToZoteroAttachment(archiveDoc, parentKey, { silent: false });
+    if (currentDocIdRef.current !== current.id) return;
     if (res?.success) {
       if (res.parentItemUri &&
           (current.metadata?.zoteroAttachmentKey !== res.attachmentKey || current.metadata?.zoteroItemKey !== res.parentItemUri ||
@@ -2058,109 +2126,48 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   // Import file handler
   const handleImportFile = async (file: File) => {
     const token = ++activeDocLoadTokenRef.current;
-    if (!(await flushCurrentDocument()) || token !== activeDocLoadTokenRef.current) return;
-    if (file.size > MAX_BACKUP_BYTES) {
-      setSaveStatus({ state: 'warning', message: '导入文件超过 20 MB 安全上限。' });
-      return;
-    }
-    const fileName = file.name.toLowerCase();
-    const reader = new FileReader();
-    reader.onload = async (event) => {
+    try {
       if (!(await flushCurrentDocument()) || token !== activeDocLoadTokenRef.current) return;
-      const content = event.target?.result as string;
-      if (!content) return;
-
+      if (file.size > MAX_BACKUP_BYTES) throw new Error('导入文件超过 20 MB 安全上限');
+      const content = await file.text();
+      if (token !== activeDocLoadTokenRef.current) return;
+      if (!content.trim()) throw new Error('导入文件为空');
+      const fileName = file.name.toLowerCase();
+      const id = 'doc_' + generateId();
+      let importedDoc: MindMapDocument;
       if (fileName.endsWith('.json') || fileName.endsWith('.mindflow')) {
-        try {
-          const sourceDoc = validateMindMapDocument(JSON.parse(content), '导入文件');
-          const importedDoc: MindMapDocument = {
-            ...sourceDoc,
-            id: 'doc_' + generateId(),
-            revision: 0,
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
-            metadata: { ...detachedMetadata(sourceDoc.metadata), aiDraft: false },
-          };
-          StorageService.saveDocument(importedDoc).then(async (savedDoc) => {
-            if (token !== activeDocLoadTokenRef.current) return;
-            await StorageService.setActiveDocumentId(savedDoc.id);
-            if (token !== activeDocLoadTokenRef.current) return;
-            cleanDocRef.current = savedDoc;
-            cleanRelationshipsRef.current = savedDoc.relationships || [];
-            latestDocRef.current = savedDoc;
-            latestRelationshipsRef.current = cleanRelationshipsRef.current;
-            currentDocIdRef.current = savedDoc.id;
-            setRelationships(cleanRelationshipsRef.current);
-            setDoc(savedDoc);
-            setSelectedId(importedDoc.root.id);
-            setSelectedIds([]);
-            historyRef.current.clear();
-            syncHistoryState();
-            setTimeout(() => centerCanvas(), 50);
-          }).catch((error) => alert(`导入失败：${error?.message || '无法保存导图'}`));
-        } catch (error: any) {
-          alert(`JSON 导入失败：${error?.message || '文件格式无效'}`);
-        }
-      } else if (fileName.endsWith('.md') || fileName.endsWith('.markdown')) {
-        const importedRoot = importFromMarkdown(content);
-        const newDoc: MindMapDocument = {
-          id: 'doc_' + generateId(),
-          title: file.name.replace(/\.[^/.]+$/, ''),
-          themeId: doc?.themeId || 'classic-blue',
-          layoutType: 'mindmap',
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-          root: importedRoot,
-        };
-        StorageService.saveDocument(newDoc).then(async (savedDoc) => {
-          if (token !== activeDocLoadTokenRef.current) return;
-          await StorageService.setActiveDocumentId(savedDoc.id);
-            if (token !== activeDocLoadTokenRef.current) return;
-          cleanDocRef.current = savedDoc;
-          cleanRelationshipsRef.current = [];
-          latestDocRef.current = savedDoc;
-          latestRelationshipsRef.current = cleanRelationshipsRef.current;
-          currentDocIdRef.current = savedDoc.id;
-          setRelationships(cleanRelationshipsRef.current);
-          setDoc(savedDoc);
-          setSelectedId(newDoc.root.id);
-          setSelectedIds([]);
-          historyRef.current.clear();
-          syncHistoryState();
-          setTimeout(() => centerCanvas(), 50);
-        }).catch((error) => alert(`Markdown 导入失败：${error?.message || '无法保存导图'}`));
-      } else if (fileName.endsWith('.opml')) {
-        const importedRoot = importFromOPML(content);
-        const newDoc: MindMapDocument = {
-          id: 'doc_' + generateId(),
-          title: file.name.replace(/\.[^/.]+$/, ''),
-          themeId: doc?.themeId || 'classic-blue',
-          layoutType: 'mindmap',
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-          root: importedRoot,
-        };
-        StorageService.saveDocument(newDoc).then(async (savedDoc) => {
-          if (token !== activeDocLoadTokenRef.current) return;
-          await StorageService.setActiveDocumentId(savedDoc.id);
-            if (token !== activeDocLoadTokenRef.current) return;
-          cleanDocRef.current = savedDoc;
-          cleanRelationshipsRef.current = [];
-          latestDocRef.current = savedDoc;
-          latestRelationshipsRef.current = cleanRelationshipsRef.current;
-          currentDocIdRef.current = savedDoc.id;
-          setRelationships(cleanRelationshipsRef.current);
-          setDoc(savedDoc);
-          setSelectedId(newDoc.root.id);
-          setSelectedIds([]);
-          historyRef.current.clear();
-          syncHistoryState();
-          setTimeout(() => centerCanvas(), 50);
-        }).catch((error) => alert(`OPML 导入失败：${error?.message || '无法保存导图'}`));
-      }
-    };
-    reader.onerror = () => setSaveStatus({ state: 'error', message: `读取文件失败：${reader.error?.message || '文件不可读取'}` });
-    reader.readAsText(file);
+        const source = validateMindMapDocument(JSON.parse(content), '导入文件');
+        importedDoc = { ...source, id, revision: 0, createdAt: Date.now(), updatedAt: Date.now(),
+          root: retargetDocumentLinks(source.root, source.id, id),
+          metadata: { ...detachedMetadata(source.metadata), aiDraft: false } };
+      } else if (/\.(md|markdown|opml)$/.test(fileName)) {
+        importedDoc = { id, title: file.name.replace(/\.[^/.]+$/, ''),
+          themeId: latestDocRef.current?.themeId || 'classic-blue', layoutType: 'mindmap',
+          createdAt: Date.now(), updatedAt: Date.now(),
+          root: fileName.endsWith('.opml') ? importFromOPML(content) : importFromMarkdown(content) };
+      } else throw new Error('不支持此文件类型；请选择 MindFlow、JSON、Markdown 或 OPML');
+      if (!(await flushCurrentDocument()) || token !== activeDocLoadTokenRef.current) return;
+      const savedDoc = await StorageService.saveDocument(importedDoc);
+      if (token !== activeDocLoadTokenRef.current || !(await flushCurrentDocument())) return;
+      if (token !== activeDocLoadTokenRef.current) return;
+      await StorageService.setActiveDocumentId(savedDoc.id);
+      if (token !== activeDocLoadTokenRef.current) return;
+      cleanDocRef.current = savedDoc;
+      cleanRelationshipsRef.current = savedDoc.relationships || [];
+      latestDocRef.current = savedDoc;
+      latestRelationshipsRef.current = cleanRelationshipsRef.current;
+      currentDocIdRef.current = savedDoc.id;
+      setRelationships(cleanRelationshipsRef.current);
+      setDoc(savedDoc);
+      setSelectedId(savedDoc.root.id);
+      setSelectedIds([]);
+      historyRef.current.clear();
+      syncHistoryState();
+      setSaveStatus({ state: 'saved', message: `已导入并保存「${savedDoc.title}」` });
+      setTimeout(() => centerCanvas(), 50);
+    } catch (error: any) {
+      if (token === activeDocLoadTokenRef.current) setSaveStatus({ state: 'error', message: `导入失败：${error?.message || error}` });
+    }
   };
 
   if (!doc) {
@@ -2200,29 +2207,15 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
           onZoomOut={() => setViewport(v => ({ ...v, scale: Math.max(v.scale / (1 + settings.zoomStep), 0.25) }))}
           onResetZoom={() => centerCanvas(layout.bounds)}
           isOutlineOpen={isWorkbenchOpen && workbenchTab === 'outline'}
-          onToggleOutline={() => {
-            if (isWorkbenchOpen && workbenchTab === 'outline') {
-              setIsWorkbenchOpen(false);
-            } else {
-              setWorkbenchTab('outline');
-              setIsWorkbenchOpen(true);
-            }
-          }}
+          onToggleOutline={() => { void showWorkbenchTab('outline', true); }}
           isInboxOpen={isWorkbenchOpen && workbenchTab === 'inbox'}
-          onToggleInbox={() => {
-            if (isWorkbenchOpen && workbenchTab === 'inbox') {
-              setIsWorkbenchOpen(false);
-            } else {
-              setWorkbenchTab('inbox');
-              setIsWorkbenchOpen(true);
-            }
-          }}
+          onToggleInbox={() => { void showWorkbenchTab('inbox', true); }}
           onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
           onOpenSearch={() => setIsSearchOpen(prev => !prev)}
           onStartPresentation={() => setIsPresentationOpen(true)}
           onFitScreen={() => centerCanvas(layout.bounds)}
           onOpenTemplates={() => setIsTemplateModalOpen(true)}
-          onToggleZen={() => setIsZenMode(true)}
+          onToggleZen={() => { void toggleZen(); }}
           onOpenShortcuts={() => setIsShortcutsOpen(true)}
           onOpenSettings={handleOpenSettings}
           isPro={true}
@@ -2274,14 +2267,20 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
         {/* Left / Right Workbench (Documents, Outline, Inbox, Backup) */}
         {!isZenMode && (
           <LeftWorkbench
+            key={doc.id}
             currentDoc={doc}
             selectedId={selectedId}
             isOpen={isWorkbenchOpen}
             activeTab={workbenchTab}
             dockPosition={dockPosition}
             isZoteroMode={isZoteroMode}
-            onToggleOpen={() => setIsWorkbenchOpen(!isWorkbenchOpen)}
-            onTabChange={(tab) => setWorkbenchTab(tab)}
+            onToggleOpen={() => {
+              if (!isWorkbenchOpen) setIsWorkbenchOpen(true);
+              else void flushCurrentDocument().then(saved => { if (saved) setIsWorkbenchOpen(false); });
+            }}
+            onTabChange={(tab) => {
+              void flushCurrentDocument().then(saved => { if (saved) setWorkbenchTab(tab); });
+            }}
             focusedTag={focusedTag}
             onFocusTag={setFocusedTag}
             onToggleDockPosition={handleToggleDockPosition}
@@ -2302,12 +2301,13 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
             onInsertInboxItem={handleInsertInboxItem}
             onRestoreSnapshot={(restored) => {
               if (currentDocIdRef.current !== restored.id) return;
+              const restoredRelationships = restored.relationships || [];
               latestDocRef.current = restored;
-              latestRelationshipsRef.current = restored.relationships || [];
+              latestRelationshipsRef.current = restoredRelationships;
               cleanDocRef.current = restored;
-              cleanRelationshipsRef.current = restored.relationships || [];
+              cleanRelationshipsRef.current = restoredRelationships;
               setDoc(restored);
-              setRelationships(restored.relationships || []);
+              setRelationships(restoredRelationships);
               setSelectedId(restored.root.id);
               historyRef.current.clear();
               syncHistoryState();
@@ -2321,7 +2321,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
 
         {/* Central Infinite Canvas */}
         <div className="flex-1 h-full relative overflow-hidden">
-          <CanvasErrorBoundary rootNode={doc.root} onReset={() => centerCanvas(layout.bounds)}>
+          <CanvasErrorBoundary key={doc.id} rootNode={doc.root} onReset={() => centerCanvas(layout.bounds)}>
             <Canvas
               nodes={layout.nodes}
               connections={layout.connections}
@@ -2408,15 +2408,9 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
         onSelectAndCenterNode={handleSelectAndCenterNode}
         onAddChild={handleAddChild}
         onAddSibling={() => handleAddSibling(false)}
-        onToggleOutline={() => {
-          setWorkbenchTab('outline');
-          setIsWorkbenchOpen(true);
-        }}
-        onToggleInbox={() => {
-          setWorkbenchTab('inbox');
-          setIsWorkbenchOpen(true);
-        }}
-        onToggleZen={() => setIsZenMode(prev => !prev)}
+        onToggleOutline={() => { void showWorkbenchTab('outline'); }}
+        onToggleInbox={() => { void showWorkbenchTab('inbox'); }}
+        onToggleZen={() => { void toggleZen(); }}
         onChangeLayout={(l) => setDoc(prev => prev ? { ...prev, layoutType: l } : null)}
         onChangeTheme={(th) => setDoc(prev => prev ? { ...prev, themeId: th } : null)}
         onExportPNG={() => { void exportToPNG(layout.nodes, layout.connections, layout.bounds, theme, doc.title, { watermark: false }).catch(error => alert(`PNG 导出失败：${error?.message || '图片无法解码'}`)); }}

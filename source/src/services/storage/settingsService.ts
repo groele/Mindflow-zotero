@@ -1,8 +1,9 @@
-import { AppSettings, DEFAULT_SETTINGS } from '../../core/model/settingsTypes';
+import { AppSettings, DEFAULT_SETTINGS, WebDAVConfig } from '../../core/model/settingsTypes';
 import { safeStorage } from './safeStorage';
 import { getZoteroInstance } from '../zotero/zoteroBridge';
 
 const SETTINGS_STORAGE_KEY = 'mindflow_app_settings';
+export type SettingsPatch = Omit<Partial<AppSettings>, 'webdav'> & { webdav?: Partial<WebDAVConfig> };
 
 const ZOTERO_PREF_PATHS: Record<string, string> = {
   zoteroWindowMode: 'windowMode',
@@ -92,8 +93,12 @@ export class SettingsService {
    * Load settings from storage, merged with defaults
    */
   public static async getSettings(): Promise<AppSettings> {
+    return this.readSettings();
+  }
+
+  private static readSettings(): AppSettings {
     if (this.cachedSettings && !getZoteroInstance()) {
-      return { ...this.cachedSettings };
+      return structuredClone(this.cachedSettings);
     }
 
     let loadedSettings: Partial<AppSettings> | null = null;
@@ -109,14 +114,17 @@ export class SettingsService {
     const merged = deepMerge(DEFAULT_SETTINGS,
       loadedSettings || (getZoteroInstance() ? legacyZoteroSettings() : {}));
     this.cachedSettings = merged;
-    return { ...merged };
+    return structuredClone(merged);
   }
 
   /**
    * Update and persist partial settings
    */
-  public static async updateSettings(partial: Partial<AppSettings>): Promise<AppSettings> {
-    const current = await this.getSettings();
+  public static async updateSettings(partial: SettingsPatch): Promise<AppSettings> {
+    // Zotero preferences are synchronous and shared across frames. Keep the
+    // read/merge/write in one uninterrupted turn, so another setting edit
+    // cannot commit between reading the old settings and writing this patch.
+    const current = this.readSettings();
     const updated = deepMerge(current, partial);
 
     safeStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(updated));
@@ -128,7 +136,7 @@ export class SettingsService {
       safeStorage.setItem('mindflow_dock_pos', partial.workbenchDockPosition);
     }
 
-    return { ...updated };
+    return structuredClone(updated);
   }
 
   /**
@@ -139,6 +147,6 @@ export class SettingsService {
     this.cachedSettings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS)) as AppSettings;
     mirrorZoteroPreferences(DEFAULT_SETTINGS);
     safeStorage.setItem('mindflow_dock_pos', DEFAULT_SETTINGS.workbenchDockPosition);
-    return { ...DEFAULT_SETTINGS };
+    return structuredClone(DEFAULT_SETTINGS);
   }
 }

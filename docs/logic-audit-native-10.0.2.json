@@ -1,0 +1,142 @@
+{
+  "version": "10.0.3",
+  "dataDirectory": "D:\\Dev Studio\\mindflow zotero\\tests\\native-test-20260928-221819\\data",
+  "results": [
+    {
+      "name": "A opens its exact attachment",
+      "pass": true
+    },
+    {
+      "name": "B with the same document ID shows B and isolates A",
+      "pass": true
+    },
+    {
+      "name": "settings reload cannot replace A with global active B",
+      "pass": true
+    },
+    {
+      "name": "A→B→A reopen preserves edited content",
+      "pass": true
+    },
+    {
+      "name": "icon has no adjacent MindFlow brand text",
+      "pass": true
+    },
+    {
+      "name": "close and reopen B reuses its isolated workspace ID",
+      "pass": true
+    },
+    {
+      "name": "forceNew creates another map for the same paper",
+      "pass": true
+    },
+    {
+      "name": "archived file contents are registered under exact parents",
+      "pass": true
+    },
+    {
+      "name": "same-parent maps open separate exact tabs",
+      "pass": true
+    },
+    {
+      "name": "standalone A and B remain separate with same embedded ID",
+      "pass": true
+    },
+    {
+      "name": "native item-pane registration exists and toolbar accessible name is retained",
+      "pass": true
+    },
+    {
+      "name": "typing then immediate native tab close retains the latest title",
+      "pass": true
+    },
+    {
+      "name": "header groups do not overlap at native 1000px window width",
+      "pass": true
+    },
+    {
+      "name": "native undo-close restores the latest local document, not initial payload",
+      "pass": true
+    },
+    {
+      "name": "session restore hook reopens saved identity without creating another map",
+      "pass": true
+    },
+    {
+      "name": "rapid workspace B→A selection cannot finish on stale B",
+      "pass": true
+    },
+    {
+      "name": "native insertion, undo and redo modify the correct root",
+      "pass": true
+    },
+    {
+      "name": "uncommitted node text survives closing before Enter or blur",
+      "pass": true
+    },
+    {
+      "name": "native delete is revision guarded and blocks queued stale archive",
+      "pass": true
+    },
+    {
+      "name": "standalone immediate close is saved by host and survives reopen",
+      "pass": true
+    },
+    {
+      "name": "native stale editor becomes detached conflict copy after another window saves",
+      "pass": true
+    },
+    {
+      "name": "native corrupt primary recovers matching backup before next verified write",
+      "pass": true
+    },
+    {
+      "name": "native concurrent snapshots retain both versions in durable files",
+      "pass": true
+    },
+    {
+      "name": "editor deleting a connected branch prunes all descendant links and saves to disk",
+      "pass": true
+    },
+    {
+      "name": "editor undo restores deleted descendants and their relationship together",
+      "pass": true
+    },
+    {
+      "name": "editor redo deletes the branch and relationship together",
+      "pass": true
+    },
+    {
+      "name": "editor relation creation, deletion and undo use the same history as nodes",
+      "pass": true
+    },
+    {
+      "name": "editor undo of insertion leaves a valid selection for the next Tab insertion",
+      "pass": true
+    },
+    {
+      "name": "editor shortcuts modal cannot edit underlying nodes with Tab or Delete",
+      "pass": true
+    },
+    {
+      "name": "editor outline Enter during Chinese composition does not commit text",
+      "pass": true
+    },
+    {
+      "name": "editor document switch saves uncommitted outline text before changing maps",
+      "pass": true
+    },
+    {
+      "name": "editor Ctrl deselection of last selected node prevents accidental deletion",
+      "pass": true
+    },
+    {
+      "name": "native concurrent inbox operations preserve entries in a verified durable file",
+      "pass": true
+    },
+    {
+      "name": "inbox insertion is marked processed only after map save and retry adds no duplicate",
+      "pass": true
+    }
+  ]
+}

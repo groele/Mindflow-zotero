@@ -7,7 +7,68 @@ import test from 'node:test';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const runtime = fs.readFileSync(process.env.MINDFLOW_HOST_FILE || path.join(root, 'chrome/content/scripts/index.js'), 'utf8');
 
-function fixture() {
+test('item-pane sidenav localization is tooltip-only so the narrow rail stays icon-only', () => {
+  const zh = fs.readFileSync(path.join(root, 'locale/zh-CN/mindflow.ftl'), 'utf8');
+  const en = fs.readFileSync(path.join(root, 'locale/en-US/mindflow.ftl'), 'utf8');
+  assert.match(runtime, /sidenav:\s*\{\s*l10nID:\s*'mindflow-item-pane-sidenav'/);
+  for (const locale of [zh, en]) {
+    const block = locale.match(/mindflow-item-pane-sidenav\s*=([\s\S]*?)(?=\n\S|$)/)?.[1] || '';
+    assert.match(block, /\.tooltiptext\s*=/);
+    assert.doesNotMatch(block, /\.label\s*=/);
+  }
+});
+
+test('host inbox concurrent additions preserve both durable records', async () => {
+  const f = fixture(), item = id => ({ id, text: id, createdAt: 1, isProcessed: false });
+  await Promise.all(['one', 'two'].map(id => f.host.workspaceStorage('mutateInbox', { additions: [item(id)] })));
+  const items = JSON.parse(await f.host.workspaceStorage('get', { key: 'mindflow_inbox_items' }));
+  assert.equal(items.length, 2); assert.ok(f.disk.has('/data/mindflow/workspace/mindflow_inbox_items.json'));
+});
+test('host inbox migrates legacy preferences and serializes restore plus processing', async () => {
+  const f = fixture(), item = id => ({ id, text: id, createdAt: 1, isProcessed: false });
+  f.prefs.set('mindflow.mindflow_inbox_items', JSON.stringify([item('legacy')]));
+  await Promise.all([f.host.workspaceStorage('mutateInbox', { processedId: 'legacy', isProcessed: true }),
+    f.host.workspaceStorage('mutateInbox', { additions: [item('restored')] })]);
+  const items = JSON.parse(await f.host.workspaceStorage('get', { key: 'mindflow_inbox_items' }));
+  assert.equal(items.length, 2); assert.equal(items.find(item => item.id === 'legacy').isProcessed, true);
+  await f.host.workspaceStorage('mutateInbox', { clearProcessed: true });
+  assert.equal(JSON.parse(await f.host.workspaceStorage('get', { key: 'mindflow_inbox_items' }))[0].id, 'restored');
+});
+test('invalid inbox additions cannot overwrite a valid inbox', async () => {
+  const f = fixture();
+  await f.host.workspaceStorage('mutateInbox', { additions: [{ id: 'valid', text: 'v', createdAt: 1, isProcessed: false }] });
+  await assert.rejects(() => f.host.workspaceStorage('mutateInbox', { additions: [{ id: 'bad', text: 1 }] }), /无效/);
+  assert.equal(JSON.parse(await f.host.workspaceStorage('get', { key: 'mindflow_inbox_items' })).length, 1);
+});
+test('inbox write verification failure is reported rather than a successful operation', async () => {
+  const f = fixture(); const write = f.IOUtils.writeUTF8;
+  f.IOUtils.writeUTF8 = async (...args) => { await write(...args); f.disk.set(args[0], '[]'); };
+  await assert.rejects(() => f.host.workspaceStorage('mutateInbox', { additions: [{ id: 'v', text: 'v', createdAt: 1, isProcessed: false }] }), /校验失败/);
+});
+function hangingFetch(_url, { signal }) {
+  return new Promise((_resolve, reject) => {
+    const abort = () => reject(Object.assign(new Error('cancelled'), { name: 'AbortError' }));
+    if (signal.aborted) abort(); else signal.addEventListener('abort', abort, { once: true });
+  });
+}
+test('AI HTTP timeout remains effective when a caller supplies cancellation signal', async () => {
+  const f = fixture({ fetch: hangingFetch }), controller = new AbortController();
+  let watchdog;
+  try {
+    await assert.rejects(() => Promise.race([
+      f.host._testLLMRequest({ url: 'https://test.invalid', body: {}, timeout: 20, signal: controller.signal }),
+      new Promise((_resolve, reject) => { watchdog = setTimeout(() => reject(new Error('timeout guard never fired')), 250); }),
+    ]), error => error.status === 408);
+  } finally { clearTimeout(watchdog); controller.abort(); }
+});
+test('explicit AI cancellation is not mislabeled as a timeout', async () => {
+  const f = fixture({ fetch: hangingFetch }), controller = new AbortController();
+  const request = f.host._testLLMRequest({ url: 'https://test.invalid', body: {}, timeout: 1000, signal: controller.signal });
+  controller.abort();
+  await assert.rejects(() => request, error => error.name === 'AbortError' && error.status !== 408);
+});
+
+function fixture(options = {}) {
   const items = new Map(), disk = new Map(), prefs = new Map(), elements = new Map(), listeners = new Map();
   let nextID = 10;
   function element(tag) {
@@ -29,6 +90,7 @@ function fixture() {
     getTabContent(id) { return elements.get(id); }, select(id) { this.selectedID = id; },
     rename(id, title) { this._tabs.find(t=>t.id===id).title = title; } };
   const win = { document: doc, Zotero_Tabs: tabs, ZoteroPane: { getSelectedItems: () => [] }, focus() {},
+    fetch: options.fetch, AbortController,
     addEventListener(type, fn) { listeners.set(type, fn); }, removeEventListener() {},
     setTimeout() { return 1; }, clearTimeout() {} };
   const Zotero = { log() {}, logError() {}, getMainWindow: () => win, getActiveZoteroPane: () => win.ZoteroPane,
@@ -53,7 +115,7 @@ function fixture() {
   const ctx = { Zotero, window:win, Services: { wm: { addListener() {}, removeListener() {}, getEnumerator: () => ({hasMoreElements:()=>false}) } },
     IOUtils, PathUtils: { join: (...parts)=>parts.join('/'), parent:p=>p.slice(0,p.lastIndexOf('/')), filename:p=>p.split('/').pop(), tempDir:'/tmp' },
     URL, setTimeout, clearTimeout, console };
-  vm.runInNewContext(runtime.replace('  Zotero.MindFlow.init();',''), ctx);
+  vm.runInNewContext(runtime.replace('  Zotero.MindFlow.init();','  Zotero.MindFlow._testLLMRequest = sendLLMHttpRequest;'), ctx);
   const host = Zotero.MindFlow;
   function paper(key, libraryID=1) {
     const item = { id:nextID++, key, libraryID, attachments:[], notes:[], title:key,

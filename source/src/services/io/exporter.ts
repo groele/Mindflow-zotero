@@ -196,6 +196,7 @@ export function parseOPMLString(xmlContent: string): MindMapNode {
       const parser = new DOMParser();
       const xmlDoc = parser.parseFromString(xmlContent, 'text/xml');
       const parseError = xmlDoc.getElementsByTagName('parsererror');
+      if (parseError.length) throw new Error('OPML XML 格式无效');
       if (parseError.length === 0) {
         const body = xmlDoc.getElementsByTagName('body')[0];
         if (body) {
@@ -242,8 +243,9 @@ export function parseOPMLString(xmlContent: string): MindMapNode {
           }
         }
       }
-    } catch {
-      // Fallback below
+      throw new Error('OPML 缺少有效的 body 或 outline 内容');
+    } catch (error) {
+      throw new Error(`OPML 导入失败：${(error as Error).message}`);
     }
   }
 
@@ -251,6 +253,9 @@ export function parseOPMLString(xmlContent: string): MindMapNode {
   const tagRegex = /<\/?outline(\s+[^>]*)?\/?>/gi;
   const roots: MindMapNode[] = [];
   const stack: MindMapNode[] = [];
+  if (!/<opml\b/i.test(xmlContent) || !/<body\b/i.test(xmlContent) || !/<\/body\s*>/i.test(xmlContent) || !/<\/opml\s*>/i.test(xmlContent)) {
+    throw new Error('OPML 缺少有效的文档结构');
+  }
 
   let match;
   while ((match = tagRegex.exec(xmlContent)) !== null) {
@@ -259,9 +264,8 @@ export function parseOPMLString(xmlContent: string): MindMapNode {
     const isSelfClosing = fullTag.endsWith('/>');
 
     if (isClosing) {
-      if (stack.length > 0) {
-        stack.pop();
-      }
+      if (!stack.length) throw new Error('OPML outline 闭合标签不匹配');
+      stack.pop();
       continue;
     }
 
@@ -307,6 +311,7 @@ export function parseOPMLString(xmlContent: string): MindMapNode {
     }
   }
 
+  if (stack.length || !roots.length) throw new Error('OPML outline 未闭合或内容为空');
   if (roots.length === 1) {
     return roots[0];
   }

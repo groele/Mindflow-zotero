@@ -8,8 +8,7 @@
 
 | 项目 / Item | 当前状态 / Current status |
 | --- | --- |
-| 公开版本 / Public release | **10.0.0**, [v10.0.0](https://github.com/groele/Mindflow-zotero/releases/tag/v10.0.0) |
-| 本地补丁 / Local patch | **10.0.1**，图标尺寸修复，已本地验证；尚未发布为 GitHub Release / Toolbar sizing fix, locally validated; not yet a GitHub Release |
+| 公开版本 / Public release | **10.0.3**, [v10.0.3](https://github.com/groele/Mindflow-zotero/releases/tag/v10.0.3) |
 | 支持宿主 / Supported host | **Zotero 10.0.x**；原生回归环境为 Windows + Zotero 10.0.3 / Native regression environment: Windows + Zotero 10.0.3 |
 | 插件 ID / Add-on ID | `mindflow@groele.org` |
 | 许可 / License | [MIT](LICENSE) |
@@ -30,20 +29,18 @@ The add-on and Zotero have separate version numbers. This README is bilingual; t
 
 ### 1. 安装与升级
 
-1. 打开 [V10 Release](https://github.com/groele/Mindflow-zotero/releases/tag/v10.0.0)，下载 [`mindflow-zotero-10.0.0.xpi`](https://github.com/groele/Mindflow-zotero/releases/download/v10.0.0/mindflow-zotero-10.0.0.xpi)。请选择 XPI 安装包，GitHub 的 Source code ZIP 不能直接作为插件安装。
+1. 打开 [V10 Release](https://github.com/groele/Mindflow-zotero/releases/tag/v10.0.3)，下载 [`mindflow-zotero-10.0.3.xpi`](https://github.com/groele/Mindflow-zotero/releases/download/v10.0.3/mindflow-zotero-10.0.3.xpi)。请选择 XPI 安装包，GitHub 的 Source code ZIP 不能直接作为插件安装。
 2. 在 Zotero 中打开 **工具 → 插件**，点击齿轮，选择 **从文件安装插件**。
 3. 选择下载的 XPI，完成安装并重启 Zotero。
 4. 通过文献库工具栏的 MindFlow 图标、工具菜单或文献右键菜单打开工作台。
 
 升级前备份 Zotero 数据目录，并导出重要导图或完整工作区。V10 沿用 `mindflow@groele.org`，可以覆盖同 ID 的旧版本；升级本身不代表历史错误关联已被自动修正。
 
-公开自动更新元数据为 [`update.json`](update.json) 与 [`zotero/update.json`](zotero/update.json)，目前指向 **10.0.0**。本地 **10.0.1** 修复工具栏图标偏小的问题：图像尺寸调整为 **20 × 20 CSS 像素**，并使用紧凑 SVG 视口，与实测原生“新建笔记”图像尺寸一致。图标旁保持无文字，保留提示和可访问名称。
+公开自动更新元数据为 [`update.json`](update.json) 与 [`zotero/update.json`](zotero/update.json)，目前指向 **10.0.3**。包含工具栏图标优化（图像尺寸为 **20 × 20 CSS 像素**，紧凑 SVG 视口）与 29 项操作逻辑审查与加固，详细见 [10.0.2 操作逻辑审查](docs/操作逻辑审查与修复-10.0.2.md) 与 [10.0.1 图标修复记录](docs/toolbar-icon-fix-10.0.1.md)。
 
-需要安装本地补丁时，在本仓库工作目录中选择 `mindflow-zotero-10.0.1.xpi`，按上述步骤安装；该文件目前不是公开 Release 下载资产。详情见 [图标修复记录](docs/toolbar-icon-fix-10.0.1.md)。
+![工具栏预览](docs/toolbar-icon-preview-10.0.1.png)
 
-![10.0.1 在真实 Zotero 中的工具栏预览](docs/toolbar-icon-preview-10.0.1.png)
-
-*上图为本地 10.0.1 在真实 Zotero 中的工具栏截图。*
+*上图为在真实 Zotero 中的工具栏截图。*
 
 <a id="zh-start"></a>
 
@@ -299,7 +296,7 @@ pwsh -NoProfile -File scripts/restart-native-test.ps1
 | 真实 Zotero 流程 | 23 | 实际窗口、选择条目、切换、多导图、编辑与归档 |
 | 真实进程重启 | 3 | 落盘数据、正常退出与重新载入 |
 
-另外完成类型检查、生产构建、脚本语法与 XPI 内容核对。[V10 验证汇总](docs/validation-summary.json) 和 [安装包校验](docs/package-verification.json) 对应公开 **10.0.0**；[10.0.1 验证记录](docs/toolbar-icon-validation-10.0.1.json) 对应本地图标补丁，其 86 项回归也通过，并增加真实原生图标尺寸核对。
+另外完成类型检查、生产构建、脚本语法与 XPI 内容核对。[V10 验证汇总](docs/validation-summary.json) 和 [安装包校验](docs/package-verification-10.0.0.json) 对应公开 **10.0.0**；[10.0.1 验证记录](docs/toolbar-icon-validation-10.0.1.json) 对应本地图标补丁，其 86 项回归也通过，并增加真实原生图标尺寸核对。
 
 这些结果不能替代所有用户环境的验收。仍需实际验证的场景包括：真实群组库权限和远端附件同步、外部 AI/WebDAV 账户、macOS/Linux 原生流程、长期大文档压力、网络异常与强制断电恢复。正常关闭/退出测试不能作为突然断电时数据绝不丢失的保证。
 
@@ -331,16 +328,14 @@ pwsh -NoProfile -File scripts/restart-native-test.ps1
 
 ### 1. Installation and upgrades
 
-1. Open the [V10 Release](https://github.com/groele/Mindflow-zotero/releases/tag/v10.0.0) and download [`mindflow-zotero-10.0.0.xpi`](https://github.com/groele/Mindflow-zotero/releases/download/v10.0.0/mindflow-zotero-10.0.0.xpi). Use the XPI asset; GitHub's Source code ZIP cannot be installed directly as the add-on.
+1. Open the [V10 Release](https://github.com/groele/Mindflow-zotero/releases/tag/v10.0.3) and download [`mindflow-zotero-10.0.3.xpi`](https://github.com/groele/Mindflow-zotero/releases/download/v10.0.3/mindflow-zotero-10.0.3.xpi). Use the XPI asset; GitHub's Source code ZIP cannot be installed directly as the add-on.
 2. In Zotero, open **Tools → Plugins**, click the gear button, and choose **Install Add-on From File**. Menu labels may vary with your Zotero language.
 3. Select the XPI, finish installation, and restart Zotero.
 4. Open MindFlow through its library toolbar icon, the Tools menu, or the paper's context menu.
 
 Before upgrading, back up your Zotero data directory and export important maps or the complete workspace. V10 keeps the add-on ID `mindflow@groele.org` and can replace an older installation with that ID. Upgrading does not automatically repair attachments that were previously associated with the wrong paper.
 
-The public update metadata in [`update.json`](update.json) and [`zotero/update.json`](zotero/update.json) currently points to **10.0.0**. The local **10.0.1** patch fixes the small toolbar icon: the image is **20 × 20 CSS pixels**, with a tighter SVG viewport, matching the measured native New Note image size. The icon has no adjacent brand text and retains its tooltip and accessible name.
-
-To install that local patch, select `mindflow-zotero-10.0.1.xpi` from this checkout and follow the same installation steps. It is currently not a public Release asset. See the [toolbar fix report](docs/toolbar-icon-fix-10.0.1.md) and the [native toolbar screenshot](docs/toolbar-icon-preview-10.0.1.png) above.
+The public update metadata in [`update.json`](update.json) and [`zotero/update.json`](zotero/update.json) currently points to **10.0.3**. It includes the toolbar icon fix (**20 × 20 CSS pixels**, tighter SVG viewport) and 29 workflow fixes and hardening items; see the [detailed audit](docs/操作逻辑审查与修复-10.0.2.md) and [toolbar fix report](docs/toolbar-icon-fix-10.0.1.md).
 
 <a id="en-start"></a>
 
@@ -596,7 +591,7 @@ The public V10 reports record **86 passing checks**:
 | Real Zotero workflows | 23 | Actual windows, item selection, switching, multiple maps, editing, and archiving |
 | Real process restart | 3 | Persisted data, normal exit, and reloading |
 
-Type checking, production build, script syntax, and XPI contents were also checked. The [V10 validation summary](docs/validation-summary.json) and [package verification](docs/package-verification.json) describe public **10.0.0**. The [10.0.1 validation report](docs/toolbar-icon-validation-10.0.1.json) describes the local toolbar patch, which also passed the 86 checks and adds native icon-size comparison.
+Type checking, production build, script syntax, and XPI contents were also checked. The [V10 validation summary](docs/validation-summary.json) and [package verification](docs/package-verification-10.0.0.json) describe public **10.0.0**. The [10.0.1 validation report](docs/toolbar-icon-validation-10.0.1.json) describes the local toolbar patch, which also passed the 86 checks and adds native icon-size comparison.
 
 These results do not replace acceptance testing in every user environment. Remaining scenarios include real group-library permissions and remote attachment synchronization, external AI/WebDAV accounts, native macOS/Linux workflows, sustained large-document workloads, network failures, and forced power-loss recovery. Normal close/exit testing cannot guarantee zero data loss after sudden power failure.
 

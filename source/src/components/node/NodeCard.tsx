@@ -63,7 +63,7 @@ export const NodeCard: React.FC<NodeCardProps> = ({
   }, [isEditing]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (isComposingRef.current) return;
+    if (isComposingRef.current || e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
 
     if (e.key === 'Enter') {
       e.preventDefault();

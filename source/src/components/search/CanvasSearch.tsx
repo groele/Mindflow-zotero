@@ -8,8 +8,8 @@ interface CanvasSearchProps {
   rootNode: MindMapNode;
   onJumpToNode: (nodeId: string) => void;
   onHighlightMatches: (matchedIds: string[]) => void;
-  onReplaceCurrent?: (nodeId: string, fromText: string, toText: string) => void;
-  onReplaceAll?: (fromText: string, toText: string) => void;
+  onReplaceCurrent?: (nodeId: string, fromText: string, toText: string) => number;
+  onReplaceAll?: (fromText: string, toText: string) => number;
 }
 
 export const CanvasSearch: React.FC<CanvasSearchProps> = ({
@@ -100,6 +100,7 @@ export const CanvasSearch: React.FC<CanvasSearchProps> = ({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
     if (e.key === 'Escape') {
       e.stopPropagation();
       onClose();
@@ -119,15 +120,15 @@ export const CanvasSearch: React.FC<CanvasSearchProps> = ({
   const handleReplaceCurrent = () => {
     if (matches.length === 0 || !query.trim()) return;
     const currentId = matches[currentIndex];
-    onReplaceCurrent?.(currentId, query, replaceText);
-    setReplaceNotice('已替换当前项');
+    const count = onReplaceCurrent?.(currentId, query, replaceText) || 0;
+    setReplaceNotice(count ? `已替换 ${count} 处` : '没有可替换的文字（标签匹配仅用于定位）');
     setTimeout(() => setReplaceNotice(null), 2000);
   };
 
   const handleReplaceAll = () => {
     if (!query.trim() || matches.length === 0) return;
-    onReplaceAll?.(query, replaceText);
-    setReplaceNotice(`已完成全部替换 (${matches.length} 处)`);
+    const count = onReplaceAll?.(query, replaceText) || 0;
+    setReplaceNotice(count ? `已完成全部替换 (${count} 处)` : '没有可替换的文字（标签匹配仅用于定位）');
     setTimeout(() => setReplaceNotice(null), 2500);
   };
 

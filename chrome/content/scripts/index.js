@@ -144,12 +144,17 @@
       let timeoutId = null;
       let internalController = null;
       let requestSignal = signal;
+      let timedOut = false;
+      const relayAbort = () => { try { internalController?.abort(); } catch (_) {} };
 
-      if (!requestSignal && AbortControllerClass && timeout > 0) {
+      if (AbortControllerClass) {
         internalController = new AbortControllerClass();
         requestSignal = internalController.signal;
-        timeoutId = setTimeout(() => {
-          try { internalController.abort(); } catch (_) {}
+        if (signal?.aborted) relayAbort();
+        else signal?.addEventListener('abort', relayAbort, { once: true });
+        if (timeout > 0) timeoutId = setTimeout(() => {
+          timedOut = true;
+          relayAbort();
         }, timeout);
       }
 
@@ -192,7 +197,7 @@
           responseText: text,
         };
       } catch (err) {
-        if (err.name === 'AbortError') {
+        if (err.name === 'AbortError' && timedOut) {
           const timeoutErr = new Error(`请求超时（超过 ${Math.round(timeout / 1000)} 秒无响应），请检查网络连接或接口地址。`);
           timeoutErr.status = 408;
           throw timeoutErr;
@@ -200,6 +205,7 @@
         throw err;
       } finally {
         if (timeoutId) clearTimeout(timeoutId);
+        signal?.removeEventListener('abort', relayAbort);
       }
     }
 
@@ -635,6 +641,42 @@
         } catch (error) { throw new Error(`旧版导图读取失败：${key}；${error}`); }
       };
       if (action === 'get') return readFile(checkedKey(payload.key));
+      if (action === 'mutateInbox') {
+        const key = 'mindflow_inbox_items';
+        const patch = JSON.parse(JSON.stringify(payload));
+        const validate = (items) => {
+          if (!Array.isArray(items)) throw new Error('收集箱数据不是列表');
+          const ids = new Set();
+          for (const item of items) {
+            if (!item || typeof item.id !== 'string' || !item.id || typeof item.text !== 'string' ||
+                !Number.isFinite(item.createdAt) || typeof item.isProcessed !== 'boolean' ||
+                ['title', 'url', 'favIconUrl'].some(field => item[field] !== undefined && typeof item[field] !== 'string')) {
+              throw new Error('收集箱包含格式无效的记录');
+            }
+            if (ids.has(item.id)) throw new Error('收集箱包含重复的记录 ID');
+            ids.add(item.id);
+          }
+          return items;
+        };
+        validate(patch.additions || []);
+        const operation = (this._workspaceWriteQueue || Promise.resolve()).catch(() => {}).then(async () => {
+          const raw = await readFile(key);
+          let items = validate(raw ? JSON.parse(raw) : []);
+          items = items.filter(item => item.id !== patch.removeId && !(patch.clearProcessed && item.isProcessed));
+          if (patch.processedId) items = items.map(item => item.id === patch.processedId ? { ...item, isProcessed: patch.isProcessed === true } : item);
+          const ids = new Set(items.map(item => item.id));
+          for (const item of patch.additions || []) {
+            if (!ids.has(item.id)) { items.unshift(item); ids.add(item.id); }
+          }
+          const path = fileFor(key), serialized = JSON.stringify(items);
+          await IOUtils.makeDirectory(directory, { createAncestors: true, ignoreExisting: true });
+          await IOUtils.writeUTF8(path, serialized, { tmpPath: `${path}.tmp`, backupFile: `${path}.bak`, flush: true });
+          if (await IOUtils.readUTF8(path) !== serialized) throw new Error('收集箱写入后校验失败');
+          return items;
+        });
+        this._workspaceWriteQueue = operation.catch(() => {});
+        return operation;
+      }
       if (action === 'mutateSnapshots') {
         const key = checkedKey(`mindflow_snapshots_${payload.docId}`);
         const additions = JSON.parse(JSON.stringify(payload.snapshots || []));
@@ -949,7 +991,11 @@
           paneID: 'mindflow-item-pane',
           pluginID: ADDON_ID,
           header: { l10nID: 'mindflow-item-pane-header', icon },
-          sidenav: { l10nID: 'mindflow-item-pane-header', icon },
+          // Sidenav entries are icon-only in Zotero.  Keep a dedicated
+          // tooltip-only localization key here: using the header key also
+          // exposes its `.label` value on the narrow 37px sidenav button,
+          // where the localized text wraps vertically beside the icon.
+          sidenav: { l10nID: 'mindflow-item-pane-sidenav', icon },
           onInit: ({ doc, body, item, refresh }) => {
             this.ensureLocalization(doc);
             const state = { itemID: regularLiteratureItems([item])[0]?.id || null, refresh, notifierID: null };
@@ -1321,10 +1367,10 @@
               height: 16px !important;
             }
             #mindflow-toolbar-button .toolbarbutton-icon {
-              width: 16px !important;
-              height: 16px !important;
-              max-width: 16px !important;
-              max-height: 16px !important;
+              width: 20px !important;
+              height: 20px !important;
+              max-width: 20px !important;
+              max-height: 20px !important;
             }
             #mindflow-toolbar-button .toolbarbutton-text {
               display: none !important;
@@ -1738,7 +1784,7 @@
       }
       btn.setAttribute('tooltiptext', '打开 MindFlow 思维导图与文献研读工作区');
       btn.setAttribute('aria-label', 'MindFlow');
-      btn.setAttribute('image', `${CHROME_ROOT}icons/mindflow.svg`);
+      btn.setAttribute('image', `${CHROME_ROOT}icons/mindflow-toolbar.svg`);
       btn.setAttribute('class', 'zotero-tb-button toolbarbutton-1 chromeclass-toolbar-additional');
       btn.setAttribute(
         'style',

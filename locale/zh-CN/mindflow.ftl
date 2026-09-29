@@ -7,6 +7,8 @@ mindflow-reader-send = 发送摘录至 MindFlow 导图
 mindflow-item-pane-header = MindFlow 导图
     .label = MindFlow 导图
     .tooltiptext = MindFlow 导图
+mindflow-item-pane-sidenav =
+    .tooltiptext = MindFlow 导图
 mindflow-item-pane-count =
     { $count ->
         [0] 这篇文献还没有 MindFlow 导图
