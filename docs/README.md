@@ -6,7 +6,8 @@
 
 | 阶段 / Stage | 状态 / Status | 说明 / Description |
 | --- | --- | --- |
-| 10.0.3 / V10 | 公开发布 / Public release | 29项操作逻辑审查修复、工具栏图标优化与数据链路加固 / 29 workflow fixes, compact toolbar icon & data-chain hardening |
+| 10.0.4 / V10 | 公开发布 / Public release | 移除文献列表右键菜单项保持整洁 / Removed literature context menu items |
+| 10.0.3 | 历史发布 / Historical release | 29项操作逻辑审查修复、工具栏图标优化与数据链路加固 / 29 workflow fixes, compact toolbar icon & data-chain hardening |
 | 10.0.2 | 审查与验证 / Audit & verification | 操作逻辑详细审查与修复基准 / Workflow audit and fixes |
 | 10.0.1 | 审查与验证 / Audit & verification | 工具栏图标尺寸优化 / Toolbar sizing patch |
 | 10.0.0 | 历史发布 / Historical release | 首版纯 Zotero 10 架构发布 / Initial pure Zotero 10 release |
