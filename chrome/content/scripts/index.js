@@ -1107,7 +1107,13 @@
           const onLoad = () => {
             domWindow.removeEventListener('load', onLoad, false);
             pendingWindowLoads.delete(domWindow);
-            if (!domWindow.closed) Zotero.MindFlow?.addToWindow(domWindow);
+            if (!domWindow.closed) {
+              const winType = domWindow.document?.documentElement?.getAttribute?.('windowtype');
+              if (winType && winType !== 'navigator:browser') {
+                return;
+              }
+              Zotero.MindFlow?.addToWindow(domWindow);
+            }
           };
           pendingWindowLoads.set(domWindow, onLoad);
           domWindow.addEventListener('load', onLoad, { once: true });
@@ -1131,8 +1137,12 @@
 
     addToWindow(window) {
       if (!window || !window.document) return;
-      this.installTabLifecycle(window);
       const doc = window.document;
+
+      const winType = doc.documentElement?.getAttribute?.('windowtype');
+      if (winType && winType !== 'navigator:browser') return;
+
+      this.installTabLifecycle(window);
 
       // Prevent duplicate injection
       if (doc.getElementById('mindflow-tools-menu')) return;
@@ -1572,6 +1582,28 @@
       if (!window || !window.document) return;
       const doc = window.document;
 
+      // Only inject the main items toolbar button into the primary Zotero library window.
+      // Sub-windows, dialogs (e.g. Plugin Market / 插件市场), preferences, and popups must be excluded.
+      const winType = doc.documentElement?.getAttribute?.('windowtype');
+      if (winType && winType !== 'navigator:browser') {
+        const existingButton = doc.getElementById('mindflow-toolbar-button');
+        if (existingButton) existingButton.remove();
+        return;
+      }
+
+      const isLibraryWindow = Boolean(
+        window.ZoteroPane ||
+        (typeof Zotero !== 'undefined' && Zotero.getMainWindow && Zotero.getMainWindow() === window) ||
+        doc.getElementById?.('zotero-pane') ||
+        doc.getElementById?.('zotero-items-pane') ||
+        doc.getElementById?.('zotero-items-tree')
+      );
+      if (!isLibraryWindow) {
+        const existingButton = doc.getElementById('mindflow-toolbar-button');
+        if (existingButton) existingButton.remove();
+        return;
+      }
+
       const existingButton = doc.getElementById('mindflow-toolbar-button');
       // Resolve the main toolbar row from Zotero controls, then insert before its
       // flexible spacer so MindFlow stays with the left-side action buttons.
@@ -1579,7 +1611,8 @@
         doc.getElementById('zotero-tb-attachment') ||
         doc.getElementById('zotero-tb-note') ||
         doc.getElementById('zotero-tb-lookup') ||
-        doc.getElementById('zotero-tb-add');
+        doc.getElementById('zotero-tb-add') ||
+        doc.getElementById('zotero-tb-note-add');
 
       const toolbar =
         (toolbarLocator && toolbarLocator.parentNode) ||
@@ -1587,10 +1620,8 @@
         doc.getElementById('zotero-item-toolbar') ||
         doc.getElementById('zotero-items-toolbar') ||
         doc.getElementById('zotero-tb') ||
-        doc.getElementById('zotero-toolbar') ||
-        doc.querySelector('.zotero-items-toolbar') ||
         doc.querySelector('#zotero-items-pane toolbar') ||
-        doc.querySelector('toolbar');
+        doc.querySelector('.zotero-items-toolbar');
 
       if (!toolbar) {
         if (retryCount < 10) {

@@ -337,3 +337,19 @@ test('undo-close explicitly restores a canonical detached workspace identity', a
   assert.equal(tab.data.docId,saved.id);assert.equal(tab.data.workspaceDocumentId,saved.id);
   assert.equal(f.tabs.getTabContent(tab.id).children[0]._mindflowInitialAction.workspaceDocumentId,saved.id);
 });
+
+test('toolbar button excludes dialog windows such as plugin market', () => {
+  const f = fixture();
+  let created = false;
+  const dialogDoc = {
+    getElementById: () => null,
+    querySelector: () => ({ parentNode: null }),
+    querySelectorAll: () => [],
+    createElement: () => { created = true; return { setAttribute() {}, remove() {} }; },
+    documentElement: { getAttribute: (k) => k === 'windowtype' ? 'zotero:market' : null }
+  };
+  const dialogWin = { document: dialogDoc };
+  f.host.addToWindow(dialogWin);
+  assert.equal(created, false);
+});
+
