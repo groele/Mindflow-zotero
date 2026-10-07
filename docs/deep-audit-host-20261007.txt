@@ -1,0 +1,240 @@
+TAP version 13
+# Subtest: item-pane sidenav localization is tooltip-only so the narrow rail stays icon-only
+ok 1 - item-pane sidenav localization is tooltip-only so the narrow rail stays icon-only
+  ---
+  duration_ms: 1.3192
+  ...
+# Subtest: host inbox concurrent additions preserve both durable records
+ok 2 - host inbox concurrent additions preserve both durable records
+  ---
+  duration_ms: 4.8877
+  ...
+# Subtest: host inbox migrates legacy preferences and serializes restore plus processing
+ok 3 - host inbox migrates legacy preferences and serializes restore plus processing
+  ---
+  duration_ms: 1.2052
+  ...
+# Subtest: invalid inbox additions cannot overwrite a valid inbox
+ok 4 - invalid inbox additions cannot overwrite a valid inbox
+  ---
+  duration_ms: 1.3746
+  ...
+# Subtest: inbox write verification failure is reported rather than a successful operation
+ok 5 - inbox write verification failure is reported rather than a successful operation
+  ---
+  duration_ms: 0.9669
+  ...
+# Subtest: AI HTTP timeout remains effective when a caller supplies cancellation signal
+ok 6 - AI HTTP timeout remains effective when a caller supplies cancellation signal
+  ---
+  duration_ms: 22.5232
+  ...
+# Subtest: explicit AI cancellation is not mislabeled as a timeout
+ok 7 - explicit AI cancellation is not mislabeled as a timeout
+  ---
+  duration_ms: 1.6009
+  ...
+# Subtest: tombstoned documents never appear as readable after interrupted deletion
+ok 8 - tombstoned documents never appear as readable after interrupted deletion
+  ---
+  duration_ms: 0.8524
+  ...
+# Subtest: two host snapshot updates merge instead of losing the earlier version
+ok 9 - two host snapshot updates merge instead of losing the earlier version
+  ---
+  duration_ms: 1.7892
+  ...
+# Subtest: direct workspace context accepts the owning wrapped window and records actual document ID
+ok 10 - direct workspace context accepts the owning wrapped window and records actual document ID
+  ---
+  duration_ms: 1.6396
+  ...
+# Subtest: direct handshake delivers a pending action once to the actual owning frame
+ok 11 - direct handshake delivers a pending action once to the actual owning frame
+  ---
+  duration_ms: 0.8043
+  ...
+# Subtest: host serializes concurrent compare-and-save as one mutation
+ok 12 - host serializes concurrent compare-and-save as one mutation
+  ---
+  duration_ms: 1.7708
+  ...
+# Subtest: delete checks revision inside the same host queue as writes
+ok 13 - delete checks revision inside the same host queue as writes
+  ---
+  duration_ms: 1.1831
+  ...
+# Subtest: deletion marker hides a file when physical cleanup fails
+ok 14 - deletion marker hides a file when physical cleanup fails
+  ---
+  duration_ms: 1.1324
+  ...
+# Subtest: explicit backup restore removes the deletion marker
+ok 15 - explicit backup restore removes the deletion marker
+  ---
+  duration_ms: 1.0449
+  ...
+# Subtest: one unreadable workspace record cannot block exporting other records
+ok 16 - one unreadable workspace record cannot block exporting other records
+  ---
+  duration_ms: 0.9988
+  ...
+# Subtest: closing captures latest state before the iframe is destroyed
+ok 17 - closing captures latest state before the iframe is destroyed
+  ---
+  duration_ms: 1.1232
+  ...
+# Subtest: close conflict saves a detached recovery copy rather than overwriting another editor
+ok 18 - close conflict saves a detached recovery copy rather than overwriting another editor
+  ---
+  duration_ms: 2.1789
+  ...
+# Subtest: host rejects duplicate nodes and unsafe IDs before any write
+ok 19 - host rejects duplicate nodes and unsafe IDs before any write
+  ---
+  duration_ms: 0.9758
+  ...
+# Subtest: stale revision-one writer cannot recreate a deleted document
+ok 20 - stale revision-one writer cannot recreate a deleted document
+  ---
+  duration_ms: 0.8819
+  ...
+# Subtest: archive refuses a document deleted from workspace
+ok 21 - archive refuses a document deleted from workspace
+  ---
+  duration_ms: 1.3616
+  ...
+# Subtest: explicit missing group item never falls through to same user-library key
+ok 22 - explicit missing group item never falls through to same user-library key
+  ---
+  duration_ms: 0.9267
+  ...
+# Subtest: bare ambiguous keys, mismatched scopes and missing groups are rejected
+ok 23 - bare ambiguous keys, mismatched scopes and missing groups are rejected
+  ---
+  duration_ms: 0.7645
+  ...
+# Subtest: eight-digit item keys stay keys; numeric API IDs remain explicit numbers
+ok 24 - eight-digit item keys stay keys; numeric API IDs remain explicit numbers
+  ---
+  duration_ms: 1.2013
+  ...
+# Subtest: same embedded document ID from two different papers opens separate tabs
+ok 25 - same embedded document ID from two different papers opens separate tabs
+  ---
+  duration_ms: 0.7287
+  ...
+# Subtest: two maps under same parent never reuse each other
+ok 26 - two maps under same parent never reuse each other
+  ---
+  duration_ms: 0.9915
+  ...
+# Subtest: same attachment key in different libraries never collides
+ok 27 - same attachment key in different libraries never collides
+  ---
+  duration_ms: 1.1076
+  ...
+# Subtest: exact reopen uses Zotero getTabContent and preserves live edits
+ok 28 - exact reopen uses Zotero getTabContent and preserves live edits
+  ---
+  duration_ms: 1.5065
+  ...
+# Subtest: same-name collections and multi-library topics have distinct identities
+ok 29 - same-name collections and multi-library topics have distinct identities
+  ---
+  duration_ms: 1.1941
+  ...
+# Subtest: forceNew always bypasses an existing tab
+ok 30 - forceNew always bypasses an existing tab
+  ---
+  duration_ms: 2.1417
+  ...
+# Subtest: toolbar reader target uses selectedID rather than stale library selection
+ok 31 - toolbar reader target uses selectedID rather than stale library selection
+  ---
+  duration_ms: 1.2741
+  ...
+# Subtest: only the owning frame can update its tab title and binding
+ok 32 - only the owning frame can update its tab title and binding
+  ---
+  duration_ms: 1.9247
+  ...
+# Subtest: document filenames, primary payload and backup IDs must agree
+ok 33 - document filenames, primary payload and backup IDs must agree
+  ---
+  duration_ms: 1.0148
+  ...
+# Subtest: attachment enumeration excludes wrong parents, libraries and trash
+ok 34 - attachment enumeration excludes wrong parents, libraries and trash
+  ---
+  duration_ms: 1.3735
+  ...
+# Subtest: archive never binds an unlinked map to current selection
+ok 35 - archive never binds an unlinked map to current selection
+  ---
+  duration_ms: 1.1265
+  ...
+# Subtest: archive verifies actual content and parent registration before success
+ok 36 - archive verifies actual content and parent registration before success
+  ---
+  duration_ms: 16.6806
+  ...
+# Subtest: filename token collision never overwrites another document
+ok 37 - filename token collision never overwrites another document
+  ---
+  duration_ms: 1.1295
+  ...
+# Subtest: update failure never falls back to duplicate import
+ok 38 - update failure never falls back to duplicate import
+  ---
+  duration_ms: 1.0558
+  ...
+# Subtest: read-back corruption fails and cleans only newly created attachment
+ok 39 - read-back corruption fails and cleans only newly created attachment
+  ---
+  duration_ms: 0.9584
+  ...
+# Subtest: explicit source attachment cannot move or silently become another parent
+ok 40 - explicit source attachment cannot move or silently become another parent
+  ---
+  duration_ms: 0.8893
+  ...
+# Subtest: concurrent same-document archives create one attachment
+ok 41 - concurrent same-document archives create one attachment
+  ---
+  duration_ms: 1.2639
+  ...
+# Subtest: stale workspace revision cannot overwrite latest attachment
+ok 42 - stale workspace revision cannot overwrite latest attachment
+  ---
+  duration_ms: 1.018
+  ...
+# Subtest: undo-close explicitly restores a canonical detached workspace identity
+ok 43 - undo-close explicitly restores a canonical detached workspace identity
+  ---
+  duration_ms: 1.07
+  ...
+# Subtest: toolbar button excludes dialog windows such as plugin market
+ok 44 - toolbar button excludes dialog windows such as plugin market
+  ---
+  duration_ms: 0.9355
+  ...
+# Subtest: restoreDeleted only revives tombstones and cannot overwrite a concurrent document
+ok 45 - restoreDeleted only revives tombstones and cannot overwrite a concurrent document
+  ---
+  duration_ms: 1.381
+  ...
+# Subtest: snapshot corruption and duplicate additions never overwrite snapshot storage
+ok 46 - snapshot corruption and duplicate additions never overwrite snapshot storage
+  ---
+  duration_ms: 1.2783
+  ...
+1..46
+# tests 46
+# suites 0
+# pass 46
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 209.5234

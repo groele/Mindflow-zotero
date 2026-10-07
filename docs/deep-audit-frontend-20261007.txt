@@ -1,0 +1,57 @@
+
+> mindflow@10.0.5 test
+> vite-node tests/test-zotero.ts && vite-node tests/test-logic.ts
+
+PASS 1: newer local document from another attachment never replaces requested map
+PASS 2: same attachment key in another library is a different source
+PASS 3: legacy unproven source is kept separate
+PASS 4: latest edits of exact source are preserved
+PASS 5: newer attachment can replace exact older source
+PASS 6: detached imports and conflict copies clear both attachment and parent binding
+PASS 7: frontend direct resolver rejects ambiguous key
+PASS 8: frontend direct resolver honours group URI
+PASS 9: frontend direct resolver rejects scope conflict
+PASS 10: workspace key-content mismatch is a visible error
+PASS 11: isolated attachment is rediscovered using source even with new workspace ID
+PASS 12: duplicate source association cannot pick arbitrary first document
+PASS 13: simultaneous local writes enforce revision conflict
+PASS 14: failed CAS must never advance the editor known revision
+PASS 15: malformed JSON is a visible failure rather than a missing document
+PASS 16: snapshot envelope and payload document IDs must match
+PASS 17: restoring old content preserves the current verified attachment association
+PASS 18: storage validates duplicate descendant IDs, not only root shape
+PASS 19: deleted fallback records remain hidden from rebuilt list
+PASS 20: explicit restore can recreate a deleted local document
+PASS 21: cross-compartment host errors retain typed revision-conflict behavior
+PASS 22: simultaneous recovery snapshots retain both versions
+PASS 23: workspace restore keeps detached identity and reads canonical newer content
+PASS 24: workspace restore rejects mismatched and deleted targets without importing
+PASS 25: restore-deleted permission never bypasses the revision check for an existing document
+PASS 26: backup preflight cannot overwrite a document created before commit
+PASS 27: backup restore deliberately revives a deleted document without unconditional overwrite
+PASS 28: corrupt snapshot records fail before rendering or mutation
+PASS 29: duplicate backup snapshot IDs are rejected before any document write
+PASS 30: corrupt local snapshot target aborts backup before document creation
+PASS 31: backup snapshot import applies the configured retention limit
+PASS 32: secondary restore failure explicitly reports the documents already saved
+PASS 33: first default document returns the exact committed revision and timestamp
+33 frontend data-chain tests passed
+PASS: cloned tasks cannot mutate original or undo history
+PASS: replace-current uses the same case-insensitive matching as search
+PASS: replace-all counts actual case-insensitive occurrences
+PASS: concurrent inbox additions preserve both records
+PASS: corrupt inbox entries are rejected before rendering
+PASS: concurrent setting edits merge different fields
+PASS: settings read and reset return independent nested values
+PASS: malformed OPML does not silently become a successful empty map
+PASS: backup rejects duplicate inbox IDs before any writes
+PASS: node deletion prunes links to all deleted descendants, preserves unrelated links
+PASS: undo and redo restore the tree and relationships as one edit
+PASS: literal replacement handles regex syntax and dollar characters literally
+PASS: search reveals ancestors without expanding target or unrelated branches
+PASS: switch/save draft capture includes latest text and ignores stale missing IDs
+PASS: document copy remaps self links but preserves links to other documents
+PASS: partial WebDAV updates preserve other concurrent fields
+PASS: inbox merge, processing and additions cannot overwrite each other
+PASS: queued WebDAV autosync is invalidated by disabled service or changed credentials
+18 logic tests passed; 0 failed

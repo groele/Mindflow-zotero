@@ -3,8 +3,8 @@
     "mindflow@groele.org": {
       "updates": [
         {
-          "version": "10.0.4",
-          "update_link": "https://github.com/groele/Mindflow-zotero/releases/download/v10.0.4/mindflow-zotero-10.0.4.xpi",
+          "version": "10.0.5",
+          "update_link": "https://github.com/groele/Mindflow-zotero/releases/download/v10.0.5/mindflow-zotero-10.0.5.xpi",
           "applications": {
             "zotero": {
               "strict_min_version": "10.0",

@@ -84,26 +84,34 @@ function validateWorkspaceData(value: unknown): WorkspaceBackupData {
   }
 
   if (value.snapshots !== undefined) {
-    if (!Array.isArray(value.snapshots)) throw new Error('备份中的版本快照数据格式无效');
-    for (const snapshot of value.snapshots) {
-      if (!isRecord(snapshot) || typeof snapshot.id !== 'string' ||
-          typeof snapshot.docId !== 'string' || !documentIds.has(snapshot.docId) ||
-          typeof snapshot.data !== 'string' || !Number.isFinite(snapshot.timestamp)) {
-        throw new Error('备份中包含无效或脱离所属导图的版本快照');
-      }
-      let snapshotDoc: unknown;
-      try {
-        snapshotDoc = JSON.parse(snapshot.data);
-      } catch {
-        throw new Error('备份中包含无法解析的版本快照');
-      }
-      if (validateMindMapDocument(snapshotDoc, '版本快照').id !== snapshot.docId) {
-        throw new Error('备份中的版本快照与所属导图不匹配');
-      }
+    const snapshots = validateSnapshots(value.snapshots);
+    for (const snapshot of snapshots) {
+      if (!documentIds.has(snapshot.docId)) throw new Error('备份中包含脱离所属导图的版本快照');
     }
   }
 
   return value as unknown as WorkspaceBackupData;
+}
+
+/** Validate envelopes and payloads before rendering or mutating snapshot storage. */
+export function validateSnapshots(value: unknown, docId?: string): DocSnapshot[] {
+  if (!Array.isArray(value)) throw new Error('版本快照数据不是列表');
+  const ids = new Set<string>();
+  for (const snapshot of value) {
+    if (!isRecord(snapshot) || typeof snapshot.id !== 'string' || !snapshot.id ||
+        typeof snapshot.docId !== 'string' || !snapshot.docId ||
+        (docId !== undefined && snapshot.docId !== docId) ||
+        typeof snapshot.title !== 'string' || typeof snapshot.data !== 'string' ||
+        !Number.isFinite(snapshot.timestamp) || (snapshot.timestamp as number) < 0 ||
+        (snapshot.nodeCount !== undefined && (!Number.isSafeInteger(snapshot.nodeCount) || (snapshot.nodeCount as number) < 1))) {
+      throw new Error('版本快照身份或属性无效');
+    }
+    if (ids.has(snapshot.id)) throw new Error('版本快照包含重复的 ID');
+    ids.add(snapshot.id);
+    const doc = validateMindMapDocument(JSON.parse(snapshot.data), '版本快照');
+    if (doc.id !== snapshot.docId) throw new Error('版本快照所属导图与内部文档 ID 不一致');
+  }
+  return value as DocSnapshot[];
 }
 
 export class BackupService {
@@ -182,8 +190,7 @@ export class BackupService {
     if (!raw) return [];
     try {
       const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed)) throw new Error('快照数据不是列表');
-      return parsed;
+      return validateSnapshots(parsed, docId).sort((a, b) => b.timestamp - a.timestamp);
     } catch (error) {
       throw new Error(`版本快照数据损坏：${(error as Error).message}`);
     }
@@ -263,12 +270,15 @@ export class BackupService {
   public static async importFullWorkspaceData(data: WorkspaceBackupData): Promise<{ docCount: number; inboxCount: number }> {
     // Validate the entire archive before the first write. A malformed later
     // record must never leave an import half-applied.
-    data = validateWorkspaceData(data);
+    data = validateWorkspaceData(JSON.parse(JSON.stringify(data)));
 
     // Keep a recovery point for any local document that this restore will
     // replace by ID. If snapshot creation fails, stop before overwriting it.
     const existingIds = new Set<string>();
     const revisions = new Map<string, number>();
+    for (const incoming of data.documents) await this.getSnapshots(incoming.id);
+    const settings = await SettingsService.getSettings();
+    const snapshotLimit = Math.max(10, Math.min(50, Math.floor(settings.maxSnapshotsPerDoc || DEFAULT_MAX_SNAPSHOTS_PER_DOC)));
     for (const incoming of data.documents) {
       const current = await StorageService.getDocument(incoming.id, { trackRevision: false });
       if (current) {
@@ -283,23 +293,29 @@ export class BackupService {
     for (const doc of data.documents) {
       try {
         await StorageService.saveDocumentDirect(existingIds.has(doc.id) ? doc : { ...doc, revision: 0 },
-          revisions.get(doc.id) || 0, !existingIds.has(doc.id));
+          revisions.get(doc.id) || 0, existingIds.has(doc.id) ? false : 'restore-deleted');
         savedCount += 1;
       } catch (error) {
         throw new Error(`备份恢复中断：已保存 ${savedCount}/${data.documents.length} 篇导图；停止于 ${doc.title}。覆盖前快照已保留。${error instanceof Error ? error.message : error}`);
       }
     }
 
-    // Save inbox items
-    if (data.inboxItems && Array.isArray(data.inboxItems)) {
-      await InboxService.mergeItems(data.inboxItems);
-    }
-
-    // Restore snapshots
-    if (data.snapshots && Array.isArray(data.snapshots)) {
-      for (const snap of data.snapshots) {
-        await this.mutateSnapshots(snap.docId,[snap]);
+    // Report post-document failures as partial recovery, never as invalid JSON.
+    let stage = '收集箱记录';
+    try {
+      if (data.inboxItems) await InboxService.mergeItems(data.inboxItems);
+      stage = '版本快照';
+      const grouped = new Map<string, DocSnapshot[]>();
+      for (const snapshot of data.snapshots || []) {
+        const snapshots = grouped.get(snapshot.docId) || [];
+        snapshots.push(snapshot);
+        grouped.set(snapshot.docId, snapshots);
       }
+      for (const [docId, snapshots] of grouped) {
+        await this.mutateSnapshots(docId, snapshots, undefined, snapshotLimit);
+      }
+    } catch (error) {
+      throw new Error(`备份恢复未全部完成：已保存 ${savedCount}/${data.documents.length} 篇导图；${stage}恢复失败。覆盖前快照已保留。${error instanceof Error ? error.message : error}`);
     }
 
     return {

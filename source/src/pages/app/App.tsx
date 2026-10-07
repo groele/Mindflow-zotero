@@ -59,6 +59,8 @@ interface AppProps {
 }
 
 export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
+  const workspaceRestoringRef = useRef(false);
+  const [workspaceRestoring, setWorkspaceRestoring] = useState(false);
   const [doc, setDoc] = useState<MindMapDocument | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -266,6 +268,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   // Document changes cancel the debounced save. Flush the latest editor state
   // first so switching maps cannot silently discard recent typing.
   const flushCurrentDocument = useCallback(async (allowDuringAiArchive = false): Promise<boolean> => {
+    if (workspaceRestoringRef.current) return false;
     if (aiArchivingRef.current && !allowDuringAiArchive) {
       setSaveStatus({ state: 'warning', message: '正在归档 AI 草稿，请等待完成后再切换或保存导图。' });
       return false;
@@ -297,11 +300,13 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
         return true;
       } catch (error) {
         if (!(error instanceof DocumentConflictError)) throw error;
+        const copyId = 'doc_' + generateId();
         const copy = await StorageService.saveDocument({
           ...latest,
+          root: retargetDocumentLinks(latest.root, latest.id, copyId),
           relationships: latestRelationships,
           metadata: detachedMetadata(latest.metadata),
-          id: 'doc_' + generateId(),
+          id: copyId,
           title: `${latest.title}（冲突副本）`,
           revision: 0,
           createdAt: Date.now(),
@@ -311,7 +316,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
         cleanDocRef.current = copy;
         cleanRelationshipsRef.current = latestRelationships;
         setDoc((previous) => previous?.id === latest.id ? {
-          ...previous, id: copy.id, title: copy.title,
+          ...previous, root: retargetDocumentLinks(previous.root, latest.id, copy.id), id: copy.id, title: copy.title,
           revision: copy.revision, createdAt: copy.createdAt, metadata: copy.metadata,
         } : previous);
         setSaveStatus({ state: 'warning', message: `原导图发生版本冲突；编辑已切换到「${copy.title}」。请核对副本，再重试刚才的操作。` });
@@ -906,11 +911,13 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
           try {
             const latestLocal = latestDocRef.current?.id === doc.id ? latestDocRef.current : documentToSave;
             const latestRelationships = latestRelationshipsRef.current;
+            const copyId = 'doc_' + generateId();
             const copy = await StorageService.saveDocument({
               ...latestLocal,
+              root: retargetDocumentLinks(latestLocal.root, latestLocal.id, copyId),
               relationships: latestRelationships,
               metadata: detachedMetadata(latestLocal.metadata),
-              id: 'doc_' + generateId(),
+              id: copyId,
               title: `${latestLocal.title}（冲突副本）`,
               revision: 0,
               createdAt: Date.now(),
@@ -921,7 +928,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
             await StorageService.setActiveDocumentId(copy.id);
             const afterCopy = latestDocRef.current;
             setDoc(afterCopy?.id === doc.id && afterCopy !== latestLocal
-              ? { ...afterCopy, id: copy.id, title: copy.title, revision: copy.revision, createdAt: copy.createdAt, metadata: copy.metadata }
+              ? { ...afterCopy, root: retargetDocumentLinks(afterCopy.root, doc.id, copy.id), id: copy.id, title: copy.title, revision: copy.revision, createdAt: copy.createdAt, metadata: copy.metadata }
               : copy);
             setSaveStatus({ state: 'warning', message: '其他窗口已修改原导图；本窗口内容已保存为冲突副本，请检查并合并。' });
           } catch (copyError: any) {
@@ -2123,6 +2130,49 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     }
   }, [flushCurrentDocument, handleArchiveAiDraft, isZoteroMode, persistArchiveAssociation]);
 
+  const handleRestoreCurrentSnapshot = useCallback(async (snapshotId: string): Promise<boolean> => {
+    if (workspaceRestoringRef.current) return false;
+    if (!(await flushCurrentDocument())) return false;
+    const sourceId = currentDocIdRef.current;
+    if (!sourceId) return false;
+    workspaceRestoringRef.current = true;
+    setWorkspaceRestoring(true);
+    try {
+      const restored = await BackupService.restoreSnapshot(sourceId, snapshotId);
+      if (!restored) throw new Error('所选快照已不存在，请刷新后重试');
+      if (currentDocIdRef.current !== sourceId) return false;
+      const links = restored.relationships || [];
+      latestDocRef.current = restored;
+      latestRelationshipsRef.current = links;
+      cleanDocRef.current = restored;
+      cleanRelationshipsRef.current = links;
+      setDoc(restored);
+      setRelationships(links);
+      setEditingId(null);
+      setSelectedId(restored.root.id);
+      setSelectedIds([]);
+      historyRef.current.clear();
+      syncHistoryState();
+      setSaveStatus({ state: 'saved', message: '已恢复历史快照；回滚前的内容已保留为恢复快照' });
+      setTimeout(() => centerCanvas(), 50);
+      return true;
+    } finally {
+      workspaceRestoringRef.current = false;
+      setWorkspaceRestoring(false);
+    }
+  }, [flushCurrentDocument, syncHistoryState, centerCanvas]);
+
+  useEffect(() => {
+    const blockEditing = (event: Event) => {
+      if (!workspaceRestoringRef.current) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    };
+    const events = ['keydown', 'beforeinput', 'paste', 'drop'];
+    events.forEach(type => window.addEventListener(type, blockEditing, true));
+    return () => events.forEach(type => window.removeEventListener(type, blockEditing, true));
+  }, []);
+
   // Import file handler
   const handleImportFile = async (file: File) => {
     const token = ++activeDocLoadTokenRef.current;
@@ -2299,20 +2349,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
               setSelectedId(nextSelectedId);
             }}
             onInsertInboxItem={handleInsertInboxItem}
-            onRestoreSnapshot={(restored) => {
-              if (currentDocIdRef.current !== restored.id) return;
-              const restoredRelationships = restored.relationships || [];
-              latestDocRef.current = restored;
-              latestRelationshipsRef.current = restoredRelationships;
-              cleanDocRef.current = restored;
-              cleanRelationshipsRef.current = restoredRelationships;
-              setDoc(restored);
-              setRelationships(restoredRelationships);
-              setSelectedId(restored.root.id);
-              historyRef.current.clear();
-              syncHistoryState();
-              setTimeout(() => centerCanvas(), 50);
-            }}
+            onRestoreSnapshot={handleRestoreCurrentSnapshot}
             onReloadWorkspace={reloadWorkspace}
             onFlushCurrentDocument={flushCurrentDocument}
             onOpenSettings={handleOpenSettings}
@@ -2565,6 +2602,11 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
         rootNode={doc.root}
         theme={theme}
       />
+      {workspaceRestoring && (
+        <div role="status" aria-live="polite" className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/30 backdrop-blur-sm">
+          <div className="rounded-xl bg-white px-6 py-4 text-sm text-slate-700 shadow-xl">正在恢复快照，请稍候…</div>
+        </div>
+      )}
     </div>
   );
 };

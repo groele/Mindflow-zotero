@@ -1,0 +1,46 @@
+{
+  "date": "2026-10-07",
+  "pluginVersion": "10.0.5",
+  "hostVersion": "10.0.5",
+  "checks": {
+    "host": {
+      "passed": 46,
+      "total": 46
+    },
+    "frontendData": {
+      "passed": 33,
+      "total": 33
+    },
+    "logic": {
+      "passed": 18,
+      "total": 18
+    },
+    "native": {
+      "passed": 38,
+      "total": 38
+    },
+    "restart": {
+      "passed": 3,
+      "total": 3
+    },
+    "typecheck": true,
+    "productionBuild": true,
+    "syntaxChecks": true,
+    "packagePayloadVerified": true
+  },
+  "nativeProfile": "D:\\Dev Studio\\mindflow zotero\\tests\\native-test-20261007-090046",
+  "package": {
+    "version": "10.0.5",
+    "file": "mindflow-zotero-10.0.5.xpi",
+    "size": 250015,
+    "sha256": "2b7735e81b49bdadaa969803054f20f5d444ad1d719afd016d14c4682f1d142d",
+    "entries": 23,
+    "payloadVerifiedAgainstWorkspace": true,
+    "testHarnessIncluded": false
+  },
+  "published": false,
+  "limitations": [
+    "Workspace restoration is not a multi-file atomic transaction; completed documents and recovery snapshots are reported on failure.",
+    "External AI and real WebDAV endpoints were not exercised."
+  ]
+}

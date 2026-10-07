@@ -122,9 +122,9 @@ export class StorageService {
 
     // Otherwise create default clean blank document
     const defaultDoc = createDefaultDocument();
-    await this.saveDocument(defaultDoc);
-    await this.setActiveDocumentId(defaultDoc.id);
-    return defaultDoc;
+    const saved = await this.saveDocument(defaultDoc);
+    await this.setActiveDocumentId(saved.id);
+    return saved;
   }
 
   public static async setActiveDocumentId(id: string): Promise<void> {
@@ -177,17 +177,17 @@ export class StorageService {
   }
 
   /** Called by the extension service worker; the queue serializes all document writes. */
-  public static saveDocumentDirect(doc: MindMapDocument, expectedRevision: number, force = false): Promise<MindMapDocument> {
+  public static saveDocumentDirect(doc: MindMapDocument, expectedRevision: number, force: boolean | 'restore-deleted' = false): Promise<MindMapDocument> {
     const operation = this.writeQueue.then(() => this.writeDocumentNow(doc, expectedRevision, force));
     this.writeQueue = operation.catch(() => undefined);
     return operation;
   }
 
-  private static async writeDocumentNow(doc: MindMapDocument, expectedRevision: number, force: boolean): Promise<MindMapDocument> {
+  private static async writeDocumentNow(doc: MindMapDocument, expectedRevision: number, force: boolean | 'restore-deleted'): Promise<MindMapDocument> {
     validateMindMapDocument(doc, '待保存导图');
     if (isZoteroWorkspace()) {
       try {
-        const saved = await zoteroWorkspaceStorage('commitDocument', { doc, expectedRevision, force }) as MindMapDocument;
+        const saved = await zoteroWorkspaceStorage('commitDocument', { doc, expectedRevision, force: force === true, restoreDeleted: force === 'restore-deleted' }) as MindMapDocument;
         this.knownRevisions.set(doc.id, revisionOf(saved));
         return saved;
       } catch (error) {
@@ -198,10 +198,10 @@ export class StorageService {
     }
     const current = await this.getDocument(doc.id, { trackRevision: false });
     const currentRevision = revisionOf(current);
-    if (!current && !force && await getItem(STORAGE_KEYS.DELETED_PREFIX + doc.id)) {
+    if (!current && force === false && await getItem(STORAGE_KEYS.DELETED_PREFIX + doc.id)) {
       throw new DocumentConflictError('此导图已在其他窗口删除；请保留为新导图或从备份恢复');
     }
-    if (!force && currentRevision !== expectedRevision) {
+    if (force !== true && currentRevision !== expectedRevision) {
       throw new DocumentConflictError(`导图已被其他窗口修改（当前版本 ${currentRevision}，本窗口版本 ${expectedRevision}）`);
     }
     const savedDoc = { ...doc, revision: currentRevision + 1, updatedAt: Date.now() };

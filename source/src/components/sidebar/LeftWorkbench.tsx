@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { MindMapDocument, MindMapNode, InboxItem } from '../../core/model/types';
 import { StorageService, DocumentSummary } from '../../services/storage/storageService';
 import { InboxService } from '../../services/storage/inboxService';
-import { BackupService, DocSnapshot, StorageQuotaInfo } from '../../services/storage/backupService';
+import { BackupService, DocSnapshot, StorageQuotaInfo, MAX_BACKUP_BYTES } from '../../services/storage/backupService';
 import { collectTagFacets } from '../../core/model/tagUtils';
 import {
   FolderOpen, ListTree, Inbox, ShieldCheck, Plus, Search,
@@ -31,7 +31,7 @@ interface LeftWorkbenchProps {
   onAddChildNode: (parentId: string) => void;
   onDeleteNode: (id: string) => void;
   onInsertInboxItem: (item: InboxItem) => Promise<boolean>;
-  onRestoreSnapshot: (restoredDoc: MindMapDocument) => void;
+  onRestoreSnapshot: (snapshotId: string) => Promise<boolean>;
   onReloadWorkspace: () => void;
   onFlushCurrentDocument: () => Promise<boolean>;
   isZoteroMode?: boolean;
@@ -71,6 +71,7 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
   const [inboxItems, setInboxItems] = useState<InboxItem[]>([]);
   const [inboxInput, setInboxInput] = useState('');
   const operationBusyRef = useRef(false);
+  const [operationBusy, setOperationBusy] = useState(false);
   const [operationError, setOperationError] = useState<string | null>(null);
 
   // Backup state
@@ -107,10 +108,11 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
   const runOperation = async (operation: () => Promise<void>) => {
     if (operationBusyRef.current) return;
     operationBusyRef.current = true;
+    setOperationBusy(true);
     setOperationError(null);
     try { await operation(); }
     catch (error: any) { setOperationError(`操作失败：${error?.message || error}`); }
-    finally { operationBusyRef.current = false; }
+    finally { operationBusyRef.current = false; setOperationBusy(false); }
   };
 
   const showBackupNotice = (msg: string) => {
@@ -171,18 +173,12 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
   };
 
   const handleRestoreSnapshot = async (snapId: string) => {
-    if (confirm('确认将当前导图回滚至此历史快照？')) {
-      try {
-        if (!(await onFlushCurrentDocument())) return;
-        const restored = await BackupService.restoreSnapshot(currentDoc.id, snapId);
-        if (restored) {
-          onRestoreSnapshot(restored);
-          showBackupNotice('已成功还原至该快照！');
-        }
-      } catch (error: any) {
-        showBackupNotice(`恢复失败：${error?.message || '请检查存储空间或其他窗口中的编辑'}`);
-      }
-    }
+    if (!confirm('确认将当前导图回滚至此历史快照？回滚前会保存当前编辑并创建恢复快照。')) return;
+    await runOperation(async () => {
+      if (!(await onRestoreSnapshot(snapId))) return;
+      setSnapshots(await BackupService.getSnapshots(currentDoc.id));
+      showBackupNotice('已成功还原至该快照！');
+    });
   };
 
   const handleDeleteSnapshot = async (snapId: string, e: React.MouseEvent) => {
@@ -201,26 +197,20 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
     });
   };
 
-  const handleImportWorkspace = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportWorkspace = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      const content = event.target?.result as string;
-      if (!content) return;
-      try {
-        const preview = await BackupService.previewFullWorkspaceBackup(content);
-        if (!confirm(BackupService.describeRestorePreview(preview))) return;
-        if (!(await onFlushCurrentDocument())) return;
-        const res = await BackupService.importFullWorkspaceBackup(content);
-        showBackupNotice(`已还原 ${res.docCount} 篇思维导图与 ${res.inboxCount} 条收集箱记录！`);
-        onReloadWorkspace();
-      } catch (err: any) {
-        alert('解析失败: ' + (err?.message || '未知错误'));
-      }
-    };
-    reader.readAsText(file);
     e.target.value = '';
+    if (!file) return;
+    await runOperation(async () => {
+      if (file.size > MAX_BACKUP_BYTES) throw new Error('备份文件超过 20 MB 安全导入上限');
+      const content = await file.text();
+      const preview = await BackupService.previewFullWorkspaceBackup(content);
+      if (!confirm(BackupService.describeRestorePreview(preview))) return;
+      if (!(await onFlushCurrentDocument())) return;
+      const res = await BackupService.importFullWorkspaceBackup(content);
+      showBackupNotice(`已还原 ${res.docCount} 篇思维导图与 ${res.inboxCount} 条收集箱记录！`);
+      onReloadWorkspace();
+    });
   };
 
   const formatSize = (bytes: number) => {
@@ -672,12 +662,14 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
                 <p className="text-[10px] text-slate-400">将全部导图、收集箱与快照打包备份为 JSON：</p>
                 <div className="grid grid-cols-2 gap-1.5 pt-1">
                   <button
+                    disabled={operationBusy}
                     onClick={handleExportWorkspace}
                     className="py-1.5 px-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold flex items-center justify-center gap-1"
                   >
                     <Download className="w-3 h-3" /> 导出备份
                   </button>
                   <button
+                    disabled={operationBusy}
                     onClick={() => backupFileRef.current?.click()}
                     className="py-1.5 px-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-lg font-semibold flex items-center justify-center gap-1"
                   >
@@ -696,6 +688,7 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
                     <History className="w-3.5 h-3.5 text-slate-500" /> 版本快照历史
                   </label>
                   <button
+                    disabled={operationBusy}
                     onClick={handleCreateSnapshot}
                     className="px-2 py-0.5 bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-300 rounded text-[10px] font-semibold flex items-center gap-0.5"
                   >
@@ -713,10 +706,10 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
                           <div className="text-[10px] text-slate-400">{s.nodeCount} 个主题节点</div>
                         </div>
                         <div className="flex items-center gap-1">
-                          <button onClick={() => handleRestoreSnapshot(s.id)} title="还原此快照" className="p-1 text-blue-600 hover:bg-blue-50 rounded">
+                          <button disabled={operationBusy} onClick={() => handleRestoreSnapshot(s.id)} title="还原此快照" className="p-1 text-blue-600 hover:bg-blue-50 rounded">
                             <RotateCcw className="w-3 h-3" />
                           </button>
-                          <button onClick={(e) => handleDeleteSnapshot(s.id, e)} title="删除快照" className="p-1 text-slate-400 hover:text-red-500 rounded opacity-0 group-hover:opacity-100">
+                          <button disabled={operationBusy} onClick={(e) => handleDeleteSnapshot(s.id, e)} title="删除快照" className="p-1 text-slate-400 hover:text-red-500 rounded opacity-0 group-hover:opacity-100">
                             <Trash2 className="w-3 h-3" />
                           </button>
                         </div>

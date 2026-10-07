@@ -199,9 +199,10 @@ test('closing captures latest state before the iframe is destroyed', async () =>
 test('close conflict saves a detached recovery copy rather than overwriting another editor', async () => {
   const f=fixture(),first=await f.host.workspaceStorage('commitDocument',{doc:f.map(),expectedRevision:0});
   await f.host.workspaceStorage('commitDocument',{doc:{...first,title:'other window'},expectedRevision:1});
-  await f.host.captureWorkspaceOnClose({_mindflowCaptureState:()=>({doc:{...first,title:'unsaved close',metadata:{zoteroItemKey:'PAPERAAA',zoteroAttachmentKey:'ATTACHAA'}}})});
+  await f.host.captureWorkspaceOnClose({_mindflowCaptureState:()=>({doc:{...first,root:{...first.root,internalLink:{documentId:first.id,nodeId:first.root.id}},title:'unsaved close',metadata:{zoteroItemKey:'PAPERAAA',zoteroAttachmentKey:'ATTACHAA'}}})});
   const records=await f.host.workspaceStorage('getAll');const copy=Object.values(records).map(JSON.parse).find(d=>d.title?.includes('关闭恢复副本'));
   assert.equal(copy.metadata.autoSyncToZotero,false);assert.equal(copy.metadata.zoteroAttachmentKey,undefined);
+  assert.equal(copy.root.internalLink.documentId, copy.id);
   assert.equal(JSON.parse(records.mindflow_doc_doc_a).title,'other window');
 });
 test('host rejects duplicate nodes and unsafe IDs before any write', async () => {
@@ -353,3 +354,25 @@ test('toolbar button excludes dialog windows such as plugin market', () => {
   assert.equal(created, false);
 });
 
+
+
+test('restoreDeleted only revives tombstones and cannot overwrite a concurrent document', async () => {
+  const f = fixture(), doc = f.map('doc_restore_guard', 'current');
+  const saved = await f.host.workspaceStorage('commitDocument', { doc, expectedRevision: 0 });
+  await assert.rejects(() => f.host.workspaceStorage('commitDocument', { doc: { ...doc, title: 'stale backup' }, expectedRevision: 0, restoreDeleted: true }), /REVISION_CONFLICT/);
+  assert.equal(JSON.parse(await f.host.workspaceStorage('get', { key: 'mindflow_doc_' + doc.id })).title, 'current');
+  await f.host.workspaceStorage('deleteDocument', { id: doc.id, expectedRevision: saved.revision });
+  const restored = await f.host.workspaceStorage('commitDocument', { doc, expectedRevision: 0, restoreDeleted: true });
+  assert.equal(restored.title, 'current');
+  assert.equal(await f.host.workspaceStorage('get', { key: 'mindflow_deleted_doc_' + doc.id }), null);
+});
+
+test('snapshot corruption and duplicate additions never overwrite snapshot storage', async () => {
+  const f = fixture(), doc = f.map('doc_snapshot_guard', 'snapshot');
+  const snap = { id: 'one', docId: doc.id, title: 'snapshot', timestamp: 1, data: JSON.stringify(doc) };
+  await assert.rejects(() => f.host.workspaceStorage('mutateSnapshots', { docId: doc.id, snapshots: [snap, snap] }), /重复/);
+  const key = 'mindflow_snapshots_' + doc.id;
+  await f.host.workspaceStorage('setMany', { items: { [key]: '[null]' } });
+  await assert.rejects(() => f.host.workspaceStorage('mutateSnapshots', { docId: doc.id, snapshots: [snap] }), /身份|属性/);
+  assert.equal(await f.host.workspaceStorage('get', { key }), '[null]');
+});

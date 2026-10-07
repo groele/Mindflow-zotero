@@ -179,16 +179,22 @@
     });
     await run('item-pane sidenav keeps the MindFlow entry icon-only', async () => {
       tabs.select('zotero-pane');
-      win.ZoteroPane?.selectItem?.(a.id);
-      const sidenav = await waitFor(() => win.document.querySelector('item-pane-sidenav'), 'item pane sidenav');
+      await win.ZoteroPane.collectionsView.selectLibrary(a.libraryID);
+      const itemsView = await waitFor(() => win.ZoteroPane.itemsView, 'library item view initialized');
+      const libraryRow = win.ZoteroPane.collectionsView.getRow(win.ZoteroPane.collectionsView.getRowIndexByID('L' + a.libraryID));
+      check(libraryRow, 'library row missing');
+      await itemsView.changeCollectionTreeRows([libraryRow]);
+      await itemsView.waitForLoad();
+      await itemsView.selectItems([a.id]);
       const custom = await waitFor(
-        () => sidenav.querySelector('.btn[data-pane*="mindflow"]'),
+        () => [...win.document.querySelectorAll('item-pane-sidenav')].map(nav => nav.querySelector('.btn[data-pane*="mindflow"]')).find(Boolean),
         'MindFlow item-pane sidenav button'
       );
+      await win.document.l10n.translateElements([custom]);
       check(!custom.textContent.trim(), 'sidenav button contains visible text');
       check(!custom.getAttribute('label'), 'sidenav button exposes a visual label');
-      check(custom.getAttribute('tooltiptext') === 'MindFlow 导图',
-        'sidenav tooltip localization is missing or incorrect');
+      check(['MindFlow 导图', 'MindFlow Maps'].includes(custom.getAttribute('tooltiptext')),
+        'sidenav tooltip localization is missing or incorrect: ' + custom.getAttribute('tooltiptext'));
     });
     await run('typing then immediate native tab close retains the latest title', async () => {
       tabs.select(tabA);
@@ -450,6 +456,63 @@
       await waitFor(async () => JSON.parse(await original.call(host, 'get', { key: 'mindflow_inbox_items' })).find(item => item.id === 'native_inbox_a').isProcessed, 'successful inbox insertion persisted');
       const saved = JSON.parse(await original.call(host, 'get', { key: `mindflow_doc_${currentId}` }));
       check(saved.root.children.length === before + 1, 'save retry duplicated the inserted branch');
+    });
+    await run('native restoreDeleted checks revisions and can deliberately revive a deleted map', async () => {
+      const doc = { ...map('Restore Guard'), id: 'native_restore_guard', revision: 0 };
+      const saved = await host.workspaceStorage('commitDocument', { doc, expectedRevision: 0 });
+      let conflict = false;
+      try { await host.workspaceStorage('commitDocument', { doc: { ...doc, title: 'stale' }, expectedRevision: 0, restoreDeleted: true }); }
+      catch (error) { conflict = String(error).includes('REVISION_CONFLICT'); }
+      check(conflict, 'restore bypassed compare-and-save');
+      await host.workspaceStorage('deleteDocument', { id: doc.id, expectedRevision: saved.revision });
+      await host.workspaceStorage('commitDocument', { doc, expectedRevision: 0, restoreDeleted: true });
+      check(!(await host.workspaceStorage('get', { key: 'mindflow_deleted_doc_' + doc.id })), 'restore left tombstone');
+    });
+    await run('native corrupt snapshot mutation fails without changing the stored file', async () => {
+      const key = 'mindflow_snapshots_native_bad_snapshots';
+      await host.workspaceStorage('setMany', { items: { [key]: '[null]' } });
+      let rejected = false;
+      try { await host.workspaceStorage('mutateSnapshots', { docId: 'native_bad_snapshots', snapshots: [] }); }
+      catch (_) { rejected = true; }
+      check(rejected && await host.workspaceStorage('get', { key }) === '[null]', 'corrupt snapshot was rewritten');
+      await host.workspaceStorage('remove', { key });
+    });
+    await run('editor snapshot restore locks input, restores content and refreshes recovery history', async () => {
+      const current = await auditState();
+      const key = 'mindflow_snapshots_' + current.id;
+      const old = { ...current, title: 'Native Snapshot Restored' };
+      await host.workspaceStorage('mutateSnapshots', { docId: current.id, snapshots: [{ id: 'native_restore_ui', docId: current.id,
+        title: old.title, timestamp: Date.now() + 5000, nodeCount: 1, data: JSON.stringify(old) }] });
+      auditButton('数据安全与备份 (Security & Snapshots)');
+      const frame = auditFrame(), document = frame.contentDocument;
+      const button = await waitFor(() => document.querySelector('button[title="还原此快照"]'), 'snapshot restore button');
+      const editor = frame.contentWindow.wrappedJSObject;
+      const originalConfirm = editor.confirm, originalStorage = host.workspaceStorage;
+      Components.utils.exportFunction(() => true, editor, { defineAs: 'confirm' });
+      const promptObserver = { observe(dialogWindow, topic) {
+        if (topic !== 'domwindowopened') return;
+        dialogWindow.addEventListener('load', () => {
+          if (!dialogWindow.document.documentURI.includes('commonDialog')) return;
+          dialogWindow.document.querySelector('dialog')?.acceptDialog();
+        }, { once: true });
+      } };
+      Services.ww.registerNotification(promptObserver);
+      host.workspaceStorage = async function(action, payload) {
+        if (action === 'commitDocument' && payload?.doc?.title === old.title) await Zotero.Promise.delay(400);
+        return originalStorage.call(this, action, payload);
+      };
+      try {
+        await IOUtils.writeUTF8(PathUtils.join(Zotero.DataDirectory.dir, 'restore-ui-phase.txt'), 'before click');
+        button.click();
+        await IOUtils.writeUTF8(PathUtils.join(Zotero.DataDirectory.dir, 'restore-ui-phase.txt'), 'after click');
+        await waitFor(() => [...document.querySelectorAll('[role="status"]')].some(node => node.textContent.includes('正在恢复快照')), 'restore input lock');
+        const before = (await auditState()).root.children.length;
+        auditKey('Tab'); await Zotero.Promise.delay(60);
+        check((await auditState()).root.children.length === before, 'restore allowed keyboard tree mutation');
+        await waitFor(() => titleFor(auditTab) === old.title, 'restored title');
+        await waitFor(() => document.querySelectorAll('button[title="还原此快照"]').length >= 2, 'recovery history refresh');
+        check(![...document.querySelectorAll('[role="status"]')].some(node => node.textContent.includes('正在恢复快照')), 'restore overlay remained stuck');
+      } finally { Services.ww.unregisterNotification(promptObserver); editor.confirm = originalConfirm; host.workspaceStorage = originalStorage; }
     });
     tabs.close(auditTab); await host._closeSaveQueue;
     try {

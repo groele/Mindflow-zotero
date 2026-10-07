@@ -15,6 +15,10 @@
 
 ## 中文索引
 
+- [10.0.5 发布记录](release-v10.0.5.md)：备份恢复版本校验、快照完整性与回滚输入保护。
+
+- [2026-10-07 深度逻辑审查与修复](深度逻辑审查与修复-20261007.md)：备份版本竞争、快照校验、冲突链接与恢复输入保护。
+
 - [10.0.3 发布记录](release-v10.0.3.md)：公开 10.0.3 的修复与加固范围、测试验证与包校验。
 - [10.0.2 操作逻辑详细审查](操作逻辑审查与修复-10.0.2.md)：29 项问题与加固、基线失败、逐项修复及验证边界。
 - [10.0.2 验证汇总](logic-audit-validation-10.0.2.json)、[包校验](logic-audit-package-10.0.2.json)、[原生结果](logic-audit-native-10.0.2.json)、[重启结果](logic-audit-restart-10.0.2.json)：当前本地逻辑修复证据。
@@ -30,6 +34,8 @@
 历史审查中的版本、校验值和未发布说明属于对应阶段。当前公开安装资产以 [GitHub Releases](https://github.com/groele/Mindflow-zotero/releases) 为准；本地验证报告不表示已发布。
 
 ## English index
+
+- [10.0.5 release report](release-v10.0.5.md): guarded backup restoration, snapshot validation, and protected editor input during rollback.
 
 - [10.0.3 release report](release-v10.0.3.md): installation, fixes, and validation for public 10.0.3.
 - [10.0.2 detailed workflow audit](操作逻辑审查与修复-10.0.2.md): 29 issues and hardening items, baseline failures, fixes, and verification limits.

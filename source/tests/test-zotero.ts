@@ -61,13 +61,13 @@ await run('malformed JSON is a visible failure rather than a missing document',a
 });
 await run('snapshot envelope and payload document IDs must match',async()=>{
   const current=await StorageService.saveDocument(doc('snapshot_target','SOURCE_E'));
-  safeStorage.setItem('mindflow_snapshots_snapshot_target',JSON.stringify([{id:'wrong_snap',docId:'snapshot_target',data:JSON.stringify(doc('other_doc','SOURCE_F'))}]));
+  safeStorage.setItem('mindflow_snapshots_snapshot_target',JSON.stringify([{id:'wrong_snap',docId:'snapshot_target',title:'wrong',timestamp:1,data:JSON.stringify(doc('other_doc','SOURCE_F'))}]));
   await assert.rejects(()=>BackupService.restoreSnapshot(current.id,'wrong_snap'),/身份|ID/);
 });
 await run('restoring old content preserves the current verified attachment association',async()=>{
   const current=await StorageService.saveDocument(doc('restore_binding','CURRENT_A'));
   const old={...doc(current.id,'OLD_B'),title:'old content'};
-  safeStorage.setItem('mindflow_snapshots_'+current.id,JSON.stringify([{id:'valid_snap',docId:current.id,data:JSON.stringify(old)}]));
+  safeStorage.setItem('mindflow_snapshots_'+current.id,JSON.stringify([{id:'valid_snap',docId:current.id,title:'old',timestamp:1,data:JSON.stringify(old)}]));
   const restored=await BackupService.restoreSnapshot(current.id,'valid_snap');
   assert.equal(restored?.title,'old content');assert.equal(restored?.metadata?.zoteroAttachmentKey,'CURRENT_A');
 });
@@ -115,5 +115,74 @@ await run('workspace restore rejects mismatched and deleted targets without impo
   await StorageService.deleteDocument(saved.id);
   await assert.rejects(()=>StorageService.resolveWorkspaceOpen(saved.id,saved),/不存在或已删除/);
   assert.equal(await StorageService.getDocument(saved.id),null);
+});
+await run('restore-deleted permission never bypasses the revision check for an existing document', async () => {
+  const saved = await StorageService.saveDocument(doc('restore_cas', 'safe'));
+  await assert.rejects(() => StorageService.saveDocumentDirect({ ...saved, title: 'stale backup' }, 0, 'restore-deleted'), DocumentConflictError);
+  assert.equal((await StorageService.getDocument(saved.id))?.title, 'safe');
+});
+await run('backup preflight cannot overwrite a document created before commit', async () => {
+  const incoming = doc('restore_race', 'backup');
+  const original = StorageService.saveDocumentDirect;
+  let injected = false;
+  StorageService.saveDocumentDirect = async function(value, expected, force) {
+    if (value.id === incoming.id && !injected) {
+      injected = true;
+      await original.call(this, { ...incoming, title: 'new concurrent document' }, 0);
+    }
+    return original.call(this, value, expected, force);
+  };
+  try {
+    await assert.rejects(() => BackupService.importFullWorkspaceData({ documents: [incoming] } as any), /恢复中断/);
+    assert.equal((await StorageService.getDocument(incoming.id))?.title, 'new concurrent document');
+  } finally { StorageService.saveDocumentDirect = original; }
+});
+await run('backup restore deliberately revives a deleted document without unconditional overwrite', async () => {
+  const saved = await StorageService.saveDocument(doc('restore_tombstone', 'backup'));
+  await StorageService.deleteDocument(saved.id);
+  await BackupService.importFullWorkspaceData({ documents: [saved] } as any);
+  assert.equal((await StorageService.getDocument(saved.id))?.title, saved.title);
+});
+await run('corrupt snapshot records fail before rendering or mutation', async () => {
+  const base = doc('corrupt_snapshots', 'test');
+  safeStorage.setItem('mindflow_snapshots_' + base.id, '[null]');
+  await assert.rejects(() => BackupService.getSnapshots(base.id), /身份|属性/);
+  await assert.rejects(() => BackupService.createSnapshot(base), /身份|属性/);
+  assert.equal(safeStorage.getItem('mindflow_snapshots_' + base.id), '[null]');
+});
+await run('duplicate backup snapshot IDs are rejected before any document write', async () => {
+  const base = doc('duplicate_snapshots', 'test');
+  const snap = { id: 'same', docId: base.id, title: 'snapshot', timestamp: 1, data: JSON.stringify(base) };
+  await assert.rejects(() => BackupService.importFullWorkspaceData({ documents: [base], snapshots: [snap, snap] } as any), /重复/);
+  assert.equal(await StorageService.getDocument(base.id), null);
+});
+await run('corrupt local snapshot target aborts backup before document creation', async () => {
+  const base = doc('import_bad_history', 'test');
+  safeStorage.setItem('mindflow_snapshots_' + base.id, '[null]');
+  await assert.rejects(() => BackupService.importFullWorkspaceData({ documents: [base] } as any), /身份|属性/);
+  assert.equal(await StorageService.getDocument(base.id), null);
+});
+await run('backup snapshot import applies the configured retention limit', async () => {
+  const base = doc('import_history_limit', 'test');
+  const snapshots = Array.from({ length: 60 }, (_, i) => ({ id: 'limit_' + i, docId: base.id,
+    title: 'history', timestamp: i, data: JSON.stringify(base) }));
+  await BackupService.importFullWorkspaceData({ documents: [base], snapshots } as any);
+  const saved = await BackupService.getSnapshots(base.id);
+  assert.equal(saved.length, 20); assert.equal(saved[0].timestamp, 59);
+});
+await run('secondary restore failure explicitly reports the documents already saved', async () => {
+  const base = doc('import_partial_report', 'test');
+  safeStorage.setItem('mindflow_inbox_items', '[null]');
+  try {
+    await assert.rejects(() => BackupService.importFullWorkspaceData({ documents: [base], inboxItems: [] } as any), /已保存 1\/1.*收集箱/);
+    assert.equal((await StorageService.getDocument(base.id))?.title, base.title);
+  } finally { safeStorage.removeItem('mindflow_inbox_items'); }
+});
+await run('first default document returns the exact committed revision and timestamp', async () => {
+  safeStorage.clear();
+  const active = await StorageService.getActiveDocument();
+  const stored = await StorageService.getDocument(active.id);
+  assert.equal(active.revision, 1);
+  assert.deepEqual(active, stored);
 });
 console.log(`${count} frontend data-chain tests passed`);

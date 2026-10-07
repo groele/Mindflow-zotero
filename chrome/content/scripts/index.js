@@ -680,17 +680,28 @@
       if (action === 'mutateSnapshots') {
         const key = checkedKey(`mindflow_snapshots_${payload.docId}`);
         const additions = JSON.parse(JSON.stringify(payload.snapshots || []));
-        for (const snapshot of additions) {
-          const doc = JSON.parse(snapshot.data);
-          validateHostDocument(doc);
-          if (!snapshot.id || snapshot.docId !== payload.docId || doc.id !== payload.docId || !Number.isFinite(snapshot.timestamp)) {
-            throw new Error('快照身份与所属导图不一致');
+        const validateSnapshots = snapshots => {
+          if (!Array.isArray(snapshots)) throw new Error('快照存储数据损坏');
+          const ids = new Set();
+          for (const snapshot of snapshots) {
+            if (!snapshot || typeof snapshot.id !== 'string' || !snapshot.id ||
+                snapshot.docId !== payload.docId || typeof snapshot.title !== 'string' ||
+                typeof snapshot.data !== 'string' || !Number.isFinite(snapshot.timestamp) || snapshot.timestamp < 0 ||
+                (snapshot.nodeCount !== undefined && (!Number.isSafeInteger(snapshot.nodeCount) || snapshot.nodeCount < 1))) {
+              throw new Error('快照身份或属性无效');
+            }
+            if (ids.has(snapshot.id)) throw new Error('快照包含重复的 ID');
+            ids.add(snapshot.id);
+            const doc = JSON.parse(snapshot.data);
+            validateHostDocument(doc);
+            if (doc.id !== payload.docId) throw new Error('快照身份与所属导图不一致');
           }
-        }
+          return snapshots;
+        };
+        validateSnapshots(additions);
         const operation = (this._workspaceWriteQueue || Promise.resolve()).catch(() => {}).then(async () => {
           const raw = await readFile(key);
-          let snapshots = raw ? JSON.parse(raw) : [];
-          if (!Array.isArray(snapshots)) throw new Error('快照存储数据损坏');
+          let snapshots = validateSnapshots(raw ? JSON.parse(raw) : []);
           snapshots = snapshots.filter(s => s.id !== payload.removeSnapshotId);
           for (const snapshot of additions) {
             if (!snapshots.some(s => s.id === snapshot.id)) snapshots.push(snapshot);
@@ -761,7 +772,7 @@
             validateHostDocument(incoming);
             const currentRaw = await readFile(key);
             const deletionMarker = await readFile(`mindflow_deleted_doc_${key.slice('mindflow_doc_'.length)}`);
-            if (deletionMarker && !(committing && payload.force === true)) {
+            if (deletionMarker && !(committing && (payload.force === true || payload.restoreDeleted === true))) {
               throw new Error('MINDFLOW_REVISION_CONFLICT: 此导图已删除；请保留为新导图或明确从备份恢复');
             }
             let currentRevision = 0;
@@ -869,8 +880,13 @@
           if (raw && comparable(JSON.parse(raw)) === comparable(snapshot.doc)) return;
           const metadata = { ...snapshot.doc.metadata, autoSyncToZotero: false };
           for (const key of ['zoteroItemKey','zoteroUri','zoteroLibraryID','zoteroItemTitle','zoteroAttachmentKey','zoteroAttachmentLibraryID','mindflowUnlinkedContainer']) delete metadata[key];
+          const copyId = `doc_close_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+          const retarget = node => ({ ...node,
+            internalLink: node.internalLink?.documentId === snapshot.doc.id
+              ? { ...node.internalLink, documentId: copyId } : node.internalLink,
+            children: node.children.map(retarget) });
           saved = await this.workspaceStorage('commitDocument', { doc: { ...snapshot.doc,
-            id: `doc_close_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
+            id: copyId, root: retarget(snapshot.doc.root),
             title: `${snapshot.doc.title}（关闭恢复副本）`, metadata, revision: 0 }, expectedRevision: 0 });
         }
         if (saved.metadata?.zoteroItemKey && saved.metadata.autoSyncToZotero !== false) {

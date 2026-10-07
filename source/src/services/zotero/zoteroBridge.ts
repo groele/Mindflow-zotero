@@ -56,7 +56,7 @@ export function isZoteroWorkspace(): boolean {
 
 export async function zoteroWorkspaceStorage(
   action: 'get' | 'setMany' | 'remove' | 'getAll' | 'keys' | 'commitDocument' | 'deleteDocument' | 'mutateSnapshots' | 'mutateInbox',
-  payload: { key?: string; items?: Record<string, string>; doc?: MindMapDocument; id?: string; expectedRevision?: number; force?: boolean;
+  payload: { key?: string; items?: Record<string, string>; doc?: MindMapDocument; id?: string; expectedRevision?: number; force?: boolean; restoreDeleted?: boolean;
     docId?: string; snapshots?: unknown[]; removeSnapshotId?: string; limit?: number;
     additions?: InboxItem[]; removeId?: string; processedId?: string; isProcessed?: boolean; clearProcessed?: boolean } = {},
 ): Promise<any> {

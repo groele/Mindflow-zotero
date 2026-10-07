@@ -1,0 +1,18 @@
+{
+  "version": "10.0.5",
+  "dataDirectory": "D:\\Dev Studio\\mindflow zotero\\tests\\native-test-20261007-090046\\data",
+  "results": [
+    {
+      "name": "real Zotero process restart restores every saved workspace tab ID",
+      "pass": true
+    },
+    {
+      "name": "restart loads canonical saved titles, tree contents and exact attachment sources",
+      "pass": true
+    },
+    {
+      "name": "restart creates no additional archives under the source papers",
+      "pass": true
+    }
+  ]
+}
