@@ -514,6 +514,57 @@
         check(![...document.querySelectorAll('[role="status"]')].some(node => node.textContent.includes('正在恢复快照')), 'restore overlay remained stuck');
       } finally { Services.ww.unregisterNotification(promptObserver); editor.confirm = originalConfirm; host.workspaceStorage = originalStorage; }
     });
+    await run('editor JSON export captures uncommitted node drafts before generating the file', async () => {
+      const frame = auditFrame(), document = frame.contentDocument, editor = frame.contentWindow.wrappedJSObject;
+      const current = await auditState();
+      const label = document.querySelector(`span[title="${current.root.text}"]`);
+      check(label, 'export root label missing');
+      label.dispatchEvent(new frame.contentWindow.MouseEvent('dblclick', { bubbles: true }));
+      const input = await waitFor(() => document.querySelector('input[data-mindflow-node-draft]'), 'export node draft');
+      Object.getOwnPropertyDescriptor(frame.contentWindow.HTMLInputElement.prototype, 'value').set.call(input, 'Native Export Pending Draft');
+      input.dispatchEvent(new frame.contentWindow.Event('input', { bubbles: true }));
+      let exportedBlob;
+      const originalURL = editor.URL.createObjectURL, originalClick = editor.HTMLAnchorElement.prototype.click;
+      Components.utils.exportFunction(blob => { exportedBlob = blob; return 'blob:mindflow-native-export-test'; }, editor.URL, { defineAs: 'createObjectURL' });
+      Components.utils.exportFunction(() => {}, editor.HTMLAnchorElement.prototype, { defineAs: 'click' });
+      try {
+        document.querySelector('button[title="导入与导出"]').click();
+        const button = await waitFor(() => [...document.querySelectorAll('button')].find(node => node.textContent.includes('JSON 工程备份')), 'JSON export action');
+        button.click();
+        await waitFor(() => exportedBlob, 'generated JSON blob');
+        const parsed = JSON.parse(await exportedBlob.text());
+        check(parsed.root.text === 'Native Export Pending Draft', 'export discarded uncommitted draft');
+        const saved = JSON.parse(await host.workspaceStorage('get', { key: 'mindflow_doc_' + parsed.id }));
+        check(saved.root.text === parsed.root.text, 'export did not persist captured draft');
+      } finally { editor.URL.createObjectURL = originalURL; editor.HTMLAnchorElement.prototype.click = originalClick; }
+    });
+    await run('workspace restore locks the editor and reloads canonical restored content', async () => {
+      const frame = auditFrame(), document = frame.contentDocument, editor = frame.contentWindow.wrappedJSObject;
+      const current = await auditState(), restored = { ...current, title: 'Native Workspace Restored' };
+      const backup = JSON.stringify({ documents: [restored], inboxItems: [], snapshots: [] });
+      auditButton('数据安全与备份 (Security & Snapshots)');
+      const input = await waitFor(() => document.querySelector('input[type="file"][accept=".json"]'), 'workspace import input');
+      const files = new frame.contentWindow.DataTransfer();
+      files.items.add(new frame.contentWindow.File([backup], 'native-backup.json', { type: 'application/json' }));
+      input.files = files.files;
+      const originalConfirm = editor.confirm, originalStorage = host.workspaceStorage;
+      Components.utils.exportFunction(() => true, editor, { defineAs: 'confirm' });
+      host.workspaceStorage = async function(action, payload) {
+        if (action === 'commitDocument' && payload?.doc?.title === restored.title) await Zotero.Promise.delay(400);
+        return originalStorage.call(this, action, payload);
+      };
+      try {
+        input.dispatchEvent(new frame.contentWindow.Event('change', { bubbles: true }));
+        await waitFor(() => [...document.querySelectorAll('[role="status"]')].some(node => node.textContent.includes('正在恢复工作区')), 'workspace restore lock');
+        const before = (await auditState()).root.children.length;
+        auditKey('Tab'); await Zotero.Promise.delay(60);
+        check((await auditState()).root.children.length === before, 'workspace restore accepted tree edits');
+        await waitFor(() => titleFor(auditTab) === restored.title, 'canonical restored title');
+        await Zotero.Promise.delay(800);
+        const saved = JSON.parse(await originalStorage.call(host, 'get', { key: 'mindflow_doc_' + restored.id }));
+        check(saved.title === restored.title, 'old editor state overwrote restored document');
+      } finally { editor.confirm = originalConfirm; host.workspaceStorage = originalStorage; }
+    });
     tabs.close(auditTab); await host._closeSaveQueue;
     try {
       tabs.select(tabA);

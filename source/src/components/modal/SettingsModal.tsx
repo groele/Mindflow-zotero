@@ -8,7 +8,7 @@ import { isZoteroEnvironment, setZoteroPref, requestZoteroWindowMode, openZotero
 import { AppSettings, WebDAVConfig } from '../../core/model/settingsTypes';
 import { SettingsService, SettingsPatch } from '../../services/storage/settingsService';
 import { WebDAVService, WebDAVSyncResult, RemoteBackupVersion } from '../../services/sync/webdavService';
-import { BackupService, StorageQuotaInfo } from '../../services/storage/backupService';
+import { BackupService, StorageQuotaInfo, MAX_BACKUP_BYTES, WorkspaceBackupData } from '../../services/storage/backupService';
 import { THEMES } from '../../core/theme/themes';
 import { APP_VERSION } from '../../core/version';
 
@@ -17,7 +17,7 @@ interface SettingsModalProps {
   onClose: () => void;
   settings: AppSettings;
   onUpdateSettings: (newSettings: AppSettings) => void;
-  onReloadWorkspace?: () => void;
+  onRestoreWorkspace: (input: string | WorkspaceBackupData) => Promise<boolean>;
   onFlushCurrentDocument?: () => Promise<boolean>;
   onLicenseChanged?: () => void;
 }
@@ -29,7 +29,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onClose,
   settings,
   onUpdateSettings,
-  onReloadWorkspace,
+  onRestoreWorkspace,
   onFlushCurrentDocument,
 }) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('interface');
@@ -53,6 +53,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   // Backup states
   const [quota, setQuota] = useState<StorageQuotaInfo | null>(null);
   const [backupNotice, setBackupNotice] = useState<string | null>(null);
+  const backupBusyRef = useRef(false);
+  const [backupBusy, setBackupBusy] = useState(false);
   const backupFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -60,8 +62,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   }, [settings]);
 
   useEffect(() => {
+    let disposed = false;
     if (isOpen) {
-      BackupService.getStorageQuota().then(setQuota);
+      void BackupService.getStorageQuota().then(value => { if (!disposed) setQuota(value); }).catch(error => { if (!disposed) setBackupNotice(`存储读取失败：${error?.message || error}`); });
       setTestResult(null);
       setSyncNotice(null);
       setRemoteVersions([]);
@@ -69,6 +72,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       setBackupNotice(null);
       setAiTestResult(null);
     }
+    return () => { disposed = true; };
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -199,6 +203,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const handleUploadToWebDAV = async () => {
+    if (backupBusyRef.current) return;
+    backupBusyRef.current = true;
+    setBackupBusy(true);
     setSyncingWebDAV(true);
     setSyncNotice(null);
     try {
@@ -220,6 +227,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       setSyncNotice({ success: false, message: err.message || '上传异常' });
     } finally {
       setSyncingWebDAV(false);
+      backupBusyRef.current = false;
+      setBackupBusy(false);
     }
   };
 
@@ -240,6 +249,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const handleDownloadFromWebDAV = async () => {
+    if (backupBusyRef.current) return;
+    backupBusyRef.current = true;
+    setBackupBusy(true);
     const versionLabel = selectedVersion || '最新备份';
     setSyncingWebDAV(true);
     setSyncNotice(null);
@@ -253,10 +265,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       if (res.success && res.data) {
         const preview = await BackupService.previewFullWorkspaceData(res.data);
         if (!window.confirm(`云端「${versionLabel}」：\n${BackupService.describeRestorePreview(preview)}`)) return;
-        if (onFlushCurrentDocument && !(await onFlushCurrentDocument())) return;
-        await BackupService.importFullWorkspaceData(res.data);
+        if (!(await onRestoreWorkspace(res.data))) return;
         setSyncNotice({ success: true, message: res.message });
-        if (onReloadWorkspace) onReloadWorkspace();
+
       } else {
         setSyncNotice({ success: false, message: res.message });
       }
@@ -264,31 +275,42 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       setSyncNotice({ success: false, message: err.message || '下载异常' });
     } finally {
       setSyncingWebDAV(false);
+      backupBusyRef.current = false;
+      setBackupBusy(false);
     }
   };
 
+  const runLocalBackup = async (operation: () => Promise<void>) => {
+    if (backupBusyRef.current) return;
+    backupBusyRef.current = true;
+    setBackupBusy(true);
+    setBackupNotice(null);
+    try { await operation(); }
+    catch (error: any) { setBackupNotice(`备份操作失败：${error?.message || error}`); }
+    finally { backupBusyRef.current = false; setBackupBusy(false); }
+  };
+
   const handleExportLocalWorkspace = async () => {
-    if (onFlushCurrentDocument && !(await onFlushCurrentDocument())) return;
-    await BackupService.exportFullWorkspaceBackup();
-    setBackupNotice('工作区全量备份已导出！');
+    await runLocalBackup(async () => {
+      if (onFlushCurrentDocument && !(await onFlushCurrentDocument())) return;
+      await BackupService.exportFullWorkspaceBackup();
+      setBackupNotice('工作区全量备份已导出！');
+    });
   };
 
   const handleImportLocalWorkspace = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
-    try {
+    await runLocalBackup(async () => {
+      if (file.size > MAX_BACKUP_BYTES) throw new Error('备份文件超过 20 MB 安全导入上限');
       const text = await file.text();
       const preview = await BackupService.previewFullWorkspaceBackup(text);
       if (!window.confirm(BackupService.describeRestorePreview(preview))) return;
-      if (onFlushCurrentDocument && !(await onFlushCurrentDocument())) return;
-      await BackupService.importFullWorkspaceBackup(text);
+      if (!(await onRestoreWorkspace(text))) return;
       setBackupNotice('工作区数据恢复成功！');
-      if (onReloadWorkspace) onReloadWorkspace();
-    } catch (error: any) {
-      setBackupNotice(`导入失败：${error?.message || '文件损坏或格式无效'}`);
-    } finally {
-      e.target.value = '';
-    }
+
+    });
   };
 
   const handleResetAllSettings = async () => {
@@ -908,13 +930,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   )}
                   <div className="grid grid-cols-2 gap-2">
                     <button
-                      onClick={handleExportLocalWorkspace}
+                      disabled={backupBusy} onClick={handleExportLocalWorkspace}
                       className="py-2 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-xl font-semibold flex items-center justify-center gap-1.5 transition-colors"
                     >
                       <Download className="w-3.5 h-3.5 text-blue-600" /> 导出全部导图与快照
                     </button>
                     <button
-                      onClick={() => backupFileInputRef.current?.click()}
+                      disabled={backupBusy} onClick={() => backupFileInputRef.current?.click()}
                       className="py-2 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-xl font-semibold flex items-center justify-center gap-1.5 transition-colors"
                     >
                       <Upload className="w-3.5 h-3.5 text-purple-600" /> 从文件还原工作区

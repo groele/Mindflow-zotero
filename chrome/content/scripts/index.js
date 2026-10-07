@@ -1961,6 +1961,24 @@
               };
             }
           }
+          // A physical attachment can have been isolated under a new local
+          // workspace ID when its embedded ID collided with another source.
+          // Resolve that canonical record before creating the tab so a close
+          // and reopen keeps the same tab/workspace identity instead of
+          // briefly advertising the stale embedded ID.
+          try {
+            const all = await this.workspaceStorage('getAll');
+            const matches = Object.values(all || {}).map((raw) => {
+              try { return JSON.parse(raw); } catch (_) { return null; }
+            }).filter((candidate) => candidate?.id &&
+              candidate.metadata?.zoteroAttachmentKey === attItem.key &&
+              Number(candidate.metadata?.zoteroAttachmentLibraryID) === Number(attItem.libraryID));
+            if (matches.length === 1 && matches[0].id !== docData.id) {
+              docData.id = matches[0].id;
+            }
+          } catch (resolveError) {
+            Zotero.log?.('[MindFlow] Attachment workspace identity lookup skipped: ' + resolveError);
+          }
           this.openMindFlow(
             {
               mode: 'open_document',

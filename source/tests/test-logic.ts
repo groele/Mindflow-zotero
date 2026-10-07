@@ -1,3 +1,4 @@
+import { requestWebDAV } from '../src/services/sync/webdavRequest';
 import assert from 'node:assert/strict';
 import { cloneTree, replaceNodeText, replaceAllNodeText, expandAncestors, deleteNode } from '../src/core/model/treeOps';
 import { validRelationships, captureNodeDrafts, retargetDocumentLinks } from '../src/core/model/editorState';
@@ -121,6 +122,70 @@ await run('queued WebDAV autosync is invalidated by disabled service or changed 
   assert.equal(WebDAVService.sameAutoSyncConfig(config, { ...config, enabled: !config.enabled }), false);
   assert.equal(WebDAVService.sameAutoSyncConfig(config, { ...config, password: 'changed' }), false);
   assert.equal(WebDAVService.sameAutoSyncConfig(config, { ...config, serverUrl: 'https://different.invalid' }), false);
+});
+await run('WebDAV timeout rejects even when the transport ignores abort', async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = (() => new Promise(() => {})) as typeof fetch;
+  try { await assert.rejects(() => requestWebDAV('https://example.invalid', { method: 'PUT' }, { timeoutMs: 20 }), /超时/); }
+  finally { globalThis.fetch = original; }
+});
+await run('WebDAV deadline includes a response body that stalls after headers', async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = (async () => new Response(new ReadableStream({ start() {} }), { status: 200 })) as typeof fetch;
+  try { await assert.rejects(() => requestWebDAV('https://example.invalid', { method: 'GET' }, { timeoutMs: 20 }), /超时/); }
+  finally { globalThis.fetch = original; }
+});
+await run('WebDAV preserves caller cancellation separately from its timeout', async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = (() => new Promise(() => {})) as typeof fetch;
+  const caller = new AbortController();
+  try {
+    const pending = requestWebDAV('https://example.invalid', { method: 'GET', signal: caller.signal }, { timeoutMs: 1000 });
+    caller.abort();
+    await assert.rejects(() => pending, (error: any) => error?.name === 'AbortError');
+  } finally { globalThis.fetch = original; }
+});
+await run('WebDAV streamed bodies without content length stop at the byte limit', async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = (async () => new Response('中文中文', { status: 200 })) as typeof fetch;
+  try { await assert.rejects(() => requestWebDAV('https://example.invalid', { method: 'GET' }, { maxBytes: 6 }), /上限/); }
+  finally { globalThis.fetch = original; }
+});
+await run('WebDAV 204 connection checks do not fabricate an invalid response body', async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = (async () => new Response(null, { status: 204 })) as typeof fetch;
+  try { assert.equal((await requestWebDAV('https://example.invalid', { method: 'PROPFIND' })).status, 204); }
+  finally { globalThis.fetch = original; }
+});
+await run('failed WebDAV directory creation stops before uploading any backup', async () => {
+  const original = globalThis.fetch, calls: string[] = [];
+  globalThis.fetch = (async (_url, init) => { calls.push(init?.method || 'GET'); return new Response(null, { status: 403 }); }) as typeof fetch;
+  const config = { ...(await SettingsService.getSettings()).webdav, serverUrl: 'https://example.invalid/dav/', username: 'u', basePath: '/maps/' };
+  try {
+    const result = await WebDAVService.uploadBackup(config, { documents: [] } as any);
+    assert.equal(result.success, false); assert.deepEqual(calls, ['MKCOL']);
+  } finally { globalThis.fetch = original; }
+});
+await run('queued WebDAV upload freezes credentials, destination and document contents', async () => {
+  const original = globalThis.fetch, calls: Array<{url: string; method: string; body: string; auth: string}> = [];
+  globalThis.fetch = (async (url, init) => {
+    calls.push({ url: String(url), method: init?.method || 'GET', body: String(init?.body || ''), auth: (init?.headers as any)?.Authorization });
+    return new Response(null, { status: 201 });
+  }) as typeof fetch;
+  const config = { ...(await SettingsService.getSettings()).webdav, serverUrl: 'https://example.invalid/dav/', username: 'original', password: 'before', basePath: '/maps/' };
+  const data = { documents: [{ title: 'original' }] } as any;
+  try {
+    const pending = WebDAVService.uploadBackup(config, data);
+    config.serverUrl = 'https://changed.invalid'; config.password = 'after'; data.documents[0].title = 'changed';
+    assert.equal((await pending).success, true);
+    const uploads = calls.filter(call => call.method === 'PUT');
+    assert.equal(uploads.length, 2);
+    for (const call of uploads) {
+      assert.ok(call.url.startsWith('https://example.invalid/dav/maps/'));
+      assert.equal(JSON.parse(call.body).documents[0].title, 'original');
+      assert.equal(call.auth, 'Basic ' + btoa('original:before'));
+    }
+  } finally { globalThis.fetch = original; }
 });
 console.log(`${passed} logic tests passed; ${failed} failed`);
 if (failed) process.exitCode = 1;

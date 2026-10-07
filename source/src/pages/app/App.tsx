@@ -45,7 +45,7 @@ import { AppSettings, DEFAULT_SETTINGS } from '../../core/model/settingsTypes';
 import { createBlankDocument } from '../../core/model/sampleData';
 import { WelcomeModal } from '../../components/modal/WelcomeModal';
 import { SettingsService } from '../../services/storage/settingsService';
-import { BackupService, MAX_BACKUP_BYTES, validateMindMapDocument } from '../../services/storage/backupService';
+import { BackupService, MAX_BACKUP_BYTES, validateMindMapDocument, WorkspaceBackupData } from '../../services/storage/backupService';
 import { WebDAVService } from '../../services/sync/webdavService';
 import { safeStorage } from '../../services/storage/safeStorage';
 import { createResearchDocument, prepareResearchAnalysis, requestResearchAnalysis,
@@ -60,7 +60,7 @@ interface AppProps {
 
 export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   const workspaceRestoringRef = useRef(false);
-  const [workspaceRestoring, setWorkspaceRestoring] = useState(false);
+  const [workspaceRestoring, setWorkspaceRestoring] = useState<'snapshot' | 'workspace' | null>(null);
   const [doc, setDoc] = useState<MindMapDocument | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -2136,7 +2136,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     const sourceId = currentDocIdRef.current;
     if (!sourceId) return false;
     workspaceRestoringRef.current = true;
-    setWorkspaceRestoring(true);
+    setWorkspaceRestoring('snapshot');
     try {
       const restored = await BackupService.restoreSnapshot(sourceId, snapshotId);
       if (!restored) throw new Error('所选快照已不存在，请刷新后重试');
@@ -2158,7 +2158,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       return true;
     } finally {
       workspaceRestoringRef.current = false;
-      setWorkspaceRestoring(false);
+      setWorkspaceRestoring(null);
     }
   }, [flushCurrentDocument, syncHistoryState, centerCanvas]);
 
@@ -2172,6 +2172,52 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     events.forEach(type => window.addEventListener(type, blockEditing, true));
     return () => events.forEach(type => window.removeEventListener(type, blockEditing, true));
   }, []);
+
+  const handleRestoreWorkspace = useCallback(async (input: string | WorkspaceBackupData): Promise<boolean> => {
+    if (workspaceRestoringRef.current || !(await flushCurrentDocument())) return false;
+    workspaceRestoringRef.current = true;
+    setWorkspaceRestoring('workspace');
+    try {
+      if (typeof input === 'string') await BackupService.importFullWorkspaceBackup(input);
+      else await BackupService.importFullWorkspaceData(input);
+      return true;
+    } finally {
+      workspaceRestoringRef.current = false;
+      setWorkspaceRestoring(null);
+      // Reload even after a partial restore so old editor state cannot write
+      // over documents that were already restored successfully.
+      await reloadWorkspace();
+    }
+  }, [flushCurrentDocument, reloadWorkspace]);
+
+  const exportBusyRef = useRef(false);
+  const handleExportCurrentDocument = useCallback(async (format: 'png' | 'svg' | 'markdown' | 'json' | 'opml' | 'html' | 'pdf') => {
+    if (exportBusyRef.current) return;
+    exportBusyRef.current = true;
+    const sourceId = currentDocIdRef.current;
+    try {
+      if (!(await flushCurrentDocument()) || sourceId !== currentDocIdRef.current) return;
+      const current = latestDocRef.current;
+      if (!current) return;
+      const currentTheme = getTheme(current.themeId);
+      const currentLayout = computeLayout(current.root, current.layoutType, currentTheme, {
+        rainbowBranches: settings.rainbowBranches, curveStyle: settings.curveStyle,
+      });
+      if (format === 'json') exportToJSON({ ...current, relationships: latestRelationshipsRef.current });
+      else if (format === 'markdown') exportToMarkdown(current.root, current.title);
+      else if (format === 'opml') exportToOPML(current.root, current.title);
+      else if (format === 'png') await exportToPNG(currentLayout.nodes, currentLayout.connections, currentLayout.bounds, currentTheme, current.title, { watermark: false });
+      else if (format === 'svg') exportToSVG(currentLayout.nodes, currentLayout.connections, currentLayout.bounds, currentTheme, current.title, { watermark: false });
+      else if (format === 'html') exportToInteractiveHTML(currentLayout.nodes, currentLayout.connections, currentLayout.bounds, currentTheme, current.title, { watermark: false });
+      else {
+        // Print uses the live DOM; wait until React has rendered the captured draft.
+        await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+        if (sourceId === currentDocIdRef.current) printToPDF();
+      }
+    } catch (error: any) {
+      setSaveStatus({ state: 'error', message: `导出失败：${error?.message || error}` });
+    } finally { exportBusyRef.current = false; }
+  }, [flushCurrentDocument, settings.rainbowBranches, settings.curveStyle]);
 
   // Import file handler
   const handleImportFile = async (file: File) => {
@@ -2270,13 +2316,13 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
           onOpenSettings={handleOpenSettings}
           isPro={true}
           toolbarButtons={settings.toolbarButtons}
-          onExportPNG={() => { void exportToPNG(layout.nodes, layout.connections, layout.bounds, theme, doc.title, { watermark: false }).catch(error => alert(`PNG 导出失败：${error?.message || '图片无法解码'}`)); }}
-          onExportSVG={() => exportToSVG(layout.nodes, layout.connections, layout.bounds, theme, doc.title, { watermark: false })}
-          onExportMarkdown={() => exportToMarkdown(doc.root, doc.title)}
-          onExportJSON={() => exportToJSON({ ...doc, relationships })}
-          onExportOPML={() => exportToOPML(doc.root, doc.title)}
-          onExportHTML={() => exportToInteractiveHTML(layout.nodes, layout.connections, layout.bounds, theme, doc.title, { watermark: false })}
-          onExportPDF={printToPDF}
+          onExportPNG={() => { void handleExportCurrentDocument('png'); }}
+          onExportSVG={() => { void handleExportCurrentDocument('svg'); }}
+          onExportMarkdown={() => { void handleExportCurrentDocument('markdown'); }}
+          onExportJSON={() => { void handleExportCurrentDocument('json'); }}
+          onExportOPML={() => { void handleExportCurrentDocument('opml'); }}
+          onExportHTML={() => { void handleExportCurrentDocument('html'); }}
+          onExportPDF={() => { void handleExportCurrentDocument('pdf'); }}
           onCollapseByLevel={handleCollapseByLevel}
           onImportFile={handleImportFile}
           isSidepanelMode={isSidepanelMode}
@@ -2350,7 +2396,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
             }}
             onInsertInboxItem={handleInsertInboxItem}
             onRestoreSnapshot={handleRestoreCurrentSnapshot}
-            onReloadWorkspace={reloadWorkspace}
+            onRestoreWorkspace={handleRestoreWorkspace}
             onFlushCurrentDocument={flushCurrentDocument}
             onOpenSettings={handleOpenSettings}
           />
@@ -2450,10 +2496,10 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
         onToggleZen={() => { void toggleZen(); }}
         onChangeLayout={(l) => setDoc(prev => prev ? { ...prev, layoutType: l } : null)}
         onChangeTheme={(th) => setDoc(prev => prev ? { ...prev, themeId: th } : null)}
-        onExportPNG={() => { void exportToPNG(layout.nodes, layout.connections, layout.bounds, theme, doc.title, { watermark: false }).catch(error => alert(`PNG 导出失败：${error?.message || '图片无法解码'}`)); }}
-        onExportSVG={() => exportToSVG(layout.nodes, layout.connections, layout.bounds, theme, doc.title, { watermark: false })}
-        onExportMarkdown={() => exportToMarkdown(doc.root, doc.title)}
-        onExportPDF={printToPDF}
+        onExportPNG={() => { void handleExportCurrentDocument('png'); }}
+        onExportSVG={() => { void handleExportCurrentDocument('svg'); }}
+        onExportMarkdown={() => { void handleExportCurrentDocument('markdown'); }}
+        onExportPDF={() => { void handleExportCurrentDocument('pdf'); }}
         onOpenShortcuts={() => setIsShortcutsOpen(true)}
         onOpenSettings={handleOpenSettings}
         onCreateBlank={handleCreateBlankDoc}
@@ -2514,7 +2560,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
           setSettings(newSettings);
           setDockPosition(newSettings.workbenchDockPosition);
         }}
-        onReloadWorkspace={reloadWorkspace}
+        onRestoreWorkspace={handleRestoreWorkspace}
         onFlushCurrentDocument={flushCurrentDocument}
       />
 
@@ -2604,7 +2650,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       />
       {workspaceRestoring && (
         <div role="status" aria-live="polite" className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/30 backdrop-blur-sm">
-          <div className="rounded-xl bg-white px-6 py-4 text-sm text-slate-700 shadow-xl">正在恢复快照，请稍候…</div>
+          <div className="rounded-xl bg-white px-6 py-4 text-sm text-slate-700 shadow-xl">{workspaceRestoring === 'snapshot' ? '正在恢复快照，请稍候…' : '正在恢复工作区，请稍候…'}</div>
         </div>
       )}
     </div>

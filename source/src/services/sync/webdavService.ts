@@ -1,3 +1,4 @@
+import { requestWebDAV } from './webdavRequest';
 import { WebDAVConfig } from '../../core/model/settingsTypes';
 import { MAX_BACKUP_BYTES, WorkspaceBackupData } from '../storage/backupService';
 
@@ -29,7 +30,7 @@ export class WebDAVService {
 
   public static async listBackupVersions(config: WebDAVConfig): Promise<RemoteBackupVersion[]> {
     const folderUrl = this.buildUrl(config.serverUrl, (config.basePath || '/').replace(/\/?$/, '/'));
-    const response = await fetch(folderUrl, {
+    const response = await requestWebDAV(folderUrl, {
       method: 'PROPFIND',
       headers: { Authorization: this.getAuthHeader(config), Depth: '1' },
     });
@@ -127,7 +128,7 @@ export class WebDAVService {
 
     try {
       // 1. First attempt PROPFIND with Depth: 0
-      let response = await fetch(testUrl, {
+      let response = await requestWebDAV(testUrl, {
         method: 'PROPFIND',
         headers: {
           Authorization: auth,
@@ -138,7 +139,7 @@ export class WebDAVService {
 
       // If method not allowed, try OPTIONS
       if (response.status === 405) {
-        response = await fetch(testUrl, {
+        response = await requestWebDAV(testUrl, {
           method: 'OPTIONS',
           headers: { Authorization: auth },
         });
@@ -201,7 +202,7 @@ export class WebDAVService {
     const auth = this.getAuthHeader(config);
 
     try {
-      const res = await fetch(folderUrl, {
+      const res = await requestWebDAV(folderUrl, {
         method: 'MKCOL',
         headers: { Authorization: auth },
       });
@@ -218,7 +219,9 @@ export class WebDAVService {
     config: WebDAVConfig,
     backupData: WorkspaceBackupData
   ): Promise<WebDAVSyncResult> {
-    const operation = this.uploadQueue.then(() => this.uploadBackupNow(config, backupData));
+    const configSnapshot = { ...config };
+    const dataSnapshot = JSON.parse(JSON.stringify(backupData)) as WorkspaceBackupData;
+    const operation = this.uploadQueue.then(() => this.uploadBackupNow(configSnapshot, dataSnapshot));
     this.uploadQueue = operation.catch(() => undefined);
     return operation;
   }
@@ -235,7 +238,9 @@ export class WebDAVService {
     }
 
     // Try to ensure folder exists
-    await this.ensureRemoteFolder(config);
+    if (!(await this.ensureRemoteFolder(config))) {
+      return { success: false, message: '无法创建或访问 WebDAV 备份目录，尚未上传文件。请检查路径与权限。' };
+    }
 
     const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
     const nonce = Array.from(crypto.getRandomValues(new Uint8Array(4)), value => value.toString(16).padStart(2, '0')).join('');
@@ -250,14 +255,14 @@ export class WebDAVService {
 
     try {
       const headers = { Authorization: auth, 'Content-Type': 'application/json; charset=utf-8' };
-      const response = await fetch(this.buildUrl(config.serverUrl, remotePath), {
+      const response = await requestWebDAV(this.buildUrl(config.serverUrl, remotePath), {
         method: 'PUT',
         headers,
         body: payload,
       });
 
       if (response.status === 200 || response.status === 201 || response.status === 204) {
-        const latest = await fetch(this.buildUrl(config.serverUrl, this.backupPath(config, LATEST_BACKUP)), {
+        const latest = await requestWebDAV(this.buildUrl(config.serverUrl, this.backupPath(config, LATEST_BACKUP)), {
           method: 'PUT', headers, body: payload,
         });
         if (!latest.ok) {
@@ -312,7 +317,7 @@ export class WebDAVService {
     const auth = this.getAuthHeader(config);
 
     try {
-      const response = await fetch(targetUrl, {
+      const response = await requestWebDAV(targetUrl, {
         method: 'GET',
         headers: {
           Authorization: auth,

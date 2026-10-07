@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { MindMapDocument, MindMapNode, InboxItem } from '../../core/model/types';
 import { StorageService, DocumentSummary } from '../../services/storage/storageService';
 import { InboxService } from '../../services/storage/inboxService';
-import { BackupService, DocSnapshot, StorageQuotaInfo, MAX_BACKUP_BYTES } from '../../services/storage/backupService';
+import { BackupService, DocSnapshot, StorageQuotaInfo, MAX_BACKUP_BYTES, WorkspaceBackupData } from '../../services/storage/backupService';
 import { collectTagFacets } from '../../core/model/tagUtils';
 import {
   FolderOpen, ListTree, Inbox, ShieldCheck, Plus, Search,
@@ -32,7 +32,7 @@ interface LeftWorkbenchProps {
   onDeleteNode: (id: string) => void;
   onInsertInboxItem: (item: InboxItem) => Promise<boolean>;
   onRestoreSnapshot: (snapshotId: string) => Promise<boolean>;
-  onReloadWorkspace: () => void;
+  onRestoreWorkspace: (input: string | WorkspaceBackupData) => Promise<boolean>;
   onFlushCurrentDocument: () => Promise<boolean>;
   isZoteroMode?: boolean;
 }
@@ -57,7 +57,7 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
   onDeleteNode,
   onInsertInboxItem,
   onRestoreSnapshot,
-  onReloadWorkspace,
+  onRestoreWorkspace,
   onFlushCurrentDocument,
   isZoteroMode = false,
 }) => {
@@ -206,10 +206,8 @@ export const LeftWorkbench: React.FC<LeftWorkbenchProps> = ({
       const content = await file.text();
       const preview = await BackupService.previewFullWorkspaceBackup(content);
       if (!confirm(BackupService.describeRestorePreview(preview))) return;
-      if (!(await onFlushCurrentDocument())) return;
-      const res = await BackupService.importFullWorkspaceBackup(content);
-      showBackupNotice(`已还原 ${res.docCount} 篇思维导图与 ${res.inboxCount} 条收集箱记录！`);
-      onReloadWorkspace();
+      if (!(await onRestoreWorkspace(content))) return;
+      showBackupNotice(`已还原 ${preview.documents} 篇思维导图与 ${preview.inboxItems} 条收集箱记录！`);
     });
   };
 

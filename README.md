@@ -8,7 +8,7 @@
 
 | 项目 / Item | 当前状态 / Current status |
 | --- | --- |
-| 公开版本 / Public release | **10.0.5**, [v10.0.5](https://github.com/groele/Mindflow-zotero/releases/tag/v10.0.5) |
+| 公开版本 / Public release | **10.0.6**, [v10.0.6](https://github.com/groele/Mindflow-zotero/releases/tag/v10.0.6) |
 | 支持宿主 / Supported host | **Zotero 10.0.x**；原生回归环境为 Windows + Zotero 10.0.5 / Native regression environment: Windows + Zotero 10.0.5 |
 | 插件 ID / Add-on ID | `mindflow@groele.org` |
 | 许可 / License | [MIT](LICENSE) |
@@ -29,14 +29,14 @@ The add-on and Zotero have separate version numbers. This README is bilingual; t
 
 ### 1. 安装与升级
 
-1. 打开 [V10 Release](https://github.com/groele/Mindflow-zotero/releases/tag/v10.0.5)，下载 [`mindflow-zotero-10.0.5.xpi`](https://github.com/groele/Mindflow-zotero/releases/download/v10.0.5/mindflow-zotero-10.0.5.xpi)。请选择 XPI 安装包，GitHub 的 Source code ZIP 不能直接作为插件安装。
+1. 打开 [V10 Release](https://github.com/groele/Mindflow-zotero/releases/tag/v10.0.6)，下载 [`mindflow-zotero-10.0.6.xpi`](https://github.com/groele/Mindflow-zotero/releases/download/v10.0.6/mindflow-zotero-10.0.6.xpi)。请选择 XPI 安装包，GitHub 的 Source code ZIP 不能直接作为插件安装。
 2. 在 Zotero 中打开 **工具 → 插件**，点击齿轮，选择 **从文件安装插件**。
 3. 选择下载的 XPI，完成安装并重启 Zotero。
 4. 通过文献库工具栏的 MindFlow 图标、工具菜单或分类右键菜单打开工作台。
 
 升级前备份 Zotero 数据目录，并导出重要导图或完整工作区。V10 沿用 `mindflow@groele.org`，可以覆盖同 ID 的旧版本；升级本身不代表历史错误关联已被自动修正。
 
-公开自动更新元数据为 [`update.json`](update.json) 与 [`zotero/update.json`](zotero/update.json)，目前指向 **10.0.5**。本版新增 12 项保存、备份与快照链路修复，见 [10.0.5 发布记录](docs/release-v10.0.5.md)。包含工具栏图标优化（图像尺寸为 **20 × 20 CSS 像素**，紧凑 SVG 视口）与 29 项操作逻辑审查与加固，详细见 [10.0.2 操作逻辑审查](docs/操作逻辑审查与修复-10.0.2.md) 与 [10.0.1 图标修复记录](docs/toolbar-icon-fix-10.0.1.md)。
+公开自动更新元数据为 [`update.json`](update.json) 与 [`zotero/update.json`](zotero/update.json)，目前指向 **10.0.6**。本版继续修复附件重开身份、WebDAV 超时与取消、备份队列快照和工作区恢复并发问题，见 [10.0.6 发布记录](docs/release-v10.0.6.md)。
 
 ![工具栏预览](docs/toolbar-icon-preview-10.0.1.png)
 
@@ -328,14 +328,14 @@ pwsh -NoProfile -File scripts/restart-native-test.ps1
 
 ### 1. Installation and upgrades
 
-1. Open the [V10 Release](https://github.com/groele/Mindflow-zotero/releases/tag/v10.0.5) and download [`mindflow-zotero-10.0.5.xpi`](https://github.com/groele/Mindflow-zotero/releases/download/v10.0.5/mindflow-zotero-10.0.5.xpi). Use the XPI asset; GitHub's Source code ZIP cannot be installed directly as the add-on.
+1. Open the [V10 Release](https://github.com/groele/Mindflow-zotero/releases/tag/v10.0.6) and download [`mindflow-zotero-10.0.6.xpi`](https://github.com/groele/Mindflow-zotero/releases/download/v10.0.6/mindflow-zotero-10.0.6.xpi). Use the XPI asset; GitHub's Source code ZIP cannot be installed directly as the add-on.
 2. In Zotero, open **Tools → Plugins**, click the gear button, and choose **Install Add-on From File**. Menu labels may vary with your Zotero language.
 3. Select the XPI, finish installation, and restart Zotero.
 4. Open MindFlow through its library toolbar icon, the Tools menu, or the collection's context menu.
 
 Before upgrading, back up your Zotero data directory and export important maps or the complete workspace. V10 keeps the add-on ID `mindflow@groele.org` and can replace an older installation with that ID. Upgrading does not automatically repair attachments that were previously associated with the wrong paper.
 
-The public update metadata in [`update.json`](update.json) and [`zotero/update.json`](zotero/update.json) currently points to **10.0.5**. This release adds 12 fixes for saving, backups, and snapshot restoration; see the [10.0.5 release report](docs/release-v10.0.5.md). It includes the toolbar icon fix (**20 × 20 CSS pixels**, tighter SVG viewport) and 29 workflow fixes and hardening items; see the [detailed audit](docs/操作逻辑审查与修复-10.0.2.md) and [toolbar fix report](docs/toolbar-icon-fix-10.0.1.md).
+The public update metadata in [`update.json`](update.json) and [`zotero/update.json`](zotero/update.json) currently points to **10.0.6**. This release continues fixes for attachment reopen identity, WebDAV deadlines and cancellation, queued backup snapshots, and workspace restore concurrency; see the [10.0.6 release report](docs/release-v10.0.6.md).
 
 <a id="en-start"></a>
 
