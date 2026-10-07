@@ -5,9 +5,15 @@ export async function requestWebDAV(url: string, init: RequestInit,
   options: { timeoutMs?: number; maxBytes?: number } = {}): Promise<Response> {
   const controller = new AbortController();
   const callerSignal = init.signal;
-  const relayCallerAbort = () => controller.abort();
-  if (callerSignal?.aborted) controller.abort();
-  else callerSignal?.addEventListener('abort', relayCallerAbort, { once: true });
+  const abortError = () => { const error = new Error('The operation was aborted.'); error.name = 'AbortError'; return error; };
+  if (callerSignal?.aborted) throw abortError();
+  let rejectCancellation: ((reason: Error) => void) | undefined;
+  const cancellation = callerSignal ? new Promise<never>((_, reject) => { rejectCancellation = reject; }) : null;
+  const relayCallerAbort = () => {
+    controller.abort();
+    rejectCancellation?.(abortError());
+  };
+  callerSignal?.addEventListener('abort', relayCallerAbort, { once: true });
   const timeoutMs = options.timeoutMs ?? 30000;
   const maxBytes = options.maxBytes ?? MAX_BACKUP_BYTES;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -17,11 +23,6 @@ export async function requestWebDAV(url: string, init: RequestInit,
       controller.abort();
     }, timeoutMs);
   });
-  const cancellation = callerSignal ? new Promise<never>((_, reject) => {
-    const abortError = () => { const error = new Error('The operation was aborted.'); error.name = 'AbortError'; return error; };
-    if (callerSignal.aborted) reject(abortError());
-    else callerSignal.addEventListener('abort', () => reject(abortError()), { once: true });
-  }) : null;
   const operation = (async () => {
     const response = await fetch(url, { ...init, signal: controller.signal });
     if (!response.ok || response.status === 204 || response.status === 205 || !['GET', 'PROPFIND'].includes(init.method || 'GET')) return response;

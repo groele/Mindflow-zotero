@@ -233,6 +233,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const handleListRemoteVersions = async () => {
+    if (backupBusyRef.current) return;
+    backupBusyRef.current = true;
+    setBackupBusy(true);
     setListingVersions(true);
     setSyncNotice(null);
     try {
@@ -240,11 +243,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       if (!granted) throw new Error('未获得该 WebDAV 服务器的访问权限');
       const versions = await WebDAVService.listBackupVersions(currentSettings.webdav);
       setRemoteVersions(versions);
+      setSelectedVersion(previous => previous && !versions.some(version => version.fileName === previous) ? '' : previous);
       setSyncNotice({ success: true, message: versions.length ? `找到 ${versions.length} 个历史版本。` : '未找到历史版本；仍可尝试恢复最新备份。' });
     } catch (error: any) {
       setSyncNotice({ success: false, message: error.message || '无法读取历史版本' });
     } finally {
       setListingVersions(false);
+      backupBusyRef.current = false;
+      setBackupBusy(false);
     }
   };
 
@@ -796,7 +802,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                   <button
                     onClick={handleUploadToWebDAV}
-                    disabled={syncingWebDAV || !currentSettings.webdav.serverUrl}
+                    disabled={backupBusy || !currentSettings.webdav.serverUrl}
                     className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-50"
                   >
                     {syncingWebDAV ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
@@ -805,7 +811,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                   <button
                     onClick={handleDownloadFromWebDAV}
-                    disabled={syncingWebDAV || !currentSettings.webdav.serverUrl}
+                    disabled={backupBusy || !currentSettings.webdav.serverUrl}
                     className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-50"
                   >
                     <Download className="w-3.5 h-3.5" />
@@ -815,7 +821,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
                   <button
                     onClick={handleListRemoteVersions}
-                    disabled={listingVersions || syncingWebDAV || !currentSettings.webdav.serverUrl}
+                    disabled={backupBusy || !currentSettings.webdav.serverUrl}
                     className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 rounded-lg text-xs font-semibold disabled:opacity-50"
                   >
                     {listingVersions ? '读取中…' : '查看云端历史版本'}
@@ -824,6 +830,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     aria-label="选择云端备份版本"
                     value={selectedVersion}
                     onChange={(event) => setSelectedVersion(event.target.value)}
+                    disabled={backupBusy}
                     className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs"
                   >
                     <option value="">最新备份</option>

@@ -6,7 +6,8 @@
 
 | 阶段 / Stage | 状态 / Status | 说明 / Description |
 | --- | --- | --- |
-| 10.0.6 / V10 | 公开发布 / Public release | 附件重开身份、WebDAV、备份队列与工作区恢复加固 / Attachment reopen identity, WebDAV, backup queue, and workspace restore hardening |
+| 10.0.7 / V10 | 公开发布 / Public release | WebDAV 路径与多级目录加固，清理旧模块 / WebDAV path and nested folder hardening; legacy module cleanup |
+| 10.0.6 | 历史发布 / Historical release | 附件重开身份、WebDAV、备份队列与工作区恢复加固 / Attachment reopen identity, WebDAV, backup queue, and workspace restore hardening |
 | 10.0.4 | 历史发布 / Historical release | 移除文献列表右键菜单项保持整洁 / Removed literature context menu items |
 | 10.0.3 | 历史发布 / Historical release | 29项操作逻辑审查修复、工具栏图标优化与数据链路加固 / 29 workflow fixes, compact toolbar icon & data-chain hardening |
 | 10.0.2 | 审查与验证 / Audit & verification | 操作逻辑详细审查与修复基准 / Workflow audit and fixes |
@@ -18,6 +19,7 @@
 
 - [10.0.5 发布记录](release-v10.0.5.md)：备份恢复版本校验、快照完整性与回滚输入保护。
 - [10.0.6 发布记录](release-v10.0.6.md)：附件重开身份、WebDAV 取消与响应上限、备份队列快照和工作区恢复并发修复。
+- [10.0.7 发布记录](release-v10.0.7.md)：WebDAV 目录、上传预检与设置页并发处理，以及旧模块清理。
 
 - [2026-10-07 深度逻辑审查与修复](深度逻辑审查与修复-20261007.md)：备份版本竞争、快照校验、冲突链接与恢复输入保护。
 
@@ -39,6 +41,7 @@
 
 - [10.0.5 release report](release-v10.0.5.md): guarded backup restoration, snapshot validation, and protected editor input during rollback.
 - [10.0.6 release report](release-v10.0.6.md): attachment reopen identity, WebDAV cancellation and response limits, queued backup snapshots, and workspace restore concurrency fixes.
+- [10.0.7 release report](release-v10.0.7.md): WebDAV folders, upload preflight, settings concurrency, and unused module cleanup.
 
 - [10.0.3 release report](release-v10.0.3.md): installation, fixes, and validation for public 10.0.3.
 - [10.0.2 detailed workflow audit](操作逻辑审查与修复-10.0.2.md): 29 issues and hardening items, baseline failures, fixes, and verification limits.

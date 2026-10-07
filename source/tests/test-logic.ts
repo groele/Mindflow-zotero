@@ -166,6 +166,41 @@ await run('failed WebDAV directory creation stops before uploading any backup', 
     assert.equal(result.success, false); assert.deepEqual(calls, ['MKCOL']);
   } finally { globalThis.fetch = original; }
 });
+await run('WebDAV backup path cannot escape the configured server directory', () => {
+  assert.equal(WebDAVService.buildUrl('https://example.invalid/dav/', '/maps/archive.json'),
+    'https://example.invalid/dav/maps/archive.json');
+  for (const path of ['../outside.json', '%2e%2e/outside.json', 'maps\\outside.json',
+    'maps/archive.json?redirect=1', 'maps/%2foutside.json']) {
+    assert.throws(() => WebDAVService.buildUrl('https://example.invalid/dav/', path), /目标路径/);
+  }
+});
+await run('WebDAV creates nested backup directories in parent-first order', async () => {
+  const original = globalThis.fetch;
+  const calls: string[] = [];
+  globalThis.fetch = (async (url) => {
+    calls.push(String(url));
+    return new Response(null, { status: calls.length === 1 ? 405 : 201 });
+  }) as typeof fetch;
+  const config = { ...(await SettingsService.getSettings()).webdav,
+    serverUrl: 'https://example.invalid/dav/', username: 'u', basePath: '/research/maps/' };
+  try {
+    assert.equal(await WebDAVService.ensureRemoteFolder(config), true);
+    assert.deepEqual(calls, ['https://example.invalid/dav/research/', 'https://example.invalid/dav/research/maps/']);
+  } finally { globalThis.fetch = original; }
+});
+await run('oversize WebDAV backup is rejected before any remote request', async () => {
+  const original = globalThis.fetch;
+  let requests = 0;
+  globalThis.fetch = (async () => { requests++; return new Response(null, { status: 201 }); }) as typeof fetch;
+  const config = { ...(await SettingsService.getSettings()).webdav,
+    serverUrl: 'https://example.invalid/dav/', username: 'u', basePath: '/maps/' };
+  try {
+    const result = await WebDAVService.uploadBackup(config,
+      { documents: [{ title: 'x'.repeat(20 * 1024 * 1024) }] } as any);
+    assert.equal(result.success, false);
+    assert.equal(requests, 0);
+  } finally { globalThis.fetch = original; }
+});
 await run('queued WebDAV upload freezes credentials, destination and document contents', async () => {
   const original = globalThis.fetch, calls: Array<{url: string; method: string; body: string; auth: string}> = [];
   globalThis.fetch = (async (url, init) => {

@@ -98,11 +98,18 @@ export class WebDAVService {
     const base = this.parseSecureServerUrl(serverUrl);
     if (!base.pathname.endsWith('/')) base.pathname += '/';
     const cleanPath = (path || '').trim().replace(/^\/+/, '');
-    if (cleanPath.startsWith('\\') || /^[a-z][a-z0-9+.-]*:/i.test(cleanPath)) {
+    if (cleanPath.includes('\\') || cleanPath.includes('?') || cleanPath.includes('#') ||
+        /^[a-z][a-z0-9+.-]*:/i.test(cleanPath) || cleanPath.split('/').some(segment => {
+          let decoded: string;
+          try { decoded = decodeURIComponent(segment); } catch { return true; }
+          return decoded === '..' || decoded.includes('/') || decoded.includes('\\');
+        })) {
       throw new Error('WebDAV 目标路径必须位于配置的服务器内。');
     }
     const target = new URL(cleanPath, base);
-    if (target.origin !== base.origin) throw new Error('WebDAV 目标路径不能切换到其他服务器。');
+    if (target.origin !== base.origin || !target.pathname.startsWith(base.pathname)) {
+      throw new Error('WebDAV 目标路径必须位于配置的服务器内。');
+    }
     return target.toString();
   }
 
@@ -198,15 +205,21 @@ export class WebDAVService {
       return true;
     }
 
-    const folderUrl = this.buildUrl(config.serverUrl, config.basePath);
+    // Validate the whole path before creating any intermediate directory.
+    this.buildUrl(config.serverUrl, config.basePath);
+    const segments = config.basePath.split('/').filter(Boolean);
     const auth = this.getAuthHeader(config);
 
     try {
-      const res = await requestWebDAV(folderUrl, {
-        method: 'MKCOL',
-        headers: { Authorization: auth },
-      });
-      return res.status === 201 || res.status === 200 || res.status === 405; // 405 usually means already exists
+      for (let i = 1; i <= segments.length; i += 1) {
+        const folderUrl = this.buildUrl(config.serverUrl, segments.slice(0, i).join('/') + '/');
+        const res = await requestWebDAV(folderUrl, {
+          method: 'MKCOL',
+          headers: { Authorization: auth },
+        });
+        if (res.status !== 201 && res.status !== 200 && res.status !== 405) return false;
+      }
+      return true; // 405 usually means the directory already exists.
     } catch {
       return false;
     }
@@ -237,7 +250,10 @@ export class WebDAVService {
       return { success: false, message: err.message || 'WebDAV 地址无效' };
     }
 
-    // Try to ensure folder exists
+    const payload = JSON.stringify(backupData, null, 2);
+    if (new TextEncoder().encode(payload).byteLength > MAX_BACKUP_BYTES) {
+      return { success: false, message: '工作区超过 20 MB，云端备份无法按当前安全导入上限恢复。请先导出本地备份并整理数据。' };
+    }
     if (!(await this.ensureRemoteFolder(config))) {
       return { success: false, message: '无法创建或访问 WebDAV 备份目录，尚未上传文件。请检查路径与权限。' };
     }
@@ -247,11 +263,6 @@ export class WebDAVService {
     const fileName = `mindflow-workspace-${stamp}-${nonce}.json`;
     const remotePath = this.backupPath(config, fileName);
     const auth = this.getAuthHeader(config);
-
-    const payload = JSON.stringify(backupData, null, 2);
-    if (new TextEncoder().encode(payload).byteLength > MAX_BACKUP_BYTES) {
-      return { success: false, message: '工作区超过 20 MB，云端备份无法按当前安全导入上限恢复。请先导出本地备份并整理数据。' };
-    }
 
     try {
       const headers = { Authorization: auth, 'Content-Type': 'application/json; charset=utf-8' };
