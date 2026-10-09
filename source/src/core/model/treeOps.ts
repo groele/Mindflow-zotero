@@ -1,4 +1,8 @@
-import { MindMapNode, LayoutNode } from './types';
+import { MindMapNode, LayoutNode, TaskStatus } from './types';
+
+export function nextTaskStatus(status: TaskStatus): TaskStatus {
+  return status === 'todo' ? 'doing' : status === 'doing' ? 'done' : 'todo';
+}
 
 // Generate unique short ID
 export function generateId(): string {

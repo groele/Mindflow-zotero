@@ -1,6 +1,6 @@
 import { requestWebDAV } from '../src/services/sync/webdavRequest';
 import assert from 'node:assert/strict';
-import { cloneTree, replaceNodeText, replaceAllNodeText, expandAncestors, deleteNode } from '../src/core/model/treeOps';
+import { cloneTree, replaceNodeText, replaceAllNodeText, expandAncestors, deleteNode, nextTaskStatus } from '../src/core/model/treeOps';
 import { validRelationships, captureNodeDrafts, retargetDocumentLinks } from '../src/core/model/editorState';
 import { HistoryManager } from '../src/core/history/historyManager';
 import { InboxService } from '../src/services/storage/inboxService';
@@ -20,6 +20,13 @@ const root: MindMapNode = { id: 'root', text: 'MoS2 mos2 MOS2', note: 'MOS2 evid
 await run('cloned tasks cannot mutate original or undo history', () => {
   const copy = cloneTree(root); copy.task!.status = 'done';
   assert.equal(root.task!.status, 'todo');
+});
+await run('task status cycles todo to doing to done and back without changing task metadata', () => {
+  assert.equal(nextTaskStatus('todo'), 'doing');
+  assert.equal(nextTaskStatus('doing'), 'done');
+  assert.equal(nextTaskStatus('done'), 'todo');
+  const task = { status: nextTaskStatus('doing'), priority: 2 as const, dueDate: '2026-10-10', progress: 60 };
+  assert.deepEqual(task, { status: 'done', priority: 2, dueDate: '2026-10-10', progress: 60 });
 });
 await run('replace-current uses the same case-insensitive matching as search', () => {
   const replaced = replaceNodeText(root, 'root', 'mos2', 'TMD');

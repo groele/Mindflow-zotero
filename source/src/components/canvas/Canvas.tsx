@@ -25,6 +25,7 @@ interface CanvasProps {
   onCommitEditNode: (id: string, text: string) => void;
   onCancelEditNode: () => void;
   onToggleCollapse: (id: string) => void;
+  onCycleTaskStatus?: (id: string) => void;
   onOpenInternalLink?: (documentId: string, nodeId?: string) => void;
   onMoveNode: (sourceId: string, targetId: string) => void;
   onContextMenuNode?: (id: string, clientX: number, clientY: number) => void;
@@ -63,6 +64,7 @@ export const Canvas: React.FC<CanvasProps> = ({
   onCommitEditNode,
   onCancelEditNode,
   onToggleCollapse,
+  onCycleTaskStatus,
   onOpenInternalLink,
   onMoveNode,
   onContextMenuNode,
@@ -510,6 +512,7 @@ export const Canvas: React.FC<CanvasProps> = ({
               onCommitEdit={(id, text) => onCommitEditNode(id, text)}
               onCancelEdit={onCancelEditNode}
               onToggleCollapse={onToggleCollapse}
+              onCycleTaskStatus={onCycleTaskStatus}
               onOpenInternalLink={onOpenInternalLink}
               onDragStart={handleNodeDragStart}
               onDragEnd={() => setDraggedNodeId(null)}

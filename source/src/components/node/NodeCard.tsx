@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { LayoutNode } from '../../core/model/types';
 import { safeExternalUrl } from '../../core/model/links';
 import { imageDisplayHeight, isSafeNodeImage } from '../../core/model/nodeImage';
-import { ExternalLink, FileText, ChevronRight, ChevronDown, Tag, Star, Flag, CheckCircle2, HelpCircle, Link2, GraduationCap, Plus } from 'lucide-react';
+import { ExternalLink, FileText, ChevronRight, ChevronDown, Tag, Star, Flag, CheckCircle2, HelpCircle, Link2, GraduationCap, Plus, Circle, Clock3 } from 'lucide-react';
 import { openZoteroUri } from '../../services/zotero/zoteroBridge';
 
 interface NodeCardProps {
@@ -18,6 +18,7 @@ interface NodeCardProps {
   onCommitEdit: (id: string, newText: string) => void;
   onCancelEdit: () => void;
   onToggleCollapse: (id: string) => void;
+  onCycleTaskStatus?: (id: string) => void;
   onOpenInternalLink?: (documentId: string, nodeId?: string) => void;
   onDragStart?: (id: string, e: React.DragEvent) => void;
   onDragEnd?: () => void;
@@ -38,6 +39,7 @@ export const NodeCard: React.FC<NodeCardProps> = ({
   onCommitEdit,
   onCancelEdit,
   onToggleCollapse,
+  onCycleTaskStatus,
   onOpenInternalLink,
   onDragStart,
   onDragEnd,
@@ -195,6 +197,30 @@ export const NodeCard: React.FC<NodeCardProps> = ({
       )}
       {/* Content wrapper */}
       <div className={`flex items-center gap-1.5 min-w-0 overflow-hidden ${nodeImage ? 'w-full justify-center' : 'flex-1'}`}>
+        {node.task && !isEditing && (
+          <button
+            type="button"
+            draggable={false}
+            aria-label={`任务状态：${node.task.status === 'done' ? '已完成' : node.task.status === 'doing' ? '进行中' : '待办'}；点击切换状态`}
+            aria-pressed={node.task.status === 'done'}
+            title={`任务状态：${node.task.status === 'done' ? '已完成' : node.task.status === 'doing' ? '进行中' : '待办'}；点击切换`}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              onCycleTaskStatus?.(node.id);
+            }}
+            onDragStart={(event) => { event.preventDefault(); event.stopPropagation(); }}
+            className={`flex-shrink-0 rounded-full p-0.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+              node.task.status === 'done' ? 'text-emerald-600 hover:text-emerald-700' :
+                node.task.status === 'doing' ? 'text-blue-600 hover:text-blue-700' : 'text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            {node.task.status === 'done' ? <CheckCircle2 className="w-4 h-4" aria-hidden="true" /> :
+              node.task.status === 'doing' ? <Clock3 className="w-4 h-4" aria-hidden="true" /> :
+                <Circle className="w-4 h-4" aria-hidden="true" />}
+          </button>
+        )}
         {/* Node icons */}
         {node.icons && node.icons.length > 0 && (
           <div className="flex items-center gap-1 flex-shrink-0">
@@ -220,7 +246,7 @@ export const NodeCard: React.FC<NodeCardProps> = ({
         ) : node.text ? (
           <span
             title={node.text}
-            className={`truncate flex-1 tracking-wide leading-tight ${isRoot ? 'font-semibold text-sm' : ''}`}
+            className={`truncate flex-1 tracking-wide leading-tight ${isRoot ? 'font-semibold text-sm' : ''} ${node.task?.status === 'done' ? 'line-through opacity-70' : ''}`}
           >
             {node.text}
           </span>

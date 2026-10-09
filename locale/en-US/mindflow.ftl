@@ -15,8 +15,15 @@ mindflow-item-pane-count =
         [one] 1 MindFlow map for this item
        *[other] { $count } MindFlow maps for this item
     }
+mindflow-item-pane-empty-selection = No literature item is selected. You can create a blank map.
 mindflow-item-pane-open =
     .title = Open map: { $title }
-mindflow-item-pane-create = Create map from item
-mindflow-item-pane-create-another = Create another map
+mindflow-item-pane-open-button = Open
+mindflow-item-pane-create = New Mind Map
+    .title = Create a mind map for this Zotero item
+mindflow-item-pane-create-another = Add Mind Map
+    .title = Add another mind map for this Zotero item
 mindflow-item-pane-create-local = Create local map (read-only library)
+    .title = Create a standalone local map copy
+mindflow-item-pane-create-blank = New blank mind map
+    .title = Create a standalone blank mind map

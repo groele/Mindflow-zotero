@@ -6,6 +6,7 @@
 
 | 阶段 / Stage | 状态 / Status | 说明 / Description |
 | --- | --- | --- |
+| 11.0.0 / Add-on major | 公开发布 / Public release | 文档与存储校验加固、任务状态快捷操作、侧栏展开和快速新建 / Document and storage validation, task status controls, expandable sidebar and quick create |
 | 10.0.7 / V10 | 公开发布 / Public release | WebDAV 路径与多级目录加固，清理旧模块 / WebDAV path and nested folder hardening; legacy module cleanup |
 | 10.0.6 | 历史发布 / Historical release | 附件重开身份、WebDAV、备份队列与工作区恢复加固 / Attachment reopen identity, WebDAV, backup queue, and workspace restore hardening |
 | 10.0.4 | 历史发布 / Historical release | 移除文献列表右键菜单项保持整洁 / Removed literature context menu items |
@@ -17,6 +18,7 @@
 
 ## 中文索引
 
+- [11.0.0 大版本发布记录](release-v11.0.0.md)：校验、存储、任务与 MindFlow 侧栏改进，以及验证结果。
 - [10.0.5 发布记录](release-v10.0.5.md)：备份恢复版本校验、快照完整性与回滚输入保护。
 - [10.0.6 发布记录](release-v10.0.6.md)：附件重开身份、WebDAV 取消与响应上限、备份队列快照和工作区恢复并发修复。
 - [10.0.7 发布记录](release-v10.0.7.md)：WebDAV 目录、上传预检与设置页并发处理，以及旧模块清理。
@@ -39,6 +41,7 @@
 
 ## English index
 
+- [11.0.0 major release report](release-v11.0.0.md): validation, storage, task, and MindFlow sidebar improvements with verification results.
 - [10.0.5 release report](release-v10.0.5.md): guarded backup restoration, snapshot validation, and protected editor input during rollback.
 - [10.0.6 release report](release-v10.0.6.md): attachment reopen identity, WebDAV cancellation and response limits, queued backup snapshots, and workspace restore concurrency fixes.
 - [10.0.7 release report](release-v10.0.7.md): WebDAV folders, upload preflight, settings concurrency, and unused module cleanup.

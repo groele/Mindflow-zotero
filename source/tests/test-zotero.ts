@@ -84,6 +84,29 @@ await run('deleted fallback records remain hidden from rebuilt list',async()=>{
   assert.equal((await StorageService.getDocumentList()).some(d=>d.id===first.id),false);
   assert.equal(await StorageService.getDocument(first.id),null);
 });
+await run('deletion tombstone hides a document even while its index and file remain',async()=>{
+  const first=await StorageService.saveDocument(doc('tombstone_fast_path','SOURCE_T'));
+  safeStorage.setItem('mindflow_deleted_doc_'+first.id,'123');
+  try {
+    assert.equal((await StorageService.getDocumentList()).some(item=>item.id===first.id),false);
+    assert.equal(await StorageService.getDocument(first.id),null);
+  } finally {
+    safeStorage.removeItem('mindflow_deleted_doc_'+first.id);
+    await StorageService.deleteDocument(first.id);
+  }
+});
+await run('corrupt local document remains visible in the rebuilt workspace list',async()=>{
+  safeStorage.setItem('mindflow_doc_corrupt_list','{broken');
+  safeStorage.removeItem('mindflow_docs_index');
+  try {
+    const row=(await StorageService.getDocumentList()).find(item=>item.id==='corrupt_list');
+    assert.equal(row?.title,'数据损坏（corrupt_list）');
+    await assert.rejects(()=>StorageService.getDocument('corrupt_list'),/损坏|ID/);
+  } finally {
+    safeStorage.removeItem('mindflow_doc_corrupt_list');
+    safeStorage.removeItem('mindflow_docs_index');
+  }
+});
 await run('explicit restore can recreate a deleted local document',async()=>{
   const restored=await StorageService.saveDocument(doc('deleted_list','SOURCE_H'),{force:true});
   assert.equal((await StorageService.getDocument(restored.id))?.id,restored.id);

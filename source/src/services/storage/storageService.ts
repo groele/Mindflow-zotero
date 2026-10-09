@@ -261,14 +261,25 @@ export class StorageService {
         parsed = null;
       }
       if (Array.isArray(parsed)) {
-        const valid = parsed.filter(isDocumentSummary);
+        const seenIds = new Set<string>();
+        const valid = parsed.filter((item): item is DocumentSummary => {
+          if (!isDocumentSummary(item) || !/^[a-zA-Z0-9_-]{1,148}$/.test(item.id) || seenIds.has(item.id)) return false;
+          seenIds.add(item.id);
+          return true;
+        });
         if (valid.length > 0) {
           // Check for missing keys without parsing map contents. Keep corrupted
           // records discoverable instead of silently dropping their index rows.
-          const existing = (await Promise.all(valid.map(async (summary) => (
-            await getItem(STORAGE_KEYS.DOC_PREFIX + summary.id) !== null ? summary : null
+          // A deletion marker is authoritative even if physical cleanup or index
+          // maintenance was interrupted after the tombstone had been written.
+          const visible = await Promise.all(valid.map(async (summary) => (
+            await getItem(STORAGE_KEYS.DELETED_PREFIX + summary.id) ? null : summary
+          )));
+          const existing = (await Promise.all(visible.map(async (summary) => (
+            summary && await getItem(STORAGE_KEYS.DOC_PREFIX + summary.id) !== null ? summary : null
           )))).filter((summary): summary is DocumentSummary => summary !== null);
-          if (existing.length === valid.length && existing.every((item, i) => item.id === valid[i].id)) return existing;
+          if (existing.length === parsed.length && existing.length === valid.length &&
+              existing.every((item, i) => item.id === valid[i].id)) return existing;
           await setItem(STORAGE_KEYS.DOC_INDEX, JSON.stringify(existing));
           return existing;
         }
@@ -279,10 +290,11 @@ export class StorageService {
     const rebuilt: DocumentSummary[] = [];
     for (const [key, value] of Object.entries(allItems)) {
       if (!key.startsWith(STORAGE_KEYS.DOC_PREFIX) || typeof value !== 'string') continue;
+      const id = key.slice(STORAGE_KEYS.DOC_PREFIX.length);
+      if (!/^[a-zA-Z0-9_-]{1,148}$/.test(id) || await getItem(STORAGE_KEYS.DELETED_PREFIX + id)) continue;
       try {
         const parsed: unknown = JSON.parse(value);
-        if (!isStoredDocument(parsed) || key !== STORAGE_KEYS.DOC_PREFIX + parsed.id ||
-            await getItem(STORAGE_KEYS.DELETED_PREFIX + parsed.id)) continue;
+        if (!isStoredDocument(parsed) || parsed.id !== id) throw new Error('导图文件名与内容 ID 不一致');
         rebuilt.push({
           id: parsed.id,
           title: parsed.title,
@@ -291,7 +303,8 @@ export class StorageService {
           zoteroItemTitle: parsed.metadata?.zoteroItemTitle,
         });
       } catch {
-        // Ignore only the unreadable record; keep other recoverable documents.
+        // Keep damaged records visible so users can see why they will not open.
+        rebuilt.push({ id, title: `数据损坏（${id}）`, updatedAt: 0 });
       }
     }
     rebuilt.sort((a, b) => b.updatedAt - a.updatedAt);

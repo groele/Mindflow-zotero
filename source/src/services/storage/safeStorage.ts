@@ -76,17 +76,17 @@ export const safeStorage = {
       throw new Error('Zotero 首选项存储未连接；数据未写入磁盘');
     }
 
-    // Keep memoryStore updated for browser/dev fallbacks.
-    memoryStore.set(key, strVal);
-
     // 2. Try window.localStorage
     if (isLocalStorageAvailable) {
       try {
         window.localStorage.setItem(key, strVal);
-      } catch {
-        // ignore
+      } catch (error) {
+        throw new Error(`浏览器本地存储写入失败（可能空间不足）；数据未确认持久化：${error instanceof Error ? error.message : String(error)}`);
       }
     }
+    // Keep the in-memory fallback only after the durable write succeeds, or
+    // when this runtime has no localStorage at all.
+    memoryStore.set(key, strVal);
   },
 
   removeItem(key: string): void {
@@ -107,8 +107,8 @@ export const safeStorage = {
     if (isLocalStorageAvailable) {
       try {
         window.localStorage.removeItem(key);
-      } catch {
-        // ignore
+      } catch (error) {
+        throw new Error(`浏览器本地存储删除失败；数据未确认删除：${error instanceof Error ? error.message : String(error)}`);
       }
     }
   },

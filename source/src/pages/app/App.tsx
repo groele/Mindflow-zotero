@@ -7,7 +7,7 @@ import {
   addChildNode, addSiblingNode, updateNode, deleteNode,
   toggleNodeCollapse, moveNode, findNode, findAdjacentNode, generateId,
   duplicateNode, pasteSubtree, deleteMultipleNodes, updateMultipleNodes,
-  setCollapseByLevel, replaceNodeText, replaceAllNodeText, expandAncestors, replaceLiteral
+  setCollapseByLevel, replaceNodeText, replaceAllNodeText, expandAncestors, replaceLiteral, nextTaskStatus
 } from '../../core/model/treeOps';
 import { validRelationships, captureNodeDrafts, retargetDocumentLinks } from '../../core/model/editorState';
 import { computeLayout } from '../../core/layout/layoutEngine';
@@ -1239,6 +1239,13 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     commitRootChange(newRoot);
   }, [doc, commitRootChange]);
 
+  const handleCycleTaskStatus = useCallback((id: string) => {
+    if (!doc) return;
+    const node = findNode(doc.root, id);
+    if (!node?.task) return;
+    handleUpdateNodePatch(id, { task: { ...node.task, status: nextTaskStatus(node.task.status) } });
+  }, [doc, handleUpdateNodePatch]);
+
   const handleImportNodeImage = useCallback(async (file: File, targetId?: string, createChild = false): Promise<void> => {
     if (imageImportBusyRef.current) throw new Error('另一张图片正在处理中，请稍后再试');
     imageImportBusyRef.current = true;
@@ -2424,6 +2431,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
               onCommitEditNode={handleCommitEdit}
               onCancelEditNode={() => setEditingId(null)}
               onToggleCollapse={handleToggleCollapse}
+              onCycleTaskStatus={handleCycleTaskStatus}
               onOpenInternalLink={(documentId, nodeId) => { void openDocumentAt(documentId, nodeId); }}
               onMoveNode={handleMoveNode}
               searchMatchedIds={searchMatchedIds}

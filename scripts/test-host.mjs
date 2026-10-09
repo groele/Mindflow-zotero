@@ -72,7 +72,8 @@ function fixture(options = {}) {
   const items = new Map(), disk = new Map(), prefs = new Map(), elements = new Map(), listeners = new Map();
   let nextID = 10;
   function element(tag) {
-    const node = { localName: tag, children: [], childNodes: [], style: {}, attrs: {}, ownerDocument: doc,
+    const node = { localName: tag, children: [], childNodes: [], style: {}, attrs: {}, ownerDocument: doc, isConnected: true,
+      replaceChildren(...children) { this.children = []; for (const c of children) this.appendChild(c); },
       setAttribute(k,v) { this.attrs[k] = v; }, getAttribute(k) { return this.attrs[k]; }, removeAttribute(k) { delete this.attrs[k]; },
       appendChild(child) { this.children.push(child); child.parentNode = this; },
       querySelector(sel) { return this.children.find(x => x.localName === 'iframe') || null; },
@@ -100,6 +101,13 @@ function fixture(options = {}) {
     Prefs: { get: key => prefs.get(key), set: (k,v) => prefs.set(k,v), clear: k => prefs.delete(k) },
     DataDirectory: { dir: '/data' }, Utilities: { randomString: () => String(nextID++) },
     ProgressWindow: class { changeHeadline() {} addDescription() {} show() {} startCloseTimer() {} },
+    Notifier: { observers: new Map(),
+      registerObserver(observer, types, id) { this.observers.set(id, observer); return id; },
+      unregisterObserver(id) { this.observers.delete(id); },
+      trigger(event, type, ids) { for (const obs of this.observers.values()) obs.notify?.(event, type, ids); } },
+    ItemPaneManager: { sections: new Map(),
+      registerSection(section) { const id = 'sec_' + nextID++; this.sections.set(id, section); return id; },
+      unregisterSection(id) { this.sections.delete(id); } },
     Item: class { constructor() { this.id=nextID++; this.key=('KEY'+this.id).padEnd(8,'X'); this.fields={}; this.notes=[]; }
       setField(k,v) { this.fields[k]=v; } getField(k) { return this.fields[k] || ''; } isNote() { return true; }
       setNote(v) { this.note=v; } async saveTx() { items.set(this.id,this); items.get(this.parentItemID)?.notes.push(this.id); } },
@@ -210,6 +218,22 @@ test('host rejects duplicate nodes and unsafe IDs before any write', async () =>
   await assert.rejects(()=>f.host.workspaceStorage('commitDocument',{doc,expectedRevision:0}),/重复/);
   await assert.rejects(()=>f.host.workspaceStorage('commitDocument',{doc:{...f.map(),id:'../unsafe'},expectedRevision:0}),/结构|存储键/);
   assert.equal(f.disk.size,0);
+});
+test('host storage applies the same strict document-shape checks before any write', async () => {
+  const f=fixture();
+  const invalidDocuments = [
+    { ...f.map(), themeId: undefined },
+    { ...f.map(), revision: -1 },
+    { ...f.map(), root: { ...f.map().root, task: { status: 'done', progress: 101 } } },
+    { ...f.map(), root: { ...f.map().root, image: { dataUrl: 'data:image/gif;base64,AAAA', width: 200, aspectRatio: 1 } } },
+    { ...f.map(), root: { ...f.map().root, internalLink: { documentId: '' } } },
+    { ...f.map(), relationships: [{ id: 'same', fromId: 'root', toId: 'root' }, { id: 'same', fromId: 'root', toId: 'root' }] },
+    { ...f.map(), relationships: [{ id: 'dangling', fromId: 'missing', toId: 'root' }] },
+  ];
+  for (const doc of invalidDocuments) {
+    await assert.rejects(() => f.host.workspaceStorage('commitDocument', { doc, expectedRevision: 0 }));
+  }
+  assert.equal(f.disk.size, 0);
 });
 test('stale revision-one writer cannot recreate a deleted document', async () => {
   const f=fixture();f.disk.set('/data/mindflow/workspace/mindflow_deleted_doc_doc_a.json','123');
@@ -375,4 +399,131 @@ test('snapshot corruption and duplicate additions never overwrite snapshot stora
   await f.host.workspaceStorage('setMany', { items: { [key]: '[null]' } });
   await assert.rejects(() => f.host.workspaceStorage('mutateSnapshots', { docId: doc.id, snapshots: [snap] }), /身份|属性/);
   assert.equal(await f.host.workspaceStorage('get', { key }), '[null]');
+});
+
+test('item pane section resolves parent for literature item and sibling PDF, displays names without expanding, and allows adding map', async () => {
+  const f = fixture();
+  const paper = f.paper('PAPER_ITEM_PANE');
+  const pdf = {
+    id: 991,
+    key: 'PDF991XX',
+    libraryID: 1,
+    parentItemID: paper.id,
+    attachmentFilename: 'paper.pdf',
+    title: 'paper.pdf',
+    isAttachment: () => true,
+    isRegularItem: () => false,
+  };
+  f.items.set(pdf.id, pdf);
+
+  const mapAtt = f.attachment('MAP992XX', 1, paper.id, '/storage/992.mindflow');
+  mapAtt.title = 'Deep Learning Survey (MindFlow 导图源文件)';
+  paper.attachments.push(pdf.id, mapAtt.id);
+
+  // 1. Target resolution
+  assert.equal(f.host.resolveLiteratureTarget(paper)?.id, paper.id);
+  assert.equal(f.host.resolveLiteratureTarget(pdf)?.id, paper.id);
+
+  // 2. getMindflowAttachments when queried with paper or sibling PDF
+  const mapsFromPaper = f.host.getMindflowAttachments(paper);
+  const mapsFromPdf = f.host.getMindflowAttachments(pdf);
+  assert.equal(mapsFromPaper.length, 1);
+  assert.equal(mapsFromPdf.length, 1);
+  assert.equal(mapsFromPaper[0].id, mapAtt.id);
+  assert.equal(mapsFromPdf[0].id, mapAtt.id);
+
+  // 3. Register section
+  f.host.registerItemPaneSection();
+  assert.ok(f.host.itemPaneSectionID);
+  const sectionConfig = f.Zotero.ItemPaneManager.sections.get(f.host.itemPaneSectionID);
+  assert.ok(sectionConfig);
+
+  // 4. onItemChange enables for paper and sibling PDF
+  let enabled = false;
+  sectionConfig.onItemChange({ item: paper, setEnabled: (v) => { enabled = v; } });
+  assert.equal(enabled, true);
+  enabled = false;
+  sectionConfig.onItemChange({ item: pdf, setEnabled: (v) => { enabled = v; } });
+  assert.equal(enabled, true);
+
+  // 5. onRender with sibling PDF
+  const body = f.doc.createElement('div');
+  let summaryArg = null;
+  sectionConfig.onRender({
+    body,
+    item: pdf,
+    setSectionSummary: (s) => { summaryArg = s; }
+  });
+
+  assert.equal(summaryArg, '1');
+  assert.ok(body.children.length > 0);
+  const container = body.children[0];
+
+  // Inspect the rendered content: mind map card displaying name, not expanding nodes
+  const card = container.children.flatMap(c => c.children || []).find(c => c.title?.includes('Deep Learning Survey'));
+  assert.ok(card, 'Mind map card should be rendered');
+  assert.equal(card.title, '打开导图：Deep Learning Survey');
+
+  // Verify clicking map card calls openMindflowAttachment
+  let openedAttachment = null;
+  f.host.openMindflowAttachment = (att) => { openedAttachment = att; };
+  card.click?.(); // or click listener
+  if (card['click']) card['click']({ preventDefault() {}, stopPropagation() {} });
+  assert.equal(openedAttachment?.id, mapAtt.id);
+
+  // Verify "+ 新增思维导图" button is present
+  const addBtn = container.children.find(c => c.textContent?.includes('新增思维导图'));
+  assert.ok(addBtn, 'Add mind map button must be present');
+
+  // Verify clicking "+ 新增思维导图" invokes openMindFlow with parent paper
+  let openOptions = null;
+  f.host.openMindFlow = (opts) => { openOptions = opts; };
+  if (addBtn['click']) addBtn['click']({ preventDefault() {}, stopPropagation() {} });
+  assert.ok(openOptions);
+  assert.equal(openOptions.mode, 'create_from_selection');
+  assert.equal(openOptions.items[0]?.id, paper.id);
+  assert.equal(openOptions.forceNew, true);
+});
+
+test('item pane refresh follows the newly selected item and stops observing after destroy', () => {
+  const f = fixture();
+  const first = f.paper('PAPER_FIRST');
+  const second = f.paper('PAPER_SECOND');
+  f.host.registerItemPaneSection();
+  const section = f.Zotero.ItemPaneManager.sections.get(f.host.itemPaneSectionID);
+  const body = f.doc.createElement('div');
+  let renderCount = 0;
+  const originalReplaceChildren = body.replaceChildren;
+  body.replaceChildren = function (...children) { renderCount += 1; return originalReplaceChildren.apply(this, children); };
+  section.onRender({ body, item: first });
+  section.onItemChange({ item: second, setEnabled() {} });
+  const create = body.children[0].children.find(node => node.localName === 'button');
+  let options = null;
+  f.host.openMindFlow = value => { options = value; };
+  create.click({ preventDefault() {}, stopPropagation() {} });
+  assert.equal(options.items[0].id, second.id);
+  const countAtDestroy = renderCount;
+  section.onDestroy({ body });
+  f.Zotero.Notifier.trigger('modify', 'item', [second.id]);
+  assert.equal(renderCount, countAtDestroy);
+});
+
+test('item pane stays expandable without a literature selection and creates a blank map', () => {
+  const f = fixture();
+  f.host.registerItemPaneSection();
+  const section = f.Zotero.ItemPaneManager.sections.get(f.host.itemPaneSectionID);
+  let enabled = false;
+  section.onItemChange({ item: null, setEnabled: value => { enabled = value; } });
+  assert.equal(enabled, true);
+
+  const body = f.doc.createElement('div');
+  section.onRender({ body, item: null });
+  const container = body.children[0];
+  const create = container.children.find(node => node.localName === 'button');
+  assert.equal(create.textContent, '新建空白思维导图');
+  let options = null;
+  f.host.openMindFlow = value => { options = value; };
+  create.click({ preventDefault() {}, stopPropagation() {} });
+  assert.equal(options.mode, 'create_blank');
+  assert.equal(options.forceNew, true);
 });
