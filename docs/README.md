@@ -6,6 +6,7 @@
 
 | 阶段 / Stage | 状态 / Status | 说明 / Description |
 | --- | --- | --- |
+| 11.1.2 / Add-on patch | 公开发布 / Public release | 修复折叠偏好覆盖、空状态无提示及动态元素命名空间 / Fix restored collapse state, empty-state hint, and dynamic element namespace |
 | 11.1.1 / Add-on patch | 公开发布 / Public release | 首次打开时自动展开侧栏便捷操作 / Auto-expand item-pane quick actions on first open |
 | 11.1.0 / Add-on minor | 公开发布 / Public release | Zotero 文献侧栏便捷操作与 AI 研读工作流 / Zotero item-pane quick actions and AI reading workflow |
 | 11.0.0 / Add-on major | 公开发布 / Public release | 文档与存储校验加固、任务状态快捷操作、侧栏展开和快速新建 / Document and storage validation, task status controls, expandable sidebar and quick create |
@@ -20,6 +21,7 @@
 
 ## 中文索引
 
+- [11.1.2 修复记录](release-v11.1.2.md)：对齐 Todolist-Zotero 的自定义区块生命周期，修复 MindFlow 侧栏操作区空白及折叠状态恢复。
 - [11.1.1 修复记录](release-v11.1.1.md)：首次打开时展开 MindFlow 侧栏操作区及验证结果。
 - [11.1.0 发布记录](release-v11.1.0.md)：侧栏便捷操作、AI 研读工作流与本版验证结果。
 - [11.0.0 大版本发布记录](release-v11.0.0.md)：校验、存储、任务与 MindFlow 侧栏改进，以及验证结果。
@@ -45,6 +47,7 @@
 
 ## English index
 
+- [11.1.2 patch report](release-v11.1.2.md): align custom-section lifecycle with Todolist-Zotero and fix blank or collapsed MindFlow actions.
 - [11.1.1 patch report](release-v11.1.1.md): auto-expanding the MindFlow item-pane action section and validation.
 - [11.1.0 release report](release-v11.1.0.md): Zotero item-pane quick actions, the AI reading workflow, and release validation.
 - [11.0.0 major release report](release-v11.0.0.md): validation, storage, task, and MindFlow sidebar improvements with verification results.

@@ -1204,7 +1204,7 @@
           pluginID: ADDON_ID,
           header: { l10nID: 'mindflow-item-pane-header', icon },
           sidenav: { l10nID: 'mindflow-item-pane-sidenav', icon },
-          onInit: ({ body }) => {
+          onInit: ({ doc, body }) => {
             // Custom Zotero sections start collapsed. Open the quick-action
             // section when the MindFlow pane is first mounted so selecting its
             // sidenav entry reveals the controls immediately.
@@ -1214,6 +1214,17 @@
               // an empty collapsible suppresses both its twisty and open state.
               collapsible.empty = false;
               if (collapsible.open !== true) collapsible.open = true;
+              // Zotero's nested collapsible-section restores its saved state
+              // after this hook runs. Defer once so that a saved `false` does
+              // not hide the actions on the first visit to the MindFlow pane.
+              const expand = () => {
+                if (!body?.isConnected) return;
+                collapsible.empty = false;
+                collapsible.open = true;
+              };
+              const view = doc?.defaultView || body?.ownerDocument?.defaultView;
+              if (typeof view?.requestAnimationFrame === 'function') view.requestAnimationFrame(expand);
+              else view?.setTimeout?.(expand, 0);
             }
           },
           onItemChange: ({ item, setEnabled }) => {
@@ -1264,15 +1275,21 @@
               const target = this.resolveLiteratureTarget(sectionEntry.item);
               sectionEntry.targetID = target?.id || null;
               const maps = target ? this.getMindflowAttachments(target) : [];
-              try { setSectionSummary?.(maps.length ? String(maps.length) : ''); } catch (_) {}
+              // Give the native section a useful hint even when this paper has
+              // no saved maps, so its disclosure control remains discoverable.
+              try { setSectionSummary?.(maps.length ? String(maps.length) : '展开后快速新建导图'); } catch (_) {}
 
               if (!doc) return;
 
-              const container = doc.createElement('div');
+              const htmlNS = 'http://www.w3.org/1999/xhtml';
+              const createElement = (tag) => doc.createElementNS
+                ? doc.createElementNS(htmlNS, tag)
+                : doc.createElement(tag);
+              const container = createElement('div');
               container.className = 'mindflow-sidebar-section';
               const win = doc.defaultView?.ZoteroPane ? doc.defaultView : Zotero.getMainWindow?.();
               const createEl = (tag, className, text) => {
-                const el = doc.createElement(tag);
+                const el = createElement(tag);
                 el.className = className;
                 if (text) el.textContent = text;
                 return el;

@@ -84,7 +84,9 @@ function fixture(options = {}) {
   const doc = { getElementById: id => elements.get(id) || null,
     querySelector: () => null,
     querySelectorAll: () => [...elements.values()].flatMap(n => n.children || []).filter(n => n.localName === 'iframe'),
-    createElement: tag => element(tag), addEventListener() {}, removeEventListener() {}, head: { appendChild() {} } };
+    createElement: tag => element(tag),
+    createElementNS: (namespaceURI, tag) => Object.assign(element(tag), { namespaceURI }),
+    addEventListener() {}, removeEventListener() {}, head: { appendChild() {} } };
   const tabs = { _tabs: [{ id: 'zotero-pane', type: 'library' }], selectedID: 'zotero-pane',
     add({type, title, data}) { const id = `tab-${nextID++}`; const container = element('tab-content');
       elements.set(id, container); this._tabs.push({ id, type, title, data }); this.selectedID = id; return { id, container }; },
@@ -1074,16 +1076,25 @@ test('item pane stays expandable without a literature selection and creates a bl
   assert.equal(options.forceNew, true);
 });
 
-test('MindFlow item-pane section is non-empty and opens on first mount', () => {
+test('MindFlow item-pane keeps an empty paper expandable and renders its controls as XHTML', () => {
   const f = fixture();
   f.host.registerItemPaneSection();
   const section = f.Zotero.ItemPaneManager.sections.get(f.host.itemPaneSectionID);
   const collapsible = { empty: true, open: false };
-  section.onInit({ body: { parentElement: collapsible } });
+  const body = f.doc.createElement('div');
+  let deferredExpand;
+  f.doc.defaultView = { requestAnimationFrame: callback => { deferredExpand = callback; } };
+  section.onInit({ doc: f.doc, body: Object.assign(body, { parentElement: collapsible }) });
   assert.equal(collapsible.empty, false);
   assert.equal(collapsible.open, true);
-  section.onInit({ body: { parentElement: collapsible } });
-  assert.equal(collapsible.open, true, 'initial expansion should be idempotent');
+  collapsible.open = false; // Zotero restores the previously saved collapsed state after onInit.
+  deferredExpand();
+  assert.equal(collapsible.open, true, 'deferred expansion must run after Zotero restores its saved state');
+  let summary;
+  section.onRender({ body, item: null, setSectionSummary: value => { summary = value; } });
+  assert.ok(summary, 'an empty paper must keep a visible section summary and disclosure control');
+  assert.equal(body.children[0].namespaceURI, 'http://www.w3.org/1999/xhtml');
+  assert.ok(body.children[0].children.every(child => child.namespaceURI === 'http://www.w3.org/1999/xhtml'));
 });
 
 test('sidebar quick actions follow the selected PDF parent and keep standalone imports unlinked', async () => {

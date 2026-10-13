@@ -55,6 +55,7 @@ user_pref("extensions.zoteroWinWordIntegration.skipInstallation", true);
 user_pref("extensions.zoteroOpenOfficeIntegration.skipInstallation", true);
 user_pref("extensions.mindflow.showWelcomeOnStartup", false);
 user_pref("extensions.mindflow.windowMode", "tab");
+user_pref("extensions.zotero.panes.mindflow\\@groele\\.org-mindflow-item-pane.open", false);
 user_pref("app.update.auto", false);
 "@
 [IO.File]::WriteAllText((Join-Path $profile 'user.js'), $prefs)

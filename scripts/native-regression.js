@@ -178,6 +178,8 @@
       check(button.getAttribute('aria-label')==='MindFlow' && button.getAttribute('tooltiptext'),'toolbar lacks accessible name');
     });
     await run('item-pane sidenav keeps the MindFlow entry icon-only', async () => {
+      check(Zotero.Prefs.get('panes.mindflow\\@groele\\.org-mindflow-item-pane.open') === false,
+        'native test did not start from the saved collapsed-section state');
       tabs.select('zotero-pane');
       await win.ZoteroPane.collectionsView.selectLibrary(a.libraryID);
       const itemsView = await waitFor(() => win.ZoteroPane.itemsView, 'library item view initialized');
