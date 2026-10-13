@@ -1,4 +1,4 @@
-# MindFlow for Zotero — Add-on Version 11.0.0
+# MindFlow for Zotero — Add-on Version 11.1.0
 
 **在 Zotero 中，把文献、批注与研究思路组织成可编辑的思维导图。**
 
@@ -8,7 +8,7 @@
 
 | 项目 / Item | 当前状态 / Current status |
 | --- | --- |
-| 公开版本 / Public release | **11.0.0**, [v11.0.0](https://github.com/groele/Mindflow-zotero/releases/tag/v11.0.0) |
+| 公开版本 / Public release | **11.1.0**, [v11.1.0](https://github.com/groele/Mindflow-zotero/releases/tag/v11.1.0) |
 | 支持宿主 / Supported host | **Zotero 10.0.x**；原生回归环境为 Windows + Zotero 10.0.6 / Native regression environment: Windows + Zotero 10.0.6 |
 | 插件 ID / Add-on ID | `mindflow@groele.org` |
 | 许可 / License | [MIT](LICENSE) |
@@ -29,14 +29,14 @@ The add-on and Zotero have separate version numbers. This README is bilingual; t
 
 ### 1. 安装与升级
 
-1. 打开 [11.0.0 Release（插件版本）](https://github.com/groele/Mindflow-zotero/releases/tag/v11.0.0)，下载 [`mindflow-zotero-11.0.0.xpi`](https://github.com/groele/Mindflow-zotero/releases/download/v11.0.0/mindflow-zotero-11.0.0.xpi)。请选择 XPI 安装包，GitHub 的 Source code ZIP 不能直接作为插件安装。
+1. 打开 [11.1.0 Release（插件版本）](https://github.com/groele/Mindflow-zotero/releases/tag/v11.1.0)，下载 [`mindflow-zotero-11.1.0.xpi`](https://github.com/groele/Mindflow-zotero/releases/download/v11.1.0/mindflow-zotero-11.1.0.xpi)。请选择 XPI 安装包，GitHub 的 Source code ZIP 不能直接作为插件安装。
 2. 在 Zotero 中打开 **工具 → 插件**，点击齿轮，选择 **从文件安装插件**。
 3. 选择下载的 XPI，完成安装并重启 Zotero。
 4. 通过文献库工具栏的 MindFlow 图标、工具菜单或分类右键菜单打开工作台。
 
-升级前备份 Zotero 数据目录，并导出重要导图或完整工作区。插件 11.0.0 沿用 `mindflow@groele.org`，可以覆盖同 ID 的旧版本；升级本身不代表历史错误关联已被自动修正。此处 11.0.0 是插件版本，当前经过验证的 Zotero 宿主仍为 10.0.x。
+升级前备份 Zotero 数据目录，并导出重要导图或完整工作区。插件 11.1.0 沿用 `mindflow@groele.org`，可以覆盖同 ID 的旧版本；升级本身不代表历史错误关联已被自动修正。此处 11.1.0 是插件版本，当前经过验证的 Zotero 宿主仍为 10.0.x。
 
-公开自动更新元数据为 [`update.json`](update.json) 与 [`zotero/update.json`](zotero/update.json)，目前指向 **11.0.0**。本版全面加固数据验证与存储恢复、完善任务状态操作，并新增可展开的 MindFlow 侧栏及快速新建入口，见 [11.0.0 发布记录](docs/release-v11.0.0.md)。
+公开自动更新元数据为 [`update.json`](update.json) 与 [`zotero/update.json`](zotero/update.json)，目前指向 **11.1.0**。本版新增 Zotero 文献侧栏便捷操作，并完善 AI 论文解析与导图生成流程，见 [11.1.0 发布记录](docs/release-v11.1.0.md)。
 
 ![工具栏预览](docs/toolbar-icon-preview-10.0.1.png)
 
@@ -68,11 +68,12 @@ The add-on and Zotero have separate version numbers. This README is bilingual; t
 | 图片 | PNG、JPEG、WebP 文件导入、粘贴和单文件拖入；图片数据随文档保存，会增加文件体积。 |
 | 文档关联 | Zotero 文献关联、内部文档/节点链接、跨节点关系线、独立导图和合集导图。 |
 | 文献整理 | 引入文献元数据、笔记、PDF 批注；可生成 Zotero 结构化大纲笔记。PDF 与导图附件分别保存。 |
+| Zotero 文献侧栏 | 查看当前条目并快速新建/打开导图、启动 AI 研读、打开工作台、导入导图、打开 PDF 或刷新。 |
 | 阅读与演示 | 禅模式、子树聚焦、缩放适配与演示模式。 |
 | 模板与收件箱 | 从模板开始，收集零散思路并整理到导图。 |
 | 编辑撤销 | 默认最多 50 步节点编辑历史；它与持久化快照不同。 |
 | 历史快照 | 自动与手动快照、预览和恢复；默认保留 20 份，可设置 10–50 份，默认自动间隔 10 分钟。 |
-| AI 研读 | 用户配置服务后生成可编辑草稿，提供材料选择、预览、快速/深度研读与取消。 |
+| AI 研读 | 直接调用 llm-for-zotero 已配置模型；保留本次模型与推理强度选择，生成可编辑草稿。 |
 | WebDAV | 用户配置 HTTPS WebDAV 后上传、保留版本并恢复工作区备份。 |
 
 当前社区实现开放上述功能，无需激活码。外部 AI 服务费用由所用服务决定。基础编辑使用随插件打包的脚本与样式，可以离线运行；AI、WebDAV 和 Zotero 远端文件同步需要网络。
@@ -139,12 +140,16 @@ flowchart TD
 
 #### AI 研读
 
-在设置中填写服务端点、模型和 API Key。服务需要兼容插件使用的 Chat Completions 请求；可选预设及参数兼容处理不保证所有服务提供商可用。PDF 页数限制可配置，默认最大处理页数为 120 页。
+先安装并启用 [llm-for-zotero](https://github.com/yilewang/llm-for-zotero) 3.9.11 或以上版本，在该插件中配置接口、密钥和模型并测试连接。MindFlow 直接调用其公开 Agent API 完成文章总结，无需重复配置模型。PDF 页数限制由 MindFlow 管理，默认 120 页。
 
-1. 选择论文及需要使用的摘要、PDF、笔记、划线或评论。
-2. 查看发送预览中的服务主机、模型、材料数量与预计请求次数；打开本地预览本身不发送论文内容。
+1. 选择论文和读取范围：仅摘要（默认）、仅引言、仅结论、摘要＋引言＋结论或全文。笔记、划线和评论可另外加入，默认不发送。条目摘要为空且 PDF 没有摘要标题时，可点击“选择／补充摘要”，选取或粘贴摘要后确认，随后即可勾选摘要。
+2. 选择实验研究、理论与计算、机理辨析或综述与对比框架；实验研究默认“论文精读导图”：围绕核心问题组织五条主线，整合最多三个核心发现，完整信息自动换行，并保留当前选定的主题与布局；也可选完整解析、速读概览、证据链或实验复现。在预览中选择上游已配置模型及推理强度，检查实际资料量与请求次数；预览本身不发送论文内容。
 3. 明确开始快速或深度研读。未选择的材料不进入该次研读及其对应引用核对。
 4. 检查生成草稿的结构、引用和论断，编辑后再明确归档到 Zotero。
+
+模型与推理选择只影响本次分析，不写回 llm-for-zotero 的默认设置。推理参数由上游按模型能力映射；当前集成暂不支持 WebChat、Codex App Server 和 Claude Code 对话系统。详见[集成说明](docs/llm-for-zotero-integration.md)。
+
+模板与章节读取范围见[AI 集成说明](docs/llm-for-zotero-integration.md)。本地章节识别失败时显示缺口，不自动发送全文。AI 生成内容作为可编辑草稿提供，归档前请检查结构、引文和论断。
 
 取消会中止后续请求并尽可能终止进行中的请求，但服务可能已处理或计费已发送的请求。引用文本匹配用于帮助检查来源，**不证明科学结论正确**。扫描 PDF、缺少文本层或抽取失败的材料不保证可读，也不保证 OCR。
 
@@ -158,7 +163,7 @@ flowchart TD
 
 基础编辑不会要求外部 AI 或 WebDAV 账号。启用 AI 后，所选材料会发送到用户配置的服务；启用 WebDAV 后，工作区内容会上传到该服务器。请确认服务与机构的数据使用要求。
 
-API Key 与 WebDAV 凭据保存在本地设置/宿主偏好中，当前没有应用层加密。完整工作区备份排除设置与凭据；HTTPS 保护传输，但插件不提供备份内容的端到端加密。请避免在 Issues、截图或日志中公开密钥和私有文献内容。
+AI API Key 由 llm-for-zotero 管理，MindFlow 不复制至自身设置或导图。上游管理调用记录，可能在本地保存分析资料与结果。WebDAV 凭据保存在 MindFlow 本地设置/宿主偏好中，当前没有应用层加密。完整工作区备份排除设置与凭据；HTTPS 保护传输，但插件不提供备份内容的端到端加密。请避免在 Issues、截图或日志中公开密钥和私有文献内容。
 
 <a id="zh-formats"></a>
 
@@ -328,14 +333,14 @@ pwsh -NoProfile -File scripts/restart-native-test.ps1
 
 ### 1. Installation and upgrades
 
-1. Open the [11.0.0 Release (add-on version)](https://github.com/groele/Mindflow-zotero/releases/tag/v11.0.0) and download [`mindflow-zotero-11.0.0.xpi`](https://github.com/groele/Mindflow-zotero/releases/download/v11.0.0/mindflow-zotero-11.0.0.xpi). Use the XPI asset; GitHub's Source code ZIP cannot be installed directly as the add-on.
+1. Open the [11.1.0 Release (add-on version)](https://github.com/groele/Mindflow-zotero/releases/tag/v11.1.0) and download [`mindflow-zotero-11.1.0.xpi`](https://github.com/groele/Mindflow-zotero/releases/download/v11.1.0/mindflow-zotero-11.1.0.xpi). Use the XPI asset; GitHub's Source code ZIP cannot be installed directly as the add-on.
 2. In Zotero, open **Tools → Plugins**, click the gear button, and choose **Install Add-on From File**. Menu labels may vary with your Zotero language.
 3. Select the XPI, finish installation, and restart Zotero.
 4. Open MindFlow through its library toolbar icon, the Tools menu, or the collection's context menu.
 
-Before upgrading, back up your Zotero data directory and export important maps or the complete workspace. Add-on version 11.0.0 keeps the ID `mindflow@groele.org` and can replace an older installation with that ID. The supported Zotero host remains 10.0.x. Upgrading does not automatically repair attachments that were previously associated with the wrong paper.
+Before upgrading, back up your Zotero data directory and export important maps or the complete workspace. Add-on version 11.1.0 keeps the ID `mindflow@groele.org` and can replace an older installation with that ID. The supported Zotero host remains 10.0.x. Upgrading does not automatically repair attachments that were previously associated with the wrong paper.
 
-The public update metadata in [`update.json`](update.json) and [`zotero/update.json`](zotero/update.json) currently points to **11.0.0**. This release strengthens document validation and storage recovery, adds task status controls, and makes the MindFlow item pane expandable with a quick create action; see the [11.0.0 release report](docs/release-v11.0.0.md).
+The public update metadata in [`update.json`](update.json) and [`zotero/update.json`](zotero/update.json) currently points to **11.1.0**. This release adds quick actions to Zotero's item pane and improves the AI paper analysis and mind-map workflow; see the [11.1.0 release report](docs/release-v11.1.0.md).
 
 <a id="en-start"></a>
 
@@ -363,11 +368,12 @@ The workspace supports tabs and separate windows; choose the opening mode in set
 | Images | Import PNG, JPEG, and WebP files, paste images, or drop a single file. Embedded image data increases document size. |
 | Document associations | Zotero paper links, internal document/node links, relationship lines, standalone maps, and collection maps. |
 | Literature organization | Bring in metadata, notes, and PDF annotations; generate a structured Zotero outline note. PDFs and map attachments remain separate files. |
+| Zotero item pane | Inspect the selected item; quickly create/open a map, start AI reading, open the workspace, import a map, open a PDF, or refresh. |
 | Reading and presentation | Zen mode, subtree focus, fit/zoom, and presentation mode. |
 | Templates and inbox | Start from a template and collect loose ideas before organizing them into maps. |
 | Editing undo | Up to 50 node-editing steps by default; separate from persistent snapshots. |
 | Snapshots | Automatic/manual snapshots, preview, and restore; 20 retained by default, configurable from 10–50, with a default automatic interval of 10 minutes. |
-| AI reading | User-configured services produce editable drafts, with material selection, request preview, quick/deep modes, and cancellation. |
+| AI reading | Calls models configured in llm-for-zotero; per-run model/reasoning selection produces editable drafts. |
 | WebDAV | Upload, retain versions, and restore workspace backups through a user-configured HTTPS service. |
 
 The current community implementation enables these features without an activation code. External AI services may charge their own fees. Basic editing uses bundled scripts and styles and works offline; AI, WebDAV, and Zotero remote file synchronization require a network connection.
@@ -434,12 +440,14 @@ Full-workspace restoration commits documents individually; **it is not a single 
 
 #### AI reading
 
-Enter a service endpoint, model, and API key in settings. The service must support the Chat Completions requests used by the add-on; presets and parameter compatibility handling do not guarantee support for every provider. The configurable PDF page limit defaults to 120 pages.
+Install and enable [llm-for-zotero](https://github.com/yilewang/llm-for-zotero) 3.9.11 or later, configure models there, and test the connection. MindFlow calls its public Agent API to summarize papers without duplicating model credentials or transport. MindFlow controls the PDF page limit, which defaults to 120 pages.
 
-1. Select the paper and the abstract, PDF, notes, highlights, or comments to use.
-2. Inspect the local preview for the service host, model, material counts, and estimated request count. Opening the preview alone does not transmit paper content.
+1. Select abstract only (default), introduction, conclusion, abstract plus introduction and conclusion, or full text. Additional notes, highlights, and comments are opt-in.
+2. Choose an experimental, theoretical, mechanism, or review framework. Experimental papers default to a reading map with five core-question-oriented branches and up to three integrated discoveries, with wrapped full facts while preserving the selected theme and layout. Full analysis, compact overview, evidence chain, and reproducibility styles remain available. Select a configured upstream model and reasoning level, then inspect actual material counts and estimated calls. Previewing does not transmit paper content.
 3. Explicitly start quick or deep reading. Unselected materials are excluded from that reading run and its associated quotation checks.
 4. Review the draft's structure, quotations, and claims, then edit it before explicitly archiving to Zotero.
+
+Selections apply only to this analysis and do not change upstream defaults. llm-for-zotero maps reasoning levels to model capabilities; unsupported levels may use model defaults. WebChat, Codex App Server, and Claude Code conversations are currently unsupported. See the [integration notes](docs/llm-for-zotero-integration.md).
 
 Cancellation stops subsequent requests and attempts to abort active ones, but a service may already have processed or charged for transmitted requests. Matching quoted text helps check provenance; **it does not prove a scientific claim**. Scanned PDFs, missing text layers, or extraction failures may prevent reading; OCR is not guaranteed.
 
@@ -453,7 +461,7 @@ Backups use versioned workspace JSON files. Check the remote version and restore
 
 Basic editing does not require an external AI or WebDAV account. When AI is enabled, selected materials are sent to the configured service. WebDAV uploads workspace content to the configured server. Check the service's and your institution's data-use requirements.
 
-API keys and WebDAV credentials are stored in local settings/host preferences without application-layer encryption. Complete workspace backups exclude settings and credentials. HTTPS protects transport, but the add-on does not provide end-to-end encryption for backup contents. Do not publish keys or private paper content in Issues, screenshots, or logs.
+AI API keys are managed by llm-for-zotero and are not copied into MindFlow settings or maps. Upstream manages call records and may store analysis input and output locally. WebDAV credentials remain in local MindFlow settings/host preferences without application-layer encryption. Complete workspace backups exclude settings and credentials. HTTPS protects transport, but the add-on does not provide end-to-end encryption for backup contents. Do not publish keys or private paper content in Issues, screenshots, or logs.
 
 <a id="en-formats"></a>
 

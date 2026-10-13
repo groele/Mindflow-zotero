@@ -57,10 +57,7 @@ export interface AppSettings {
   zoteroIncludeTags: boolean;                  // 导入文献时是否自动提取标签
   showWelcomeOnStartup: boolean;               // 启动时是否展示欢迎新建引导页
 
-  // 6. AI 研读与模型配置
-  aiEndpoint: string;                         // AI 接口基础地址 (如 https://api.openai.com/v1)
-  aiModel: string;                            // 模型名称 (如 gpt-4o-mini, deepseek-chat)
-  aiApiKey: string;                           // API 密钥
+  // 6. AI 研读资料范围（模型由 llm-for-zotero 管理）
   aiMaxPdfPages: number;                      // 单篇论文读取 PDF 最大页数 (50/120/200)
 }
 
@@ -109,8 +106,5 @@ export const DEFAULT_SETTINGS: AppSettings = {
   zoteroIncludeTags: true,
   showWelcomeOnStartup: true,
 
-  aiEndpoint: 'https://api.openai.com/v1',
-  aiModel: 'gpt-4o-mini',
-  aiApiKey: '',
   aiMaxPdfPages: 120,
 };

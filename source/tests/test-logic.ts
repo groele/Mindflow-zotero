@@ -10,6 +10,7 @@ import { parseOPMLString } from '../src/services/io/exporter';
 import { BackupService } from '../src/services/storage/backupService';
 import { WebDAVService } from '../src/services/sync/webdavService';
 import type { MindMapNode, MindMapDocument } from '../src/core/model/types';
+import { saveStatusLabel } from '../src/core/model/saveStatus';
 
 let passed = 0, failed = 0;
 async function run(name: string, fn: () => unknown) {
@@ -17,6 +18,12 @@ async function run(name: string, fn: () => unknown) {
   catch (error) { failed++; console.error(`FAIL: ${name}: ${(error as Error).message}`); }
 }
 const root: MindMapNode = { id: 'root', text: 'MoS2 mos2 MOS2', note: 'MOS2 evidence', children: [], task: { status: 'todo' } };
+await run('status distinguishes AI review and archive warnings from real backup failures', () => {
+  assert.equal(saveStatusLabel({ state: 'warning', message: 'AI 草稿已保存在本机，但没有原文片段核对' }), '待核对');
+  assert.equal(saveStatusLabel({ state: 'warning', message: '本地已保存；云端备份失败：401' }), '云备份失败');
+  assert.equal(saveStatusLabel({ state: 'warning', message: '本地已保存；Zotero 附件归档失败：只读' }), '归档待处理');
+  assert.equal(saveStatusLabel({ state: 'warning', message: '请先选择一篇论文' }), '需注意');
+});
 await run('cloned tasks cannot mutate original or undo history', () => {
   const copy = cloneTree(root); copy.task!.status = 'done';
   assert.equal(root.task!.status, 'todo');

@@ -45,27 +45,27 @@ test('inbox write verification failure is reported rather than a successful oper
   f.IOUtils.writeUTF8 = async (...args) => { await write(...args); f.disk.set(args[0], '[]'); };
   await assert.rejects(() => f.host.workspaceStorage('mutateInbox', { additions: [{ id: 'v', text: 'v', createdAt: 1, isProcessed: false }] }), /校验失败/);
 });
-function hangingFetch(_url, { signal }) {
+function hangingTurn(_request, _onEvent, { signal }) {
   return new Promise((_resolve, reject) => {
     const abort = () => reject(Object.assign(new Error('cancelled'), { name: 'AbortError' }));
     if (signal.aborted) abort(); else signal.addEventListener('abort', abort, { once: true });
   });
 }
-test('AI HTTP timeout remains effective when a caller supplies cancellation signal', async () => {
-  const f = fixture({ fetch: hangingFetch }), controller = new AbortController();
+test('upstream call timeout remains effective when a caller supplies cancellation signal', async () => {
+  const f = llmFixture(hangingTurn), controller = new AbortController();
   let watchdog;
   try {
     await assert.rejects(() => Promise.race([
-      f.host._testLLMRequest({ url: 'https://test.invalid', body: {}, timeout: 20, signal: controller.signal }),
+      f.host._testLLMRequest({ config: f.host.getAIConfiguration(), payload: {}, timeout: 20, signal: controller.signal }),
       new Promise((_resolve, reject) => { watchdog = setTimeout(() => reject(new Error('timeout guard never fired')), 250); }),
-    ]), error => error.status === 408);
+    ]), /超时/);
   } finally { clearTimeout(watchdog); controller.abort(); }
 });
-test('explicit AI cancellation is not mislabeled as a timeout', async () => {
-  const f = fixture({ fetch: hangingFetch }), controller = new AbortController();
-  const request = f.host._testLLMRequest({ url: 'https://test.invalid', body: {}, timeout: 1000, signal: controller.signal });
+test('explicit upstream cancellation is not mislabeled as a timeout', async () => {
+  const f = llmFixture(hangingTurn), controller = new AbortController();
+  const request = f.host._testLLMRequest({ config: f.host.getAIConfiguration(), payload: {}, timeout: 1000, signal: controller.signal });
   controller.abort();
-  await assert.rejects(() => request, error => error.name === 'AbortError' && error.status !== 408);
+  await assert.rejects(() => request, /已取消/);
 });
 
 function fixture(options = {}) {
@@ -95,6 +95,7 @@ function fixture(options = {}) {
     addEventListener(type, fn) { listeners.set(type, fn); }, removeEventListener() {},
     setTimeout() { return 1; }, clearTimeout() {} };
   const Zotero = { log() {}, logError() {}, getMainWindow: () => win, getActiveZoteroPane: () => win.ZoteroPane,
+    File: { getContentsFromURL: async () => fs.readFileSync(path.join(root, 'chrome/content/research-templates.json'), 'utf8') },
     Items: { get: id => items.get(id), getByLibraryAndKey: (lib,key) => [...items.values()].find(i => i.libraryID === lib && i.key === key) },
     Libraries: { userLibraryID: 1, get: id => ({ libraryID:id, groupID:id===2?55:undefined, editable:true, filesEditable:true }),
       getAll: () => [{libraryID:1},{libraryID:2}] }, Groups: { getLibraryIDFromGroupID: id => id===55?2:null },
@@ -123,7 +124,7 @@ function fixture(options = {}) {
   const ctx = { Zotero, window:win, Services: { wm: { addListener() {}, removeListener() {}, getEnumerator: () => ({hasMoreElements:()=>false}) } },
     IOUtils, PathUtils: { join: (...parts)=>parts.join('/'), parent:p=>p.slice(0,p.lastIndexOf('/')), filename:p=>p.split('/').pop(), tempDir:'/tmp' },
     URL, setTimeout, clearTimeout, console };
-  vm.runInNewContext(runtime.replace('  Zotero.MindFlow.init();','  Zotero.MindFlow._testLLMRequest = sendLLMHttpRequest;'), ctx);
+  vm.runInNewContext(runtime.replace('  Zotero.MindFlow.init();','  Zotero.MindFlow._testLLMRequest = callLLMForZotero;'), ctx);
   const host = Zotero.MindFlow;
   function paper(key, libraryID=1) {
     const item = { id:nextID++, key, libraryID, attachments:[], notes:[], title:key,
@@ -141,6 +142,551 @@ function fixture(options = {}) {
   const map = (id='doc_a',title='A') => ({id,title,revision:1,root:{id:'root',text:title,children:[]},updatedAt:100,createdAt:1,themeId:'classic-blue',layoutType:'mindmap'});
   return { host, Zotero, items, disk, prefs, doc, tabs, win, listeners, IOUtils, paper, attachment, map };
 }
+
+const llmPref = 'extensions.zotero.llmforzotero.';
+const llmGroups = () => [{ id: 'provider-one', apiBase: 'https://upstream.invalid/v1',
+  apiKey: 'upstream-secret', authMode: 'api_key', providerProtocol: 'openai_chat_compat',
+  models: [{ id: 'model-one', model: 'gpt-5.4' }, { id: 'model-two', model: 'deepseek-reasoner' }] }];
+function llmFixture(runTurn = async () => ({ kind: 'completed', text: '{"sections":{"findings":[]}}' })) {
+  const f = fixture({ fetch: () => { throw new Error('MindFlow must not issue HTTP'); } });
+  f.prefs.set(llmPref + 'modelProviderGroups', JSON.stringify(llmGroups()));
+  f.prefs.set(llmPref + 'lastUsedModelEntryId', 'model-one');
+  f.Zotero.LLMForZotero = { data: { alive: true, initialized: true },
+    api: { agent: { runTurn, getCapabilities: () => ({ reasoning: true }) } } };
+  f.host.serializeZoteroItem = (item) => ({ title: item.title,
+    zoteroUri: `zotero://select/library/items/${item.key}`, abstract: 'The experiment shows enhanced emission.',
+    notes: [{ text: 'private excluded note', uri: 'zotero://note' }], annotations: [] });
+  return f;
+}
+
+test('missing or old upstream plugin produces an actionable error without own HTTP fallback', () => {
+  const f = fixture();
+  assert.throws(() => f.host.getAIConfiguration(), /安装并启用 llm-for-zotero/);
+  f.Zotero.LLMForZotero = { data: { initialized: true }, api: {} };
+  assert.throws(() => f.host.getAIConfiguration(), /3.9.11/);
+});
+
+test('analysis uses the selected upstream model and reasoning and excludes deselected materials', async () => {
+  const calls = [], f = llmFixture(async (request, _onEvent, options) => {
+    calls.push(request); assert.ok(options.signal);
+    return { kind: 'completed', runId: 'verified-run-' + calls.length, text: JSON.stringify({ sections: { findings: [{ text: '发光增强',
+      detail: '', basis: 'paper', source: 'abstract', sourceId: 'AB', quote: 'enhanced emission' }] } }) };
+  });
+  const paper = f.paper('AIARTIC1'), ref = `zotero://select/library/items/${paper.key}`;
+  const preview = await f.host.preparePaperAnalysis(ref);
+  assert.equal(preview.models.length, 2);
+  assert.equal(preview.defaultModelEntryId, 'model-one');
+  assert.ok(!JSON.stringify(preview).includes('upstream-secret'));
+  assert.ok(!JSON.stringify([...f.host._aiPrepared.values()]).includes('upstream-secret'));
+  const opts = { preparedId: preview.preparedId, mode: 'quick', modelEntryId: 'model-two', reasoningLevel: 'high',
+    sources: { abstract: true, pdf: false, notes: false, highlights: false, comments: false } };
+  const result = await f.host.analyzePaperWithAI(ref, opts);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].model, 'deepseek-reasoner');
+  assert.equal(calls[0].apiKey, 'upstream-secret');
+  assert.equal(calls[0].providerProtocol, 'openai_chat_compat');
+  assert.equal(calls[0].reasoning.provider, 'deepseek');
+  assert.equal(calls[0].reasoning.level, 'high');
+  assert.equal(calls[0].item, null);
+  assert.equal(calls[0].activeItemId, undefined);
+  assert.equal(calls[0].history.length, 0);
+  assert.ok(!calls[0].userText.includes('private excluded note'));
+  assert.equal(result.sections.findings[0].verification, 'matched');
+  assert.equal(result.sourceScope.model, 'deepseek-reasoner');
+  assert.equal(result.sourceScope.reasoningLevel, 'high');
+  assert.equal(result.sourceScope.llmIntegration.api, 'agent.runTurn');
+  assert.equal(result.sourceScope.llmIntegration.completedCalls, 1);
+  assert.equal(result.sourceScope.llmIntegration.runIds[0], 'verified-run-1');
+  assert.equal(f.disk.size, 0, 'analysis must not archive automatically');
+  await f.host.analyzePaperWithAI(ref, opts);
+  assert.equal(calls.length, 1, 'same scope should reuse its result');
+  await f.host.analyzePaperWithAI(ref, { ...opts, reasoningLevel: 'low' });
+  await f.host.analyzePaperWithAI(ref, { ...opts, modelEntryId: 'model-one' });
+  assert.equal(calls.length, 3, 'model and reasoning changes must not reuse another result');
+  assert.equal(new Set(calls.map(call => call.conversationKey)).size, 3);
+  assert.ok(!JSON.stringify(result).includes('upstream-secret'));
+});
+
+test('upstream extra tool requests are stopped before they can read other sources', async () => {
+  let executed = false, signal;
+  const f = llmFixture(async (_request, onEvent, options) => {
+    signal = options.signal;
+    await onEvent({ type: 'tool_call', name: 'paper_read' });
+    executed = true;
+    return { kind: 'completed', text: '{}' };
+  });
+  await assert.rejects(() => f.host._testLLMRequest({ config: f.host.getAIConfiguration(), payload: {} }), /额外工具/);
+  assert.equal(executed, false); assert.equal(signal.aborted, true);
+});
+
+test('upstream incomplete or malformed responses never become a successful analysis', async () => {
+  const f = llmFixture(async () => ({ kind: 'fallback', reason: 'unavailable' }));
+  await assert.rejects(() => f.host._testLLMRequest({ config: f.host.getAIConfiguration(), payload: {} }), /未完成|调用失败/);
+  f.Zotero.LLMForZotero.api.agent.runTurn = async () => { throw new Error('Authorization: Bearer upstream-secret'); };
+  await assert.rejects(() => f.host._testLLMRequest({ config: f.host.getAIConfiguration(), payload: {} }),
+    error => /调用失败/.test(error.message) && !error.message.includes('upstream-secret'));
+  f.Zotero.LLMForZotero.api.agent.runTurn = async () => ({ kind: 'completed', text: 'not JSON' });
+  const item = f.paper('BADJSON1'), ref = `zotero://select/library/items/${item.key}`;
+  const preview = await f.host.preparePaperAnalysis(ref);
+  await assert.rejects(() => f.host.analyzePaperWithAI(ref, { preparedId: preview.preparedId }), /JSON 结构/);
+});
+
+test('configuration changes and removed model selections invalidate a prepared analysis', async () => {
+  const f = llmFixture(), item = f.paper('CHANGED1'), ref = `zotero://select/library/items/${item.key}`;
+  const preview = await f.host.preparePaperAnalysis(ref), groups = llmGroups();
+  groups[0].apiBase = 'https://different.invalid/v1';
+  f.prefs.set(llmPref + 'modelProviderGroups', JSON.stringify(groups));
+  await assert.rejects(() => f.host.analyzePaperWithAI(ref, { preparedId: preview.preparedId }), /配置已变化/);
+  assert.throws(() => f.host.getAIConfiguration('nonexistent'), /已移除/);
+});
+
+test('unsupported backend is visible while other upstream models remain selectable', () => {
+  const f = llmFixture(), groups = llmGroups();
+  groups.push({ id: 'web', authMode: 'webchat', models: [{ id: 'web-one', model: 'chatgpt' }] });
+  f.prefs.set(llmPref + 'modelProviderGroups', JSON.stringify(groups));
+  const models = f.host.getAIModels();
+  assert.equal(models.length, 3);
+  assert.equal(models[2].available, false);
+  assert.match(models[2].message, /暂支持 API/);
+  assert.equal(models[0].available, true);
+});
+
+test('upstream custom reasoning options are selectable, validated and forwarded without exposing request configuration', async () => {
+  const calls = [], f = llmFixture(async request => {
+    calls.push(request);
+    return { kind: 'completed', text: JSON.stringify({ sections: { findings: [{ text: 'Result', source: 'abstract', quote: 'enhanced emission' }] } }) };
+  });
+  const groups = llmGroups();
+  groups[0].models[0].profileOverride = { forModel: 'gpt-5.4', extraBody: { private_extension: 'private-profile-data' },
+    reasoning: { kind: 'select', options: [
+      { id: 'off', label: '关闭推理', controls: { body: { thinking: { type: 'disabled' } } } },
+      { id: 'ultra', label: '深度研究', controls: { body: { reasoning_effort: 'high' } } },
+      { id: 'disabled', enabled: false }, { id: 'INVALID' }] } };
+  groups[0].models[1].profileOverride = { reasoning: { kind: 'none', options: [] } };
+  f.prefs.set(llmPref + 'modelProviderGroups', JSON.stringify(groups));
+  const paper = f.paper('CUSTOM01'), ref = `zotero://select/library/items/${paper.key}`;
+  const preview = await f.host.preparePaperAnalysis(ref);
+  assert.deepEqual(Array.from(preview.models[0].reasoningOptions, option => option.id), ['default', 'off', 'ultra']);
+  assert.equal(preview.models[1].reasoningSupported, false);
+  assert.ok(!JSON.stringify(preview).includes('private-profile-data'));
+  assert.equal(preview.models[0].apiBase, undefined);
+  assert.equal(preview.models[0].advanced, undefined);
+  await assert.rejects(() => f.host.analyzePaperWithAI(ref, { preparedId: preview.preparedId, reasoningLevel: 'high' }), /选项无效/);
+  await f.host.analyzePaperWithAI(ref, { preparedId: preview.preparedId, reasoningLevel: 'ultra' });
+  assert.equal(calls[0].reasoning.level, 'ultra');
+  assert.equal(calls[0].advanced.profileOverride.reasoning.options[1].controls.body.reasoning_effort, 'high');
+  assert.equal(calls.length, 1);
+});
+
+test('deep segmented summaries preserve material, conditions and mechanism branches through the same upstream API', async () => {
+  const calls = [], f = llmFixture(async request => {
+    calls.push(request);
+    const payload = JSON.parse(request.userText);
+    const sourceId = payload.pdfSegments?.[0]?.id || payload.pdf?.[0]?.id || 'P1';
+    return { kind: 'completed', runId: 'deep-run-' + calls.length, text: JSON.stringify({ sections: {
+      system: [{ text: 'MoSe2', source: 'pdf', sourceId, quote: 'MoSe2 at 4 K' }],
+      conditions: [{ text: '4 K', source: 'pdf', sourceId, quote: 'at 4 K shows' }],
+      mechanism: [{ text: 'Charge transfer', source: 'pdf', sourceId, quote: 'charge transfer' }],
+      findings: [{ text: 'Enhanced emission', source: 'pdf', sourceId, quote: 'enhanced emission' }],
+    } }) };
+  });
+  const paper = f.paper('DEEP0001'), ref = `zotero://select/library/items/${paper.key}`;
+  const preview = await f.host.preparePaperAnalysis(ref);
+  const prepared = f.host._aiPrepared.get(preview.preparedId);
+  prepared.pdfText = 'MoSe2 at 4 K shows enhanced emission through charge transfer. '.repeat(600);
+  prepared.pdfState = 'Synthetic PDF regression';
+  prepared.readingMode = 'full';
+  const result = await f.host.analyzePaperWithAI(ref, { preparedId: preview.preparedId, mode: 'deep', templateId: 'experimental' });
+  assert.equal(calls.length, 3);
+  assert.equal(result.sourceScope.llmIntegration.completedCalls, 3);
+  for (const key of ['system', 'conditions', 'mechanism', 'findings']) {
+    assert.equal(result.sections[key].length, 1);
+    assert.equal(result.sections[key][0].verification, 'matched');
+  }
+});
+
+test('abort listeners are released on successful preparation and invalid model responses', async () => {
+  const f = llmFixture(), paper = f.paper('CANCEL01'), ref = `zotero://select/library/items/${paper.key}`;
+  const listeners = new Set(), signal = { aborted: false,
+    addEventListener: (_type, fn) => listeners.add(fn), removeEventListener: (_type, fn) => listeners.delete(fn) };
+  const preview = await f.host.preparePaperAnalysis(ref, { signal });
+  assert.equal(listeners.size, 0);
+  await assert.rejects(() => f.host.analyzePaperWithAI(ref, { preparedId: preview.preparedId, signal }), /没有提取/);
+  assert.equal(listeners.size, 0);
+  signal.aborted = true;
+  await assert.rejects(() => f.host.analyzePaperWithAI(ref, { signal }), /取消/);
+});
+
+test('reading scopes send only selected article sections and abstract mode never extracts PDF', async () => {
+  const calls = [], f = llmFixture(async request => {
+    calls.push(request);
+    return { kind: 'completed', text: JSON.stringify({ sections: { question: [{ text: 'Research question', basis: 'inference' }] } }) };
+  });
+  const paper = f.paper('PART0001'), ref = `zotero://select/library/items/${paper.key}`;
+  const pdf = f.attachment('PDFPART1', 1, paper.id, '/paper.pdf'); pdf.isPDFAttachment = () => true;
+  paper.attachments.push(pdf.id); f.disk.set('/paper.pdf', 'PDF');
+  let extractions = 0;
+  const intro = 'INTRODUCTION_SELECTED material motivation knowledge gap. '.repeat(8);
+  const conclusion = 'CONCLUSION_SELECTED main conclusion and future outlook. '.repeat(4);
+  f.Zotero.PDFWorker = { getFullText: async () => { extractions++;
+    return { text: `Article title\n1. Introduction\n${intro}\n2. Results\nUNSELECTED_RESULTS_TOKEN\n3. Methods\nUNSELECTED_METHODS_TOKEN\n4. Conclusions\n${conclusion}\nReferences\nUNSELECTED_REFERENCES_TOKEN`, totalPages: 8, extractedPages: 8 }; } };
+  for (const readingMode of ['abstract', 'introduction', 'conclusion', 'key-sections', 'full']) {
+    const preview = await f.host.preparePaperAnalysis(ref, { readingMode });
+    const result = await f.host.analyzePaperWithAI(ref, { preparedId: preview.preparedId, mode: 'quick',
+      sources: { abstract: true, pdf: true, notes: false, highlights: false, comments: false } });
+    const body = calls.at(-1).userText;
+    assert.equal(result.sourceScope.readingMode, readingMode);
+    assert.equal(body.includes('INTRODUCTION_SELECTED'), ['introduction', 'key-sections', 'full'].includes(readingMode));
+    assert.equal(body.includes('CONCLUSION_SELECTED'), ['conclusion', 'key-sections', 'full'].includes(readingMode));
+    assert.equal(body.includes('enhanced emission'), ['abstract', 'key-sections', 'full'].includes(readingMode));
+    assert.equal(body.includes('UNSELECTED_RESULTS_TOKEN'), readingMode === 'full');
+    if (readingMode === 'abstract') { assert.equal(extractions, 0); assert.equal(preview.sourceScope.pdfCharacters, 0); }
+  }
+  assert.equal(extractions, 4);
+});
+
+test('section switching reuses unchanged PDF text and invalidates it after file changes', async () => {
+  const f = llmFixture(), paper = f.paper('CACHE001'), ref = `zotero://select/library/items/${paper.key}`;
+  const pdf = f.attachment('CACHEPDF', 1, paper.id, '/cached.pdf'); pdf.isPDFAttachment = () => true;
+  paper.attachments.push(pdf.id); f.disk.set('/cached.pdf', 'PDF');
+  let modified = 1, reads = 0;
+  f.IOUtils.stat = async () => ({ size: 100, lastModified: modified });
+  f.Zotero.PDFWorker = { getFullText: async () => { reads++; return { text:
+    `Introduction\n${'Selected introduction motivation. '.repeat(10)}\nResults\nPRIVATE_RESULT\nConcluding remarks\nA concise conclusion answers the central question.\nReferences\nPRIVATE_REFERENCE`, extractedPages: 8, totalPages: 8 }; } };
+  const intro = await f.host.preparePaperAnalysis(ref, { readingMode: 'introduction' });
+  const conclusion = await f.host.preparePaperAnalysis(ref, { readingMode: 'conclusion' });
+  assert.equal(reads, 1);
+  assert.deepEqual(Array.from(intro.sourceScope.sectionStatus.found), ['introduction']);
+  assert.deepEqual(Array.from(conclusion.sourceScope.sectionStatus.found), ['conclusion']);
+  assert.ok(!f.host._aiPrepared.get(conclusion.preparedId).pdfText.includes('PRIVATE_RESULT'));
+  modified++;
+  await f.host.preparePaperAnalysis(ref, { readingMode: 'conclusion' });
+  assert.equal(reads, 2);
+});
+
+test('long selected sections use one analysis call without quick sampling or full-paper leakage', async () => {
+  const calls = [], f = llmFixture(async request => { calls.push(request); return { kind: 'completed',
+    text: JSON.stringify({ sections: { question: [{ text: 'Selected research question', basis: 'inference' }] } }) }; });
+  const paper = f.paper('LONGPART'), ref = `zotero://select/library/items/${paper.key}`;
+  const pdf = f.attachment('LONGPDF1', 1, paper.id, '/long.pdf'); pdf.isPDFAttachment = () => true;
+  paper.attachments.push(pdf.id); f.disk.set('/long.pdf', 'PDF');
+  f.Zotero.PDFWorker = { getFullText: async () => `Introduction\n${'Selected motivation and literature gap. '.repeat(800)}\nSELECTED_TAIL\nResults\nPRIVATE_RESULT` };
+  const preview = await f.host.preparePaperAnalysis(ref, { readingMode: 'introduction' });
+  assert.equal(preview.deepCalls, 1);
+  await f.host.analyzePaperWithAI(ref, { preparedId: preview.preparedId, mode: 'quick' });
+  assert.equal(calls.length, 1);
+  assert.ok(calls[0].userText.includes('SELECTED_TAIL'));
+  assert.ok(!calls[0].userText.includes('PRIVATE_RESULT'));
+  assert.ok(calls[0].systemPrompt.includes('聚焦研究背景'));
+});
+
+test('missing or ambiguous section headings never cause a silent full-paper fallback', async () => {
+  let calls = 0;
+  const f = llmFixture(async () => { calls++; return { kind: 'completed', text: '{}' }; });
+  const paper = f.paper('PART0002'), ref = `zotero://select/library/items/${paper.key}`;
+  const pdf = f.attachment('PDFPART2', 1, paper.id, '/paper.pdf'); pdf.isPDFAttachment = () => true;
+  paper.attachments.push(pdf.id); f.disk.set('/paper.pdf', 'PDF');
+  f.Zotero.PDFWorker = { getFullText: async () => 'Unstructured full paper that must not be sent. '.repeat(20) };
+  let preview = await f.host.preparePaperAnalysis(ref, { readingMode: 'conclusion' });
+  assert.equal(preview.sourceScope.pdfCharacters, 0);
+  assert.equal(preview.sourceScope.sectionStatus.missing[0], 'conclusion');
+  await assert.rejects(() => f.host.analyzePaperWithAI(ref, { preparedId: preview.preparedId,
+    sources: { notes: false, highlights: false, comments: false } }), /未选择/);
+  assert.equal(calls, 0);
+  f.Zotero.PDFWorker.getFullText = async () => ('Conclusions\nPossible conclusion text. '.repeat(10) + '\nReferences\n').repeat(2);
+  preview = await f.host.preparePaperAnalysis(ref, { readingMode: 'conclusion' });
+  assert.equal(preview.sourceScope.pdfCharacters, 0);
+  assert.equal(preview.sourceScope.sectionStatus.missing.length, 1);
+});
+
+test('missing metadata abstract is recovered from PDF front pages without sending the body or widening the reading scope', async () => {
+  const calls = [], f = llmFixture(async request => { calls.push(request); return { kind: 'completed',
+    text: JSON.stringify({ sections: { findings: [{ text: 'Result', basis: 'paper', source: 'abstract', sourceId: 'AB', quote: 'The experiment shows enhanced emission.' }] } }) }; });
+  const paper = f.paper('ABSPDF01'), ref = `zotero://select/library/items/${paper.key}`;
+  f.host.serializeZoteroItem = () => ({ title: 'PDF only', zoteroUri: ref, abstract: '  ', notes: [], annotations: [] });
+  const pdf = f.attachment('ABSPDF02', 1, paper.id, '/paper.pdf'); pdf.isPDFAttachment = () => true;
+  paper.attachments.push(pdf.id); f.disk.set('/paper.pdf', 'PDF');
+  const requestedPages = [];
+  const paragraph = 'The experiment shows enhanced emission. The abstract describes the material and principal findings only. '.repeat(3);
+  f.Zotero.PDFWorker = { getFullText: async (_id, pages) => { requestedPages.push(pages);
+    return { text: `Article title\nAbstract: ${paragraph}\nKeywords: physics\n1. Introduction\nPRIVATE_BODY_TOKEN ${'Body text. '.repeat(40)}\n2. Results\nPRIVATE_RESULT_TOKEN`, totalPages: 20, extractedPages: pages }; } };
+  const preview = await f.host.preparePaperAnalysis(ref);
+  assert.equal(preview.readingMode, 'abstract');
+  assert.equal(preview.sourceScope.paperHasAbstract, false);
+  assert.equal(preview.sourceScope.pdfAttachmentCount, 1);
+  assert.equal(preview.sourceScope.hasAbstract, true);
+  assert.equal(preview.sourceScope.abstractSource, 'pdf');
+  assert.equal(preview.sourceScope.pdfCharacters, 0);
+  assert.equal(preview.sourceScope.pdfTruncated, false);
+  assert.deepEqual(requestedPages, [5]);
+  assert.equal(calls.length, 0, 'preparation must not send article');
+  const result = await f.host.analyzePaperWithAI(ref, { preparedId: preview.preparedId });
+  assert.equal(result.sourceScope.abstractSource, 'pdf');
+  assert.equal(result.sections.findings[0].verification, 'matched');
+  assert.ok(!calls[0].userText.includes('PRIVATE_BODY_TOKEN'));
+  assert.ok(!calls[0].userText.includes('PRIVATE_RESULT_TOKEN'));
+  f.Zotero.PDFWorker.getFullText = async () => `Article title Abstract ${paragraph} Keywords: physics 1. Introduction PRIVATE_BODY_TOKEN`;
+  const flattened = await f.host.preparePaperAnalysis(ref);
+  assert.equal(flattened.sourceScope.abstractSource, 'pdf');
+  await f.host.analyzePaperWithAI(ref, { preparedId: flattened.preparedId });
+  assert.ok(!calls.at(-1).userText.includes('PRIVATE_BODY_TOKEN'));
+});
+
+test('unrecognized or duplicate PDF abstracts leave an actionable empty preview and never substitute the body', async () => {
+  const f = llmFixture(), paper = f.paper('ABSFAIL1'), ref = `zotero://select/library/items/${paper.key}`;
+  f.host.serializeZoteroItem = () => ({ title: 'Missing abstract', zoteroUri: ref, abstract: '', notes: [], annotations: [] });
+  const pdf = f.attachment('ABSFAIL2', 1, paper.id, '/paper.pdf'); pdf.isPDFAttachment = () => true;
+  paper.attachments.push(pdf.id); f.disk.set('/paper.pdf', 'PDF');
+  const paragraph = 'A sufficiently long abstract paragraph describing research results and conditions. '.repeat(4);
+  for (const text of ['Introduction\nBODY_ONLY '.repeat(20), `Abstract\n${paragraph}\nIntroduction\nBody\nAbstract\n${paragraph}\nReferences`]) {
+    f.Zotero.PDFWorker = { getFullText: async () => text };
+    const preview = await f.host.preparePaperAnalysis(ref);
+    assert.equal(preview.sourceScope.abstractSource, 'none');
+    assert.equal(preview.sourceScope.hasAbstract, false);
+    assert.equal(preview.sourceCharacters.abstract, 0);
+    assert.equal(preview.sourceScope.pdfCharacters, 0);
+    assert.equal(preview.sourceScope.pdfAttachmentCount, 1);
+    assert.deepEqual(Array.from(preview.sourceScope.sectionStatus.missing), ['abstract']);
+    await assert.rejects(() => f.host.analyzePaperWithAI(ref, { preparedId: preview.preparedId }), /未选择/);
+  }
+});
+
+test('confirmed PDF abstract selection enables abstract-only input without leaking local recovery text', async () => {
+  const calls = [], f = llmFixture(async request => { calls.push(request); return { kind: 'completed',
+    text: JSON.stringify({ sections: { findings: [{ text: '发光增强', basis: 'paper', source: 'abstract', sourceId: 'AB', quote: 'enhanced emission' }] } }) }; });
+  const paper = f.paper('MANUALAB'), ref = `zotero://select/library/items/${paper.key}`;
+  f.host.serializeZoteroItem = () => ({ title: 'Unlabelled abstract', zoteroUri: ref, abstract: '', notes: [],
+    annotations: [{ text: 'PRIVATE_HIGHLIGHT', comment: 'PRIVATE_COMMENT' }] });
+  const pdf = f.attachment('MANUALPD', 1, paper.id, '/paper.pdf'); pdf.isPDFAttachment = () => true;
+  paper.attachments.push(pdf.id); f.disk.set('/paper.pdf', 'PDF');
+  const paragraph = 'The experiment shows enhanced emission in this material under controlled conditions.';
+  let reads = 0;
+  f.Zotero.PDFWorker = { getFullText: async () => { reads++; return { text: `Authors\n${paragraph}\nPRIVATE_BODY_TOKEN`, extractedPages: 5, totalPages: 19 }; } };
+  const empty = await f.host.preparePaperAnalysis(ref);
+  assert.equal(empty.sourceScope.hasAbstract, false);
+  assert.equal(empty.sourceScope.pdfTruncated, false);
+  assert.equal(empty.sourceScope.highlightCount, 1);
+  assert.equal(empty.sourceScope.commentCount, 1);
+  assert.ok(empty.abstractExcerpt.includes('PRIVATE_BODY_TOKEN'));
+  const preview = await f.host.preparePaperAnalysis(ref, { readingMode: 'abstract', abstractSelection: { preparedId: empty.preparedId, text: paragraph } });
+  assert.notEqual(preview.preparedId, empty.preparedId);
+  assert.equal(reads, 1, 'confirmation should reuse the local snapshot');
+  assert.equal(preview.sourceScope.abstractSource, 'pdf-selected');
+  assert.equal(preview.sourceCharacters.abstract, paragraph.length);
+  assert.equal(preview.sourceScope.pdfCharacters, 0);
+  assert.equal(preview.sourceScope.sectionStatus.missing.length, 0);
+  assert.equal(calls.length, 0);
+  const result = await f.host.analyzePaperWithAI(ref, { preparedId: preview.preparedId });
+  assert.equal(result.sections.findings[0].basis, 'paper');
+  const reconfirmed = await f.host.preparePaperAnalysis(ref, { abstractSelection: { preparedId: preview.preparedId, text: paragraph } });
+  assert.equal(reconfirmed.sourceScope.abstractSource, 'pdf-selected', 'reviewing the same confirmed abstract must retain its original source');
+  assert.ok(calls[0].userText.includes(paragraph));
+  for (const token of ['PRIVATE_BODY_TOKEN', 'PRIVATE_HIGHLIGHT', 'PRIVATE_COMMENT', 'abstractExcerpt']) assert.ok(!calls[0].userText.includes(token));
+});
+
+test('pasted abstracts remain unverified and selection snapshots cannot cross papers or expire', async () => {
+  const f = llmFixture(async () => ({ kind: 'completed', text: JSON.stringify({ sections: { findings: [{
+    text: '待核对摘要中的发光增强', basis: 'paper', source: 'abstract', sourceId: 'AB', quote: 'enhanced emission' }] } }) }));
+  const paper = f.paper('PASTEDAB'), other = f.paper('OTHERABS'), ref = `zotero://select/library/items/${paper.key}`;
+  f.host.serializeZoteroItem = item => ({ title: 'No PDF', zoteroUri: `zotero://select/library/items/${item.key}`, abstract: '', notes: [], annotations: [] });
+  const empty = await f.host.preparePaperAnalysis(ref);
+  const selection = { preparedId: empty.preparedId, text: 'The experiment shows enhanced emission in this material under controlled conditions.' };
+  await assert.rejects(() => f.host.preparePaperAnalysis(`zotero://select/library/items/${other.key}`, { abstractSelection: selection }), /文献已改变/);
+  await assert.rejects(() => f.host.preparePaperAnalysis(ref, { readingMode: 'full', abstractSelection: selection }), /已过期/);
+  await assert.rejects(() => f.host.preparePaperAnalysis(ref, { abstractSelection: { ...selection, text: 'short' } }), /50/);
+  const preview = await f.host.preparePaperAnalysis(ref, { abstractSelection: selection });
+  assert.equal(preview.sourceScope.abstractSource, 'manual');
+  const result = await f.host.analyzePaperWithAI(ref, { preparedId: preview.preparedId });
+  assert.equal(result.sections.findings[0].verification, 'matched');
+  assert.equal(result.sections.findings[0].basis, 'inference');
+  f.host._aiPrepared.get(empty.preparedId).createdAt -= 16 * 60 * 1000;
+  await assert.rejects(() => f.host.preparePaperAnalysis(ref, { abstractSelection: selection }), /已过期/);
+});
+
+test('section boundaries handle summary, theory and tight numbering without treating measurements as headings', async () => {
+  const calls = [], f = llmFixture(async request => {
+    calls.push(request);
+    return { kind: 'completed', text: JSON.stringify({ sections: { question: [{ text: 'Question', basis: 'inference' }] } }) };
+  });
+  const paper = f.paper('BOUND001'), ref = `zotero://select/library/items/${paper.key}`;
+  const pdf = f.attachment('BOUND002', 1, paper.id, '/paper.pdf'); pdf.isPDFAttachment = () => true;
+  paper.attachments.push(pdf.id); f.disk.set('/paper.pdf', 'PDF');
+  const intro = 'Introduction selected motivation and knowledge gap. '.repeat(8);
+  const conclusion = 'Conclusion selected major findings and limitations. '.repeat(5);
+  for (const boundary of ['Summary and outlook', 'Conclusions and perspectives', 'Theory', '2.Methods']) {
+    f.Zotero.PDFWorker = { getFullText: async () => `1.Introduction\n${intro}\n20 K MEASUREMENT_RETAINED\n${boundary}\nUNSELECTED_LATER_SECTION ${conclusion}\nReferences\nUNSELECTED_REFERENCES` };
+    const preview = await f.host.preparePaperAnalysis(ref, { readingMode: 'introduction' });
+    await f.host.analyzePaperWithAI(ref, { preparedId: preview.preparedId, mode: 'quick' });
+    assert.ok(calls.at(-1).userText.includes('MEASUREMENT_RETAINED'));
+    assert.ok(!calls.at(-1).userText.includes('UNSELECTED_LATER_SECTION'));
+    if (boundary.startsWith('Summary') || boundary.startsWith('Conclusions')) {
+      const summary = await f.host.preparePaperAnalysis(ref, { readingMode: 'conclusion' });
+      assert.equal(summary.sourceScope.sectionStatus.found[0], 'conclusion');
+      await f.host.analyzePaperWithAI(ref, { preparedId: summary.preparedId, mode: 'quick' });
+      assert.ok(!calls.at(-1).userText.includes('UNSELECTED_REFERENCES'));
+    }
+  }
+  f.Zotero.PDFWorker.getFullText = async () => `Introduction\n${intro}\nUnrecognized remaining manuscript without a reliable boundary. `.repeat(3);
+  const missing = await f.host.preparePaperAnalysis(ref, { readingMode: 'introduction' });
+  assert.equal(missing.sourceScope.pdfCharacters, 0);
+});
+
+test('story synthesis retains more than five candidates, discovery groups and original quotes', async () => {
+  const calls = [], f = llmFixture(async request => {
+    calls.push(request);
+    const payload = JSON.parse(request.userText);
+    const segment = payload.pdfSegment;
+    const findings = segment ? Array.from({ length: 7 }, (_, index) => ({
+      text: `Observation ${segment.id}-${index}`, topic: '光谱响应', subtopic: '定量观测',
+      detail: 'The comparison and measurement conditions stay visible.', basis: 'paper',
+      source: 'pdf', sourceId: segment.id, quote: `evidence number ${index} measured at 2 K`,
+    })) : payload.segmentDrafts.findings.slice(0, 12).map(entry => ({
+      candidateId: entry.candidateId, topicId: 'T1', subtopic: '定量观测',
+      text: 'MALICIOUS_REWRITE', quote: 'A fabricated synthesis quote must be ignored', sourceId: 'P999',
+    }));
+    return { kind: 'completed', text: JSON.stringify({ topics: [{ id: 'T1', label: '光谱响应' }], sections: {
+      findings, system: segment ? [{ text: `Sample ${segment.id}`, detail: 'Do not erase sample identity',
+        source: 'pdf', sourceId: segment.id, basis: 'paper', quote: 'evidence number 1 measured at 2 K' }] : [],
+    } }) };
+  });
+  const paper = f.paper('STORY001'), ref = `zotero://select/library/items/${paper.key}`;
+  const preview = await f.host.preparePaperAnalysis(ref);
+  const prepared = f.host._aiPrepared.get(preview.preparedId);
+  prepared.pdfText = (Array.from({ length: 7 }, (_, index) => `evidence number ${index} measured at 2 K. `).join('') + 'x '.repeat(80)).repeat(80);
+  prepared.readingMode = 'full';
+  const result = await f.host.analyzePaperWithAI(ref, { preparedId: preview.preparedId, mode: 'deep' });
+  assert.ok(calls.length >= 3);
+  assert.ok(calls[0].systemPrompt.includes('30～100字'));
+  assert.ok(calls[0].systemPrompt.includes('最多 8 项'));
+  const candidates = JSON.parse(calls.at(-1).userText).segmentDrafts.findings;
+  assert.ok(candidates.length > 5);
+  assert.ok(candidates.some(entry => entry.sourceId === 'P2'));
+  assert.equal(result.sourceScope.templateId, 'paper-story');
+  assert.equal(result.sourceScope.synthesisCandidateLimit, 24);
+  assert.equal(result.sections.findings.length, 12);
+  assert.ok(result.sections.findings.every(entry => entry.topic === '光谱响应' && entry.subtopic === '定量观测' && entry.verification === 'matched'));
+  assert.ok(result.sections.findings.every(entry => entry.text.startsWith('Observation P') && entry.quote.startsWith('evidence number')));
+  assert.equal(result.sections.system.length, 2, 'Synthesis must not erase extracted sample identity');
+  assert.ok(result.sections.system.every(entry => entry.verification === 'matched'));
+});
+
+test('plain-string model columns are retained as unverified text instead of silently disappearing', async () => {
+  const f = llmFixture(async () => ({ kind: 'completed', text: JSON.stringify({ sections: {
+    system: ['MoSe2/FePS3 on SiO2/Si'], conditions: ['Measured at 4 K'],
+    findings: [{ text: 'Result', basis: 'inference' }],
+  } }) }));
+  const paper = f.paper('STRINGS1'), ref = `zotero://select/library/items/${paper.key}`;
+  const preview = await f.host.preparePaperAnalysis(ref);
+  const result = await f.host.analyzePaperWithAI(ref, { preparedId: preview.preparedId, mode: 'quick' });
+  assert.equal(result.sections.system[0].text, 'MoSe2/FePS3 on SiO2/Si');
+  assert.equal(result.sections.conditions[0].basis, 'inference');
+  assert.equal(result.sections.system[0].source, 'none');
+  assert.equal(result.sections.system[0].quote, '');
+});
+
+test('story rejects unknown topic IDs and too many main discoveries without manufacturing a map', async () => {
+  for (const badTopics of [false, true]) {
+    const f = llmFixture(async () => ({ kind: 'completed', text: JSON.stringify({
+      topics: badTopics ? Array.from({ length: 6 }, (_, index) => ({ id: `T${index}`, label: `Group ${index}` }))
+        : [{ id: 'T1', label: 'Observation' }],
+      sections: { findings: [{ text: 'Measured result', basis: 'inference', topicId: 'MISSING' }] },
+    }) }));
+    const paper = f.paper('TOPICS01'), ref = `zotero://select/library/items/${paper.key}`;
+    const preview = await f.host.preparePaperAnalysis(ref);
+    await assert.rejects(() => f.host.analyzePaperWithAI(ref, { preparedId: preview.preparedId, mode: 'quick' }),
+      badTopics ? /过多关键发现/ : /主题关联/);
+  }
+});
+
+test('host defaults extra materials to opt-in and refuses a stale reading scope before calling upstream', async () => {
+  const calls = [], f = llmFixture(async request => { calls.push(request);
+    return { kind: 'completed', text: JSON.stringify({ sections: { findings: [{ text: 'Result', basis: 'inference' }] } }) }; });
+  const paper = f.paper('OPTIN001'), ref = `zotero://select/library/items/${paper.key}`;
+  const preview = await f.host.preparePaperAnalysis(ref);
+  await assert.rejects(() => f.host.analyzePaperWithAI(ref, { preparedId: preview.preparedId, readingMode: 'full' }), /读取范围已变化/);
+  assert.equal(calls.length, 0);
+  const opts = { preparedId: preview.preparedId };
+  const first = await f.host.analyzePaperWithAI(ref, opts);
+  assert.ok(!calls[0].userText.includes('private excluded note'));
+  first.sections.findings[0].text = 'MUTATED_BY_CALLER';
+  const second = await f.host.analyzePaperWithAI(ref, opts);
+  assert.equal(second.sections.findings[0].text, 'Result');
+  assert.equal(calls.length, 1);
+  await f.host.analyzePaperWithAI(ref, { ...opts, sources: { notes: true } });
+  assert.ok(calls.at(-1).userText.includes('private excluded note'));
+  assert.equal(calls.length, 2);
+});
+
+if (process.env.MINDFLOW_REAL_SCOPE_INPUT && process.env.MINDFLOW_REAL_SCOPE_TEXT) {
+  test('real article extracted text retains narrow scopes through the current host without a remote model call', async () => {
+    const input = JSON.parse(fs.readFileSync(process.env.MINDFLOW_REAL_SCOPE_INPUT, 'utf8'));
+    const text = fs.readFileSync(process.env.MINDFLOW_REAL_SCOPE_TEXT, 'utf8'), scopes = {};
+    const calls = [], f = llmFixture(async request => { calls.push(request);
+      return { kind: 'completed', text: JSON.stringify({ sections: { question: [{ text: 'Question', basis: 'inference' }] } }) }; });
+    const paper = f.paper('REAL0001'), ref = `zotero://select/library/items/${paper.key}`;
+    f.host.serializeZoteroItem = () => ({ title: input.title, zoteroUri: ref, abstract: input.abstract, notes: [], annotations: [] });
+    const pdf = f.attachment('REAL0002', 1, paper.id, '/paper.pdf'); pdf.isPDFAttachment = () => true;
+    paper.attachments.push(pdf.id); f.disk.set('/paper.pdf', 'PDF');
+    let extractions = 0;
+    f.Zotero.PDFWorker = { getFullText: async () => { extractions++; return { text, extractedPages: 8, totalPages: 8 }; } };
+    for (const readingMode of ['abstract', 'introduction', 'conclusion', 'key-sections', 'full']) {
+      const preview = await f.host.preparePaperAnalysis(ref, { readingMode });
+      scopes[readingMode] = { characters: preview.sourceCharacters.abstract + preview.sourceCharacters.pdf,
+        found: Array.from(preview.sourceScope.sectionStatus.found), missing: Array.from(preview.sourceScope.sectionStatus.missing) };
+      if (readingMode !== 'full') {
+        await f.host.analyzePaperWithAI(ref, { preparedId: preview.preparedId, mode: 'quick' });
+        assert.ok(!calls.at(-1).userText.includes('2. Results and Discussion'));
+        assert.ok(!calls.at(-1).userText.includes('4. Experimental Section'));
+      }
+      if (readingMode === 'abstract') assert.equal(extractions, 0);
+    }
+    assert.deepEqual(scopes['key-sections'].found, ['introduction', 'conclusion']);
+    assert.equal(scopes['key-sections'].missing.length, 0);
+    assert.ok(scopes['key-sections'].characters < scopes.full.characters / 4);
+    if (process.env.MINDFLOW_REAL_SCOPE_REPORT) fs.writeFileSync(process.env.MINDFLOW_REAL_SCOPE_REPORT,
+      JSON.stringify({ test: 'current-host-real-extracted-text', remoteModelCalls: 0, scopes }, null, 2));
+  });
+}
+
+test('fixed template choice changes the upstream schema, branch keys and cache scope', async () => {
+  const calls = [], f = llmFixture(async request => {
+    calls.push(request);
+    return { kind: 'completed', text: JSON.stringify({ sections: { question: [{ text: 'Question', basis: 'inference' }],
+      assumptions: [{ text: 'Model assumption', basis: 'inference' }] } }) };
+  });
+  const paper = f.paper('TMPL0001'), ref = `zotero://select/library/items/${paper.key}`;
+  const preview = await f.host.preparePaperAnalysis(ref);
+  await assert.rejects(() => f.host.analyzePaperWithAI(ref, { preparedId: preview.preparedId, templateId: 'unknown' }), /模板无效/);
+  for (const templateId of ['experimental', 'experimental-compact', 'experimental-evidence', 'experimental-protocol', 'theoretical', 'mechanism', 'review']) {
+    const result = await f.host.analyzePaperWithAI(ref, { preparedId: preview.preparedId, templateId });
+    assert.equal(result.sourceScope.templateId, templateId);
+    assert.equal(Boolean(result.sections.assumptions), templateId === 'theoretical');
+    assert.ok(calls.at(-1).systemPrompt.includes('各分支要求'));
+    if (templateId === 'experimental-compact') assert.ok(calls.at(-1).systemPrompt.includes('每个分支最多 2 项'));
+  }
+  assert.equal(calls.length, 7);
+});
+
+test('missing source fields recover only from unique long quotes in submitted material and never override conflicting provenance', async () => {
+  const f = llmFixture(async () => ({ kind: 'completed', text: JSON.stringify({ sections: { findings: [
+    { text: 'Unique long quote', basis: 'paper', quote: 'The experiment shows enhanced emission.' },
+    { text: 'Conflicting ID', basis: 'paper', sourceId: 'WRONG', quote: 'The experiment shows enhanced emission.' },
+    { text: 'Conflicting source', basis: 'paper', source: 'note', quote: 'The experiment shows enhanced emission.' },
+    { text: 'Short phrase', basis: 'paper', quote: 'enhanced emission' },
+  ] } }) }));
+  const paper = f.paper('RECOV001'), ref = `zotero://select/library/items/${paper.key}`;
+  let preview = await f.host.preparePaperAnalysis(ref);
+  const result = await f.host.analyzePaperWithAI(ref, { preparedId: preview.preparedId });
+  assert.equal(result.sections.findings[0].sourceRecovery, true);
+  assert.equal(result.sections.findings[0].sourceId, 'AB');
+  assert.equal(result.sections.findings[0].basis, 'paper');
+  for (const claim of result.sections.findings.slice(1)) assert.equal(claim.sourceRecovery, false);
+  f.host.serializeZoteroItem = item => ({ title: item.title, zoteroUri: ref, abstract: 'The experiment shows enhanced emission.',
+    notes: [{ text: 'The experiment shows enhanced emission.' }], annotations: [] });
+  preview = await f.host.preparePaperAnalysis(ref);
+  const ambiguous = await f.host.analyzePaperWithAI(ref, { preparedId: preview.preparedId, sources: { notes: true } });
+  assert.equal(ambiguous.sections.findings[0].sourceRecovery, false);
+});
 
 test('tombstoned documents never appear as readable after interrupted deletion', async () => {
   const f=fixture(); f.disk.set('/data/mindflow/workspace/mindflow_doc_doc_a.json',JSON.stringify(f.map()));
@@ -526,4 +1072,89 @@ test('item pane stays expandable without a literature selection and creates a bl
   create.click({ preventDefault() {}, stopPropagation() {} });
   assert.equal(options.mode, 'create_blank');
   assert.equal(options.forceNew, true);
+});
+
+test('sidebar quick actions follow the selected PDF parent and keep standalone imports unlinked', async () => {
+  const f = fixture(), paper = f.paper('QUICK001');
+  const pdf = f.attachment('QUICKPDF', 1, paper.id, '/storage/paper.pdf');
+  pdf.attachmentFilename = 'paper.pdf';
+  paper.attachments.push(pdf.id);
+  f.host.registerItemPaneSection();
+  const config = f.Zotero.ItemPaneManager.sections.get(f.host.itemPaneSectionID);
+  const body = f.doc.createElement('div');
+  config.onRender({ body, item: pdf });
+  const all = node => [node, ...node.children.flatMap(all)];
+  const action = id => all(body).find(node => node.attrs['data-mindflow-action'] === id);
+  const opened = [];
+  f.host.openMindFlow = options => opened.push(options);
+  await action('ai').click();
+  assert.equal(opened[0].mode, 'ai_analyze');
+  assert.equal(opened[0].items[0].id, paper.id);
+  await action('workspace').click();
+  await action('import').click();
+  await action('blank').click();
+  assert.deepEqual(opened.slice(1).map(o => o.mode), ['open', 'import_file', 'create_blank']);
+  assert.ok(opened.slice(1).every(o => !o.items));
+  assert.equal(action('pdf').disabled, false);
+  let readerID;
+  f.Zotero.Reader = { open: id => { readerID = id; } };
+  await action('pdf').click();
+  assert.equal(readerID, pdf.id);
+  config.onItemChange({ item: null, setEnabled() {} });
+  assert.equal(action('ai').disabled, true);
+  assert.equal(action('pdf').disabled, true);
+  await action('ai').click();
+  assert.equal(opened.length, 4, 'disabled AI action must not open another paper');
+  assert.equal(action('import').disabled, false);
+});
+
+test('sidebar errors are visible and repeated renders register only one refresh per body', async () => {
+  const f = fixture(), paper = f.paper('QUICK002');
+  f.host.registerItemPaneSection();
+  const config = f.Zotero.ItemPaneManager.sections.get(f.host.itemPaneSectionID);
+  const body = f.doc.createElement('div');
+  config.onRender({ body, item: paper });
+  config.onRender({ body, item: paper });
+  const actions = body.children[0].children.find(node => node.className === 'mindflow-pane-actions');
+  const ai = actions.children.find(node => node.attrs['data-mindflow-action'] === 'ai');
+  f.host.openMindFlow = async () => { throw new Error('simulated open failure'); };
+  await ai.click();
+  assert.equal(ai.disabled, false);
+  assert.equal(body.children[0].children.find(node => node.attrs.role === 'status').textContent, '操作失败，请重试。');
+  let count = 0;
+  const replace = body.replaceChildren;
+  body.replaceChildren = function (...children) { count++; return replace.apply(this, children); };
+  f.Zotero.Notifier.trigger('modify', 'item', [paper.id]);
+  assert.equal(count, 1);
+});
+
+test('import shortcut queues before readiness and dispatches again in an existing workspace', () => {
+  const f = fixture();
+  f.host.openMindFlow({ mode: 'open' }, f.win);
+  const tab = f.tabs._tabs.find(tab => tab.type === 'mindflow');
+  const frame = f.tabs.getTabContent(tab.id).children[0];
+  tab.data.targetItemId = 'attachment:1:LOADED01';
+  f.host.openMindFlow({ mode: 'open' }, f.win);
+  assert.equal(f.tabs._tabs.filter(tab => tab.type === 'mindflow').length, 1, 'workspace navigation must preserve its loaded editor');
+  f.host.openMindFlow({ mode: 'import_file' }, f.win);
+  assert.equal(frame._mindflowPending.action.mode, 'import_file');
+  frame._mindflowReady = true;
+  f.host.openMindFlow({ mode: 'import_file' }, f.win);
+  assert.equal(frame.contentWindow.messages.at(-1).action.mode, 'import_file');
+  assert.equal(f.tabs._tabs.filter(tab => tab.type === 'mindflow').length, 1);
+});
+
+test('privileged message ownership excludes unknown and closed editor windows', () => {
+  const f = fixture();
+  assert.equal(f.host.ownsWorkspaceWindow(f.win), false);
+  f.host.openMindFlow({ mode: 'open' }, f.win);
+  const tab = f.tabs._tabs.find(tab => tab.type === 'mindflow');
+  const frame = f.tabs.getTabContent(tab.id).children[0];
+  assert.equal(f.host.ownsWorkspaceWindow(frame.contentWindow), true);
+  const standalone = { closed: false };
+  f.host._standaloneWindows = new Map([['workspace', standalone]]);
+  assert.equal(f.host.ownsWorkspaceWindow(standalone), true);
+  standalone.closed = true;
+  assert.equal(f.host.ownsWorkspaceWindow(standalone), false);
+  assert.equal(f.host.ownsWorkspaceWindow({}), false);
 });

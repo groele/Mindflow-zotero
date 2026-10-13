@@ -340,6 +340,24 @@ export interface ExportOptions {
 }
 
 // Export as SVG
+function readingNodeSvg(n: LayoutNode): string {
+  const lines = n.textLines || [n.node.text];
+  const startY = (n.height - lines.length * 20) / 2 + 15;
+  const fill = escapeXml(safeColor(n.bgColor, '#ffffff'));
+  const stroke = escapeXml(safeColor(n.borderColor, '#cbd5e1'));
+  const rx = n.readingStyle ? 5 : n.shape === 'rectangle' ? 0 : n.shape === 'pill' ? n.height / 2 : n.level === 0 ? 12 : 8;
+  const shape = n.readingStyle
+    ? n.level <= 1 ? `<rect width="${n.width}" height="${n.height}" rx="5" fill="${fill}" />` : ''
+    : n.shape === 'underline' && n.level > 0
+      ? `<path d="M 0 ${n.height} H ${n.width}" fill="none" stroke="${stroke}" stroke-width="1.5" />`
+      : `<rect width="${n.width}" height="${n.height}" rx="${rx}" fill="${fill}" stroke="${n.level === 0 ? 'none' : stroke}" stroke-width="1.5" />`;
+  return `<g transform="translate(${n.x}, ${n.y})"><title>${escapeXml(n.node.note || n.node.text)}</title>
+    ${shape}
+    <text font-family="Microsoft YaHei, PingFang SC, sans-serif" font-size="14" font-weight="${n.level <= 1 ? 600 : 400}" fill="${escapeXml(safeColor(n.textColor, '#253e38'))}">
+    ${lines.map((line, index) => `<tspan x="12" y="${startY + index * 20}">${escapeXml(line)}</tspan>`).join('')}
+    </text></g>`;
+}
+
 export function exportToSVG(
   nodes: LayoutNode[],
   connections: ConnectionCurve[],
@@ -368,6 +386,7 @@ export function exportToSVG(
 
   // Draw nodes
   for (const n of nodes) {
+    if (n.textLines) { svg += readingNodeSvg(n); continue; }
     const rx = n.level === 0 ? 12 : (n.shape === 'pill' ? 16 : 8);
     const stroke = n.level === 0 ? 'none' : safeColor(n.borderColor, '#cbd5e1');
     const fill = n.level === 0 ? safeColor(n.bgColor, '#ffffff') : safeColor(theme.surface, '#ffffff');
@@ -455,6 +474,22 @@ export async function exportToPNG(
     const rx = n.level === 0 ? 12 : 8;
     ctx.save();
     ctx.translate(n.x, n.y);
+    if (n.textLines) {
+      if (n.readingStyle ? n.level <= 1 : n.shape !== 'underline' || n.level === 0) {
+        ctx.fillStyle = n.bgColor;
+        const radius = n.readingStyle ? 5 : n.shape === 'rectangle' ? 0 : n.shape === 'pill' ? n.height / 2 : rx;
+        roundRect(ctx, 0, 0, n.width, n.height, radius); ctx.fill();
+        if (!n.readingStyle && n.level > 0) { ctx.strokeStyle = n.borderColor; ctx.lineWidth = 1.5; ctx.stroke(); }
+      } else if (!n.readingStyle) {
+        ctx.beginPath(); ctx.moveTo(0, n.height); ctx.lineTo(n.width, n.height);
+        ctx.strokeStyle = n.borderColor; ctx.lineWidth = 1.5; ctx.stroke();
+      }
+      ctx.font = `${n.level <= 1 ? '600' : '400'} 14px "Microsoft YaHei", "PingFang SC", sans-serif`;
+      ctx.fillStyle = n.textColor; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      const firstY = (n.height - n.textLines.length * 20) / 2 + 10;
+      n.textLines.forEach((line, index) => ctx.fillText(line, 12, firstY + index * 20));
+      ctx.restore(); continue;
+    }
 
     // Box shadow
     ctx.shadowColor = 'rgba(0, 0, 0, 0.08)';
@@ -540,6 +575,7 @@ export function exportToInteractiveHTML(
 
   let nodesSvg = '';
   for (const n of nodes) {
+    if (n.textLines) { nodesSvg += readingNodeSvg(n); continue; }
     const rx = n.level === 0 ? 12 : (n.shape === 'pill' ? 16 : 8);
     const stroke = n.level === 0 ? 'none' : safeColor(n.borderColor, '#cbd5e1');
     const fill = n.level === 0 ? safeColor(n.bgColor, '#ffffff') : safeColor(theme.surface, '#ffffff');

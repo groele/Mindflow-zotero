@@ -1,12 +1,14 @@
 import { MindMapDocument, MindMapNode } from '../../core/model/types';
 import { generateId } from '../../core/model/treeOps';
 import { getZoteroInstance } from './zoteroBridge';
+import { getResearchTemplate, researchSectionDefinitions, researchTemplateVersion } from './researchTemplates';
 
-type SectionKey = 'background' | 'gap' | 'question' | 'system' | 'method' |
-  'findings' | 'resolution' | 'significance' | 'limitations' | 'nextSteps';
+type SectionKey = string;
 
 interface ResearchClaim {
   text: string;
+  topic?: string;
+  subtopic?: string;
   detail: string;
   basis: 'paper' | 'inference' | 'unresolved';
   source: 'abstract' | 'pdf' | 'note' | 'annotation' | 'comment' | 'none';
@@ -16,18 +18,25 @@ interface ResearchClaim {
   verification?: 'matched' | 'no_quote' | 'no_source' | 'unknown_source' | 'ambiguous' | 'unmatched' | 'not_in_draft';
   quote: string;
   attemptedQuote?: string;
+  sourceRecovery?: boolean;
   evidenceContext?: string;
   link?: string;
   pageLabel?: string;
 }
 
 export interface ResearchInputPreview {
+  abstractText?: string;
+  /** Local recovery text; never part of an analysis request. */
+  abstractExcerpt?: string;
+  readingMode: ResearchReadingMode;
   preparedId: string;
   title: string;
   zoteroUri: string;
   model: string;
   endpointHost: string;
   localModel: boolean;
+  defaultModelEntryId: string;
+  models: ResearchModelOption[];
   archiveState: string;
   quickCalls: number;
   deepCalls: number;
@@ -47,6 +56,8 @@ export interface ResearchInputPreview {
     noteReadErrors: number;
     annotationReadErrors: number;
     pdfAttachmentTitle: string;
+    paperHasAbstract: boolean;
+    pdfAttachmentCount: number;
   };
 }
 
@@ -58,6 +69,25 @@ export interface ResearchSourceSelection {
   comments: boolean;
 }
 
+export interface ResearchModelOption {
+  entryId: string;
+  model: string;
+  host?: string;
+  local?: boolean;
+  available: boolean;
+  message?: string;
+  reasoningSupported: boolean;
+  reasoningOptions: Array<{ id: ResearchReasoningLevel; label: string }>;
+  reasoningOptionsSource?: 'llm-for-zotero-profile' | 'upstream-mapping' | 'unsupported';
+}
+export type ResearchReasoningLevel = string;
+export type ResearchReadingMode = 'abstract' | 'introduction' | 'conclusion' | 'key-sections' | 'full';
+export interface ResearchModelSelection {
+  modelEntryId: string;
+  reasoningLevel: ResearchReasoningLevel;
+  templateId?: string;
+}
+
 export type ResearchSourceCharacters = Record<keyof ResearchSourceSelection, number>;
 
 export interface ResearchProgress {
@@ -67,8 +97,13 @@ export interface ResearchProgress {
 }
 
 export interface ResearchRequestOptions {
+  abstractSelection?: { preparedId: string; text: string };
+  readingMode?: ResearchReadingMode;
   preparedId?: string;
   mode?: 'quick' | 'deep';
+  modelEntryId?: string;
+  reasoningLevel?: ResearchReasoningLevel;
+  templateId?: string;
   sources?: ResearchSourceSelection;
   expectedCalls?: number;
   signal?: AbortSignal;
@@ -88,8 +123,17 @@ export interface ResearchAnalysis {
     analysisMode?: 'quick' | 'deep';
     quickSampled?: boolean;
     deepCondensed?: boolean;
+    synthesisCandidateLimit?: number;
     model?: string;
+    modelEntryId?: string;
+    reasoningLevel?: ResearchReasoningLevel;
     endpointHost?: string;
+    llmIntegration?: { service: 'llm-for-zotero'; api: 'agent.runTurn'; completedCalls: number; runIds: string[] };
+    templateId?: string;
+    templateVersion?: number;
+    readingMode?: ResearchReadingMode;
+    abstractSource?: 'zotero' | 'pdf' | 'pdf-selected' | 'manual' | 'none';
+    sectionStatus?: { found: string[]; missing: string[] };
     selectedSources?: ResearchSourceSelection;
     sourceWarnings?: {
       abstractTruncated: boolean;
@@ -104,19 +148,6 @@ export interface ResearchAnalysis {
   };
   sections: Record<SectionKey, ResearchClaim[]>;
 }
-
-const SECTION_LABELS: Array<[SectionKey, string]> = [
-  ['background', '研究背景与领域现状'],
-  ['gap', '已有问题与知识缺口'],
-  ['question', '研究目标与核心问题'],
-  ['system', '研究体系与对象'],
-  ['method', '研究方法与实验设计'],
-  ['findings', '关键结果与证据'],
-  ['resolution', '解决了什么问题'],
-  ['significance', '创新与研究意义'],
-  ['limitations', '局限与未解决问题'],
-  ['nextSteps', '后续验证与研究方向'],
-];
 
 function requestFromHost<T>(type: 'MINDFLOW_PREPARE_PAPER' | 'MINDFLOW_ANALYZE_PAPER',
   reference: string, options: ResearchRequestOptions = {}): Promise<T> {
@@ -167,29 +198,28 @@ function requestFromHost<T>(type: 'MINDFLOW_PREPARE_PAPER' | 'MINDFLOW_ANALYZE_P
     options.signal?.addEventListener('abort', onAbort, { once: true });
     if (options.signal?.aborted) { onAbort(); return; }
     try { window.parent.postMessage({ type, requestId, reference,
-      preparedId: options.preparedId, mode: options.mode, sources: options.sources }, '*'); }
+      preparedId: options.preparedId, mode: options.mode, sources: options.sources,
+      modelEntryId: options.modelEntryId, reasoningLevel: options.reasoningLevel, templateId: options.templateId, readingMode: options.readingMode,
+      abstractSelection: options.abstractSelection }, '*'); }
     catch { finish(new Error('无法向 Zotero 主窗口发送 AI 分析请求。')); }
   });
 }
 
 export async function prepareResearchAnalysis(reference: string,
-  signal?: AbortSignal): Promise<ResearchInputPreview> {
-  if (typeof window !== 'undefined' && window.parent !== window) {
-    return requestFromHost<ResearchInputPreview>('MINDFLOW_PREPARE_PAPER', reference, { signal });
-  }
+  signal?: AbortSignal, readingMode: ResearchReadingMode = 'abstract',
+  abstractSelection?: ResearchRequestOptions['abstractSelection']): Promise<ResearchInputPreview> {
+  // Zotero injects the host API into its chrome workspace. Prefer this channel,
+  // as with storage: privileged Gecko postMessage can omit event.source.
   const zotero = getZoteroInstance();
   if (zotero?.MindFlow?.preparePaperAnalysis) {
     if (signal?.aborted) throw new Error('AI 分析已取消。');
-    return zotero.MindFlow.preparePaperAnalysis(reference, { signal }) as Promise<ResearchInputPreview>;
+    return zotero.MindFlow.preparePaperAnalysis(reference, { signal, readingMode, abstractSelection }) as Promise<ResearchInputPreview>;
   }
-  return requestFromHost<ResearchInputPreview>('MINDFLOW_PREPARE_PAPER', reference, { signal });
+  return requestFromHost<ResearchInputPreview>('MINDFLOW_PREPARE_PAPER', reference, { signal, readingMode, abstractSelection });
 }
 
 export async function requestResearchAnalysis(reference: string,
   options: ResearchRequestOptions = {}): Promise<ResearchAnalysis> {
-  if (typeof window !== 'undefined' && window.parent !== window) {
-    return requestFromHost<ResearchAnalysis>('MINDFLOW_ANALYZE_PAPER', reference, options);
-  }
   const zotero = getZoteroInstance();
   if (zotero?.MindFlow?.analyzePaperWithAI) {
     return zotero.MindFlow.analyzePaperWithAI(reference, {
@@ -201,14 +231,24 @@ export async function requestResearchAnalysis(reference: string,
   return requestFromHost<ResearchAnalysis>('MINDFLOW_ANALYZE_PAPER', reference, options);
 }
 
-export function createResearchDocument(analysis: ResearchAnalysis, themeId: string): MindMapDocument {
+export type ResearchAppearance = Pick<MindMapDocument, 'themeId' | 'layoutType'>;
+
+export function createResearchDocument(analysis: ResearchAnalysis, appearance: ResearchAppearance): MindMapDocument {
   if (!analysis || typeof analysis.title !== 'string' || typeof analysis.zoteroUri !== 'string' ||
       !analysis.sections || typeof analysis.sections !== 'object') {
     throw new Error('AI 研究分析结果格式无效。');
   }
   const scope = analysis.sourceScope;
-  const allClaims = Object.values(analysis.sections).flatMap((entries) => Array.isArray(entries) ? entries : []);
-  const evidenceCount = allClaims.filter((claim) => claim.basis === 'paper' && claim.verification === 'matched').length;
+  const displayTitle = analysis.title.replace(/<[^>]*>/g, '').trim() || analysis.title;
+  const template = getResearchTemplate(scope?.templateId);
+  const story = template.style === 'story';
+  const visibleClaims = (key: SectionKey): ResearchClaim[] => (Array.isArray(analysis.sections[key])
+    ? analysis.sections[key] : []).filter(claim => claim && typeof claim.text === 'string' && claim.text.trim())
+    .slice(0, template.maxClaims || 5);
+  const hasPaperEvidence = (claim: ResearchClaim) => claim.basis === 'paper' && claim.verification === 'matched' &&
+    Boolean(claim.quote?.trim()) && ['abstract', 'pdf', 'annotation'].includes(claim.source);
+  const allClaims = template.keys.flatMap(visibleClaims);
+  const evidenceCount = allClaims.filter(hasPaperEvidence).length;
   const reviewCount = allClaims.length - evidenceCount;
   const warningDescriptions = scope?.sourceWarnings ? [
     scope.selectedSources?.abstract && scope.sourceWarnings.abstractTruncated ? '长摘要' : '',
@@ -224,17 +264,25 @@ export function createResearchDocument(analysis: ResearchAnalysis, themeId: stri
       ? `${scope.sourceWarnings.annotationReadErrors} 处批注读取异常` : '',
   ].filter(Boolean) : [];
   const headline = (key: SectionKey, label: string) => {
-    const claim = Array.isArray(analysis.sections[key]) ? analysis.sections[key][0] : null;
+    const claim = visibleClaims(key)[0];
     if (!claim?.text) return `${label}：资料不足，待补充`;
-    return `${label}（${claim.basis === 'paper' ? '有原文片段' : '待核验'}）：${claim.text}`;
+    return `${label}（${hasPaperEvidence(claim) ? '有原文片段' : '待核验'}）：${claim.text}`;
   };
-  const rootNote = [
+  const headlineLabels: Record<string, string> = { question: '研究目的', system: '材料体系', conditions: '关键条件',
+    mechanism: '作用机理', findings: '主要发现', resolution: '解决的问题', significance: '研究意义',
+    assumptions: '理论模型与假设', predictions: '理论预测', taxonomy: '路线分类', conflicts: '共识与分歧' };
+  let rootNote = [
+    `分析模板：${template.name}；框架：${template.framework}`,
     'AI 辅助论文分析；请依据原文复核。',
+    scope?.model ? `总结服务：llm-for-zotero；模型：${scope.model}；推理强度请求：${scope.reasoningLevel || 'default'}（实际参数由模型能力决定）。` : '',
+    scope?.llmIntegration ? `调用记录：${scope.llmIntegration.api}；${scope.llmIntegration.completedCalls} 次已完成的总结调用。` : '',
+    scope?.readingMode ? `读取范围：${({ abstract: '仅摘要', introduction: '仅引言', conclusion: '仅结论', 'key-sections': '摘要＋引言＋结论', full: '全文' })[scope.readingMode]}。` : '',
+    scope?.abstractSource === 'pdf' ? '摘要来源：本次在关联 PDF 中可靠定位的摘要段落；其他正文依照读取范围选择。' : '',
+    scope?.abstractSource === 'pdf-selected' ? '摘要来源：用户从本地 PDF 前页文字中选取并确认的段落；摘要边界需人工核对。' : '',
+    scope?.abstractSource === 'manual' ? '摘要来源：用户粘贴的文字，未与本地 PDF 核对；引文匹配只表示与输入一致，分析标为待核验。' : '',
+    scope?.sectionStatus?.missing.length ? `未识别部分：${scope.sectionStatus.missing.join('、')}；未自动回退全文。` : '',
     '速读提要：',
-    headline('question', '研究目的'),
-    headline('system', '研究体系'),
-    headline('resolution', '解决的问题'),
-    headline('significance', '研究意义'),
+    ...template.keys.filter(key => headlineLabels[key]).map(key => headline(key, headlineLabels[key])),
     `证据核对：${evidenceCount} 条有对应原文片段；${reviewCount} 条为推断、待解决或缺少可匹配引文，须人工复核。`,
     '',
     `资料范围：${scope?.pdfState || 'PDF 状态未知'}；摘要${scope?.hasAbstract ? '可用' : '不可用'}；` +
@@ -246,21 +294,22 @@ export function createResearchDocument(analysis: ResearchAnalysis, themeId: stri
     scope?.pdfTruncated ? 'PDF 文字超出本次读取范围或经过跨区间采样，部分内容仍可能未纳入分析。' : '',
     scope?.quickSampled ? '本次为快速模式，PDF 文字仅取跨区间节选。' : '',
     scope?.analysisMode === 'quick' ? '快速模式进一步限制摘要、笔记与批注的发送条数或长度。' : '',
-    scope?.deepCondensed ? '深入模式的最终整合只接收每栏最多 5 条分段候选及缩短的摘要、笔记和批注；其余分段候选未进入最终整合。' : '',
+    scope?.deepCondensed ? `深入模式最终整合接收每栏最多 ${scope.synthesisCandidateLimit || 5} 条分段候选及缩短的摘要、笔记和批注；候选筛选仍可能遗漏内容。` : '',
     warningDescriptions.length ? `准备阶段截取或未纳入：${warningDescriptions.join('、')}。` : '',
-    '【原文支持】仅表示短引文与指定摘要、PDF 片段或批注划线原文匹配，不等于结论已被独立验证。',
+    '绿色勾：短引文与本次原文匹配，不等于科学结论已被独立验证。',
     'P 编号是本次分析的 PDF 文字片段序号，不是 PDF 页码。',
-    '【推断/待核验】是分析线索，不能当成论文已证明的事实。',
+    '问号：推断或待核验；红旗：待解决。具体状态和原文见节点备注。',
   ].filter(Boolean).join('\n');
   let claimCount = 0;
-  const branches: MindMapNode[] = SECTION_LABELS.map(([key, label]) => {
-    const claims = Array.isArray(analysis.sections[key]) ? analysis.sections[key].slice(0, 5) : [];
+  const branches: MindMapNode[] = template.keys.map((key) => {
+    const label = researchSectionDefinitions[key].label;
+    const claims = visibleClaims(key);
     const children: MindMapNode[] = claims
       .filter((claim) => claim && typeof claim.text === 'string' && claim.text.trim())
       .map((claim) => {
         claimCount += 1;
-        const paper = claim.basis === 'paper' && Boolean(claim.quote);
-        const prefix = paper ? '【原文支持】' : claim.basis === 'unresolved' ? '【待解决】' : '【推断/待核验】';
+        const paper = hasPaperEvidence(claim);
+        const status = paper ? '原文片段匹配' : claim.basis === 'unresolved' ? '待解决' : '推断／待核验';
         const sourceLabel: Record<string, string> = {
           abstract: '摘要', pdf: 'PDF 文字节选', note: 'Zotero 笔记',
           annotation: 'Zotero 批注划线文字', comment: 'Zotero 批注评论（读者材料）', none: '无直接引文',
@@ -276,11 +325,13 @@ export function createResearchDocument(analysis: ResearchAnalysis, themeId: stri
         };
         return {
           id: generateId(),
-          text: `${prefix}${claim.text.trim().slice(0, 230)}`,
-          note: [claim.detail?.trim(), `来源：${sourceLabel[claim.source] || '无直接引文'}${claim.sourceId ? `（${claim.sourceId}）` : ''}`,
+          text: story && !paper ? `${claim.basis === 'unresolved' ? '待解决' : '待核验'}：${claim.text.trim()}` : claim.text.trim(),
+          icons: [paper ? 'check' : claim.basis === 'unresolved' ? 'flag' : 'question'],
+          note: [`证据状态：${status}`, claim.detail?.trim(), `来源：${sourceLabel[claim.source] || '无直接引文'}${claim.sourceId ? `（${claim.sourceId}）` : ''}`,
             claim.source === 'none' && claim.requestedSource && claim.requestedSource !== 'none'
               ? `模型声称来源：${sourceLabel[claim.requestedSource] || claim.requestedSource}${claim.requestedSourceId ? `（${claim.requestedSourceId}）` : ''}；未能确认` : '',
             `核对状态：${verificationLabel[claim.verification || ''] || '需人工复核'}`,
+            claim.sourceRecovery ? '模型未给出有效来源；本插件依据长引文在本次输入中的唯一逐字匹配定位来源。该匹配不能代替对判断内容的人工核验。' : '',
             claim.source === 'pdf' && claim.sourceId ? 'PDF 片段编号不是页码；链接打开关联 PDF。' : '',
             claim.pageLabel && ['annotation', 'comment'].includes(claim.source) ? `Zotero 批注页码：${claim.pageLabel}` : '',
             claim.quote ? `${paper ? '原文片段' : '参考片段（不足以直接证明分析判断）'}：${claim.quote}`
@@ -294,21 +345,94 @@ export function createResearchDocument(analysis: ResearchAnalysis, themeId: stri
           children: [],
         };
       });
-    if (!children.length) {
-      children.push({ id: generateId(), text: '资料不足，待阅读原文补充',
+    if (!children.length && !story) {
+      children.push({ id: generateId(), text: '待补充',
         note: '模型未能从本次提供的资料中可靠提取该项。', children: [] });
     }
     return { id: generateId(), text: label,
-      isExpanded: ['gap', 'question', 'system', 'resolution', 'significance'].includes(key), children };
+      isExpanded: ['question', 'system', 'conditions', 'mechanism', 'findings', 'assumptions', 'predictions'].includes(key), children };
   });
   if (claimCount === 0) throw new Error('模型未提取出可用分析条目；未创建空导图。');
+  let displayedBranches = branches;
+  if (story) {
+    const sectionNodes = new Map(template.keys.map((key, index) => [key, branches[index].children]));
+    const makeBranch = (text: string, children: MindMapNode[]): MindMapNode => ({
+      id: generateId(), text, isExpanded: true, children,
+    });
+    // These grouping labels organize already-verified claims. They never create
+    // additional claims, quotes, numbers or inferred mechanisms.
+    const groupSections = (keys: string[]) => {
+      const groups = new Map<string, MindMapNode[]>();
+      for (const key of keys) visibleClaims(key).slice(0, template.claimBudgets?.[key] || 3).forEach((_claim, index) => {
+        const node = sectionNodes.get(key)?.[index];
+        if (!node) return;
+        const label = researchSectionDefinitions[key].label;
+        const entries = groups.get(label) || [];
+        entries.push(node); groups.set(label, entries);
+      });
+      return [...groups].map(([label, children]) => children.length === 1 ? children[0] : makeBranch(label, children));
+    };
+    displayedBranches = [];
+    const addSection = (label: string, keys: string[]) => {
+      const children = groupSections(keys);
+      if (children.length) displayedBranches.push(makeBranch(label, children));
+    };
+    addSection('核心问题与研究目标', ['question', 'gap', 'background']);
+    addSection('研究体系与证据路线', ['system', 'conditions', 'method']);
+    const discoveries = new Map<string, Map<string, MindMapNode[]>>();
+    for (const key of ['findings', 'mechanism']) visibleClaims(key).slice(0, template.claimBudgets?.[key] || 3).forEach((claim, index) => {
+      const node = sectionNodes.get(key)?.[index];
+      if (!node) return;
+      const topic = claim.topic?.trim() || (key === 'findings' ? '观测结果' : '机理解释与证据边界');
+      const subtopic = key === 'findings' ? '观测与对照证据' : '作者解释与证据边界';
+      const groups = discoveries.get(topic) || new Map<string, MindMapNode[]>();
+      const entries = groups.get(subtopic) || [];
+      entries.push(node); groups.set(subtopic, entries); discoveries.set(topic, groups);
+    });
+    const supplementary = discoveries.get('补充证据与对照');
+    discoveries.delete('补充证据与对照');
+    const findingBranches = [...discoveries].slice(0, template.maxTopics || 3).map(([topic, groups], index) => makeBranch(
+      `关键发现 ${index + 1}：${topic}`,
+      [...groups].map(([label, children]) => children.length === 1 ? children[0] : makeBranch(label, children)),
+    ));
+    if (findingBranches.length) displayedBranches.push(makeBranch('关键发现与机制', findingBranches));
+    else if (supplementary) displayedBranches.push(makeBranch('关键发现与机制',
+      [...supplementary].map(([label, children]) => children.length === 1 ? children[0] : makeBranch(label, children))));
+    addSection('问题回应与科学意义', ['resolution', 'significance']);
+    addSection('局限与后续验证', ['limitations', 'nextSteps']);
+    // Deduplicate visible facts without discarding their evidence. Additional
+    // quotes and details remain with the first occurrence; capped facts are
+    // retained in the root note, never silently thrown away.
+    const seen = new Map<string, MindMapNode>();
+    const prune = (node: MindMapNode): boolean => {
+      if (node.children.length) {
+        node.children = node.children.filter(prune);
+        return node.children.length > 0;
+      }
+      const text = node.text.replace(/\s+/g, ' ').trim();
+      const first = seen.get(text);
+      if (first) { first.note += `\n\n合并的同文要点：\n${node.note || ''}`; return false; }
+      seen.set(text, node); return true;
+    };
+    displayedBranches = displayedBranches.filter(prune);
+  }
+  const visibleIds = new Set<string>();
+  const collect = (node: MindMapNode) => { visibleIds.add(node.id); node.children.forEach(collect); };
+  displayedBranches.forEach(collect);
+  const claimNodes = branches.flatMap(branch => branch.children);
+  const visibleClaimNodes = claimNodes.filter(node => visibleIds.has(node.id));
+  const supplementaryClaims = claimNodes.filter(node => !visibleIds.has(node.id));
+  if (supplementaryClaims.length) rootNote += `\n\n补充资料（${supplementaryClaims.length} 条，已从主图凝练；保留原文与核对信息）：\n` +
+    supplementaryClaims.map(node => `${node.text}\n${node.note || ''}`).join('\n\n');
   const now = Date.now();
   return {
     id: 'doc_' + generateId(),
-    title: `${analysis.title} · AI 研究解析`,
-    root: { id: generateId(), text: analysis.title, note: rootNote,
-      link: analysis.zoteroUri, isExpanded: true, children: branches },
-    themeId, layoutType: 'mindmap', createdAt: now, updatedAt: now,
+    title: `${displayTitle} · AI 研究解析`,
+    root: { id: generateId(), text: displayTitle, note: rootNote,
+      link: analysis.zoteroUri, isExpanded: true, children: displayedBranches },
+    // Content templates define reasoning and hierarchy only. Appearance belongs
+    // to the user's current map and must never be replaced by the analysis.
+    themeId: appearance.themeId, layoutType: appearance.layoutType, createdAt: now, updatedAt: now,
     metadata: {
       zoteroItemKey: analysis.zoteroUri,
       zoteroLibraryID: analysis.libraryID,
@@ -316,9 +440,12 @@ export function createResearchDocument(analysis: ResearchAnalysis, themeId: stri
       autoSyncToZotero: false,
       aiGenerated: true,
       aiDraft: true,
-      aiEvidenceCount: evidenceCount,
-      aiReviewCount: reviewCount,
+      aiEvidenceCount: story ? visibleClaimNodes.filter(node => node.icons?.includes('check')).length : evidenceCount,
+      aiReviewCount: story ? visibleClaimNodes.filter(node => !node.icons?.includes('check')).length : reviewCount,
+      aiSupplementaryCount: supplementaryClaims.length,
       aiSourceScope: scope,
+      aiTemplateId: template.id,
+      aiTemplateVersion: scope?.templateVersion || researchTemplateVersion,
     },
   };
 }

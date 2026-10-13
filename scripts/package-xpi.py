@@ -1,9 +1,13 @@
 from pathlib import Path
-import hashlib, json, zipfile
+import argparse, hashlib, json, zipfile
 
 root = Path(__file__).resolve().parents[1]
 manifest = json.loads((root / 'manifest.json').read_text(encoding='utf-8'))
-output = root / f"mindflow-zotero-{manifest['version']}.xpi"
+parser = argparse.ArgumentParser()
+parser.add_argument('--output', help='Local derivative package filename')
+parser.add_argument('--report', default='docs/package-verification.json')
+args = parser.parse_args()
+output = root / (args.output or f"mindflow-zotero-{manifest['version']}.xpi")
 files = [root / name for name in ['manifest.json', 'bootstrap.js', 'prefs.js', 'chrome.manifest', 'update.json']]
 for directory in ['chrome', 'locale']:
     files.extend(p for p in (root / directory).rglob('*') if p.is_file())
@@ -19,5 +23,5 @@ with zipfile.ZipFile(output) as archive:
 report = {'version': manifest['version'], 'file': output.name, 'size': output.stat().st_size,
           'sha256': hashlib.sha256(output.read_bytes()).hexdigest(), 'entries': len(files),
           'payloadVerifiedAgainstWorkspace': True, 'testHarnessIncluded': False}
-(root / 'docs/package-verification.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
+(root / args.report).write_text(json.dumps(report, indent=2), encoding='utf-8')
 print(json.dumps(report, indent=2))

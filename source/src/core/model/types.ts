@@ -99,6 +99,10 @@ export interface ViewportTransform {
 }
 
 export interface LayoutNode {
+  /** Shared line breaks for the reading theme, canvas and all exports. */
+  textLines?: string[];
+  /** Theme-specific styling, independent of multiline text measurement. */
+  readingStyle?: boolean;
   id: string;
   node: MindMapNode;
   x: number;

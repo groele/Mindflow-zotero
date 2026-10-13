@@ -1,0 +1,267 @@
+{
+  "version": 5,
+  "defaultId": "paper-story",
+  "sections": {
+    "background": {
+      "label": "研究背景",
+      "instruction": "领域背景、已有认识与应用需求，避免泛泛评价。"
+    },
+    "gap": {
+      "label": "知识缺口",
+      "instruction": "现有工作具体缺少什么证据、性能或理论解释。"
+    },
+    "question": {
+      "label": "核心问题",
+      "instruction": "用可验证的问题说明研究要解决什么，列出待检验假设。"
+    },
+    "system": {
+      "label": "材料体系",
+      "instruction": "组分、层数、相态、堆叠、衬底、界面、掺杂或处理，说明研究对象及对照。"
+    },
+    "conditions": {
+      "label": "实验条件",
+      "instruction": "只列制备、测量或计算的输入条件：温度、波长、功率、磁场、电压、气氛、时间、边界条件等；保留数值、单位和适用对象。准确率、响应度、增强倍数等输出指标放 findings，不能当作实验条件。摘要没有报告参数时返回空数组，不用性能结果补齐。"
+    },
+    "method": {
+      "label": "研究方法",
+      "instruction": "制备、表征、测量流程、计算方法及对照设计，区分直接测量量和拟合量。"
+    },
+    "mechanism": {
+      "label": "作用机理",
+      "instruction": "按原因—过程—结果组织；区分作者解释、实验支持和分析者推断，不把相关性写成因果或把现象写成机理证明。 原因归因与解释只放在本分支，findings 只报告观测结果；相同事实不在多个分支重复。"
+    },
+    "findings": {
+      "label": "主要发现",
+      "instruction": "列直接观测的现象、定量结果和性能指标，优先保留数值、单位、比较基准与适用条件。一项对应一段原文；不要重复机理分支的因果解释，只报告观测结果。"
+    },
+    "resolution": {
+      "label": "问题回应",
+      "instruction": "结果如何回应核心问题；未回答的部分明确保留。"
+    },
+    "significance": {
+      "label": "研究贡献",
+      "instruction": "已证明贡献、与已有工作差异及可能启示分开，避免把应用设想当成已实现功能。"
+    },
+    "limitations": {
+      "label": "局限边界",
+      "instruction": "资料覆盖、对照缺失、模型适用边界；区分作者报告的局限和分析者提出的疑问。"
+    },
+    "nextSteps": {
+      "label": "后续验证",
+      "instruction": "给出可检验的后续问题与判据，标为建议或推断，不能冒充原文实验。"
+    },
+    "assumptions": {
+      "label": "模型假设",
+      "instruction": "模型名称、有效自由度、近似、哈密顿量或控制方程、忽略项及物理假设；仅引用实际给出的模型与公式。"
+    },
+    "predictions": {
+      "label": "理论预测",
+      "instruction": "参数依赖、趋势、量级、可测量信号及可证伪预测，不把计算输出称为实测结果。"
+    },
+    "validation": {
+      "label": "验证对照",
+      "instruction": "实验对比、极限情形、收敛、量纲、参数可辨识性或替代假设检验；原文未提供的检验标为待验证。"
+    },
+    "alternatives": {
+      "label": "竞争机理",
+      "instruction": "有哪些其他解释，原文用什么独立证据排除；无法排除时保留竞争解释。"
+    },
+    "taxonomy": {
+      "label": "研究路线",
+      "instruction": "按材料、方法、尺度或机理分类，说明分类标准与各路线差异；只比较输入中出现的研究。"
+    },
+    "conflicts": {
+      "label": "共识分歧",
+      "instruction": "哪些结论一致、哪些相互矛盾，条件或定义是否可比；不跨条件直接比较数值或补造引用。"
+    }
+  },
+  "templates": [
+    {
+      "id": "paper-story",
+      "name": "论文精读（按发现组织）",
+      "description": "围绕核心问题组织五条主线，突出少量关键发现与定量证据，辅助信息收进备注。",
+      "framework": "核心问题—研究体系与证据路线—关键发现与机制—问题回应与意义—局限与验证。相关观测、对照与解释合并到同一发现，避免重复与碎片分叉。",
+      "keys": [
+        "background",
+        "gap",
+        "question",
+        "system",
+        "conditions",
+        "method",
+        "mechanism",
+        "findings",
+        "resolution",
+        "significance",
+        "limitations",
+        "nextSteps"
+      ],
+      "family": "experimental",
+      "style": "story",
+      "maxClaims": 12,
+      "claimBudgets": {
+        "background": 1,
+        "gap": 1,
+        "question": 1,
+        "system": 2,
+        "conditions": 2,
+        "method": 2,
+        "findings": 6,
+        "mechanism": 3,
+        "resolution": 1,
+        "significance": 1,
+        "limitations": 2,
+        "nextSteps": 1
+      },
+      "maxTopics": 3
+    },
+    {
+      "id": "experimental",
+      "name": "完整研究解析",
+      "description": "适合材料、光谱、器件与实验论文。",
+      "framework": "研究问题—材料与条件—测量及对照—定量结果—机理证据—贡献与边界。以实验观测、对照和可复现参数为中心，不仅复述摘要。",
+      "keys": [
+        "background",
+        "gap",
+        "question",
+        "system",
+        "conditions",
+        "method",
+        "mechanism",
+        "findings",
+        "resolution",
+        "significance",
+        "limitations",
+        "nextSteps"
+      ],
+      "family": "experimental",
+      "style": "full",
+      "maxClaims": 5
+    },
+    {
+      "id": "experimental-compact",
+      "name": "速读概览",
+      "description": "适合快速阅读与组会导读。",
+      "framework": "优先回答研究做了什么、在什么材料与条件下、主要发现和机理是什么。每个分支最多两项，用简洁节点保留关键参数和证据。",
+      "keys": [
+        "background",
+        "question",
+        "system",
+        "conditions",
+        "method",
+        "mechanism",
+        "findings",
+        "limitations"
+      ],
+      "family": "experimental",
+      "style": "compact",
+      "maxClaims": 2
+    },
+    {
+      "id": "experimental-evidence",
+      "name": "证据链",
+      "description": "适合评估论文可信度与机理证据。",
+      "framework": "按研究假设—实验设计—测量结果—机理解释—竞争解释与验证整理，说明每段证据支持什么以及不能证明什么。",
+      "keys": [
+        "question",
+        "system",
+        "conditions",
+        "method",
+        "findings",
+        "mechanism",
+        "alternatives",
+        "validation",
+        "limitations",
+        "nextSteps"
+      ],
+      "family": "experimental",
+      "style": "evidence",
+      "maxClaims": 5
+    },
+    {
+      "id": "experimental-protocol",
+      "name": "实验复现",
+      "description": "适合提取实验步骤、条件及复现要点。",
+      "framework": "重点提取样品制备、处理、测量顺序、关键设置、定量结果与复现检查。材料和实验条件逐项列出，未报告的参数明确待补充，不猜测数值。机理用实际证据说明。",
+      "keys": [
+        "question",
+        "system",
+        "conditions",
+        "method",
+        "mechanism",
+        "findings",
+        "validation",
+        "limitations",
+        "nextSteps"
+      ],
+      "family": "experimental",
+      "style": "protocol",
+      "maxClaims": 5
+    },
+    {
+      "id": "theoretical",
+      "name": "理论与计算",
+      "description": "适合理论推导、数值模拟与第一性原理计算。",
+      "framework": "物理问题—有效模型与假设—参数与边界—求解—机理—可观测预测—验证。检查量纲、极限、收敛、参数可辨识性和可证伪性；不能因计算成功就断言物理成立。",
+      "keys": [
+        "background",
+        "gap",
+        "question",
+        "system",
+        "assumptions",
+        "conditions",
+        "method",
+        "mechanism",
+        "predictions",
+        "validation",
+        "limitations",
+        "nextSteps"
+      ],
+      "family": "theoretical",
+      "style": ""
+    },
+    {
+      "id": "mechanism",
+      "name": "机理辨析",
+      "description": "适合因果解释、争议现象与竞争机理研究。",
+      "framework": "现象与问题—条件与测量—证据链—候选机理—竞争解释—区分性验证。分别标记现象事实、作者解释和分析者推断；优先梳理独立证据及能区分机理的实验判据。",
+      "keys": [
+        "background",
+        "gap",
+        "question",
+        "system",
+        "conditions",
+        "method",
+        "findings",
+        "mechanism",
+        "alternatives",
+        "validation",
+        "limitations",
+        "nextSteps"
+      ],
+      "family": "mechanism",
+      "style": ""
+    },
+    {
+      "id": "review",
+      "name": "综述与对比",
+      "description": "适合综述、研究路线梳理与条件对照。",
+      "framework": "领域问题—材料与条件—方法分类—机理路线—代表性发现—共识与分歧—开放问题。仅依据提供的综述或资料进行比较，区分综述转述与直接验证，避免把不同定义、温度和测量条件下的结果混为一谈。",
+      "keys": [
+        "background",
+        "gap",
+        "question",
+        "system",
+        "conditions",
+        "method",
+        "taxonomy",
+        "mechanism",
+        "findings",
+        "conflicts",
+        "limitations",
+        "nextSteps"
+      ],
+      "family": "review",
+      "style": ""
+    }
+  ]
+}

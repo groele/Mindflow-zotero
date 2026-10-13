@@ -196,6 +196,86 @@
       check(['MindFlow 导图', 'MindFlow Maps'].includes(custom.getAttribute('tooltiptext')),
         'sidenav tooltip localization is missing or incorrect: ' + custom.getAttribute('tooltiptext'));
     });
+    await run('native sidebar quick actions render without overflow and route the selected paper', async () => {
+      const nav = [...win.document.querySelectorAll('item-pane-sidenav')].map(n => n.querySelector('.btn[data-pane*="mindflow"]')).find(Boolean);
+      nav.click();
+      for (const section of win.document.querySelectorAll('item-pane-custom-section[data-pane*="mindflow-item-pane"]')) {
+        const collapsible = section.querySelector('collapsible-section');
+        if (collapsible) collapsible.open = true;
+      }
+      const panel = await waitFor(() => [...win.document.querySelectorAll('.mindflow-sidebar-section')].find(n => n.getBoundingClientRect().width > 0), 'visible MindFlow sidebar');
+      await win.document.l10n.translateFragment(panel);
+      const action = id => panel.querySelector(`[data-mindflow-action="${id}"]`);
+      check(['create','ai','workspace','import','pdf','blank','refresh'].every(id => action(id)), 'missing sidebar action');
+      check(action('pdf').disabled, 'paper without PDF has enabled PDF shortcut');
+      const open = host.openMindFlow, calls = [];
+      host.openMindFlow = options => calls.push(options);
+      try {
+        for (const id of ['ai','workspace','import','blank','create']) { action(id).click(); await Zotero.Promise.delay(20); }
+        check(calls.map(c => c.mode).join(',') === 'ai_analyze,open,import_file,create_blank,create_from_selection', 'sidebar action routing mismatch');
+        check(calls[0].items[0].id === a.id && calls[4].items[0].id === a.id, 'sidebar used stale paper');
+        check(!calls[3].items && calls[3].forceNew, 'standalone map became linked');
+      } finally { host.openMindFlow = open; }
+      const originalWidth = panel.style.width;
+      try {
+        for (const width of [320, 240, 200]) {
+          panel.style.width = width + 'px';
+          await Zotero.Promise.delay(80);
+          check(panel.scrollWidth <= panel.clientWidth + 1, 'sidebar overflows at ' + width + 'px');
+          for (const button of panel.querySelectorAll('button')) {
+            const box = button.getBoundingClientRect(), parent = panel.getBoundingClientRect();
+            check(box.right <= parent.right + 1, 'button overflows at ' + width + 'px');
+          }
+        }
+      } finally { panel.style.width = originalWidth; }
+      panel.scrollIntoView({ block: 'nearest' });
+      await Zotero.Promise.delay(150);
+      const rect = panel.getBoundingClientRect();
+      const rail = nav.closest('item-pane-sidenav').getBoundingClientRect();
+      check(rect.right <= rail.left + 1 || rect.left >= rail.right - 1, 'sidebar content overlaps the native icon rail');
+      const canvas = win.document.createElementNS('http://www.w3.org/1999/xhtml', 'canvas');
+      canvas.width = Math.ceil(rect.width + 16); canvas.height = Math.ceil(rect.height + 16);
+      canvas.getContext('2d').drawWindow(win, Math.max(0, rect.x - 8), Math.max(0, rect.y - 8), canvas.width, canvas.height, 'rgb(255,255,255)');
+      const binary = win.atob(canvas.toDataURL('image/png').split(',')[1]);
+      await IOUtils.write(PathUtils.join(Zotero.DataDirectory.dir, 'sidebar-ui.png'), Uint8Array.from(binary, c => c.charCodeAt(0)));
+    });
+    await run('native sidebar import reuses the workspace and requests its existing file picker', async () => {
+      host.openMindFlow({ mode: 'open', forceNew: true }, win);
+      const workspaceTab = tabs.selectedID;
+      const frame = await waitFor(() => frameFor(workspaceTab), 'workspace frame');
+      await waitFor(() => frame._mindflowReady && frame.contentDocument.querySelector('[data-mindflow-workspace-import]'), 'workspace import input');
+      const editor = frame.contentWindow.wrappedJSObject || frame.contentWindow;
+      const input = editor.document.querySelector('[data-mindflow-workspace-import]');
+      const original = input.click;
+      let requested = 0;
+      const messages = [];
+      const observe = Components.utils.exportFunction(event => {
+        if (event.data?.type === 'MINDFLOW_OPEN_ACTION') messages.push({ type: event.data.type,
+          mode: event.data.action?.mode, origin: event.origin, isTrusted: event.isTrusted, sourceNull: !event.source,
+          sourceParent: event.source === frame.contentWindow.parent });
+      }, editor);
+      editor.addEventListener('message', observe);
+      Components.utils.exportFunction(() => { requested++; }, input, { defineAs: 'click' });
+      try {
+        check(!host.ownsWorkspaceWindow(win), 'native main window was mistaken for an editor');
+        host.openMindFlow({ mode: 'import_file' }, win);
+        try { await waitFor(() => requested === 1, 'import shortcut reaches picker', 4000); }
+        catch (error) { throw new Error(String(error) + '; messages=' + JSON.stringify(messages) + '; status=' + frame.contentDocument.querySelector('[role="status"]')?.textContent); }
+        check(tabs.selectedID === workspaceTab, 'import shortcut created a duplicate workspace');
+      } finally { editor.removeEventListener('message', observe); input.click = original; tabs.close(workspaceTab); }
+    });
+    await run('native cold import waits for its file input to mount', async () => {
+      host.openMindFlow({ mode: 'import_file', forceNew: true }, win);
+      const importTab = tabs.selectedID, frame = frameFor(importTab);
+      try {
+        const requests = () => (frame.contentWindow.wrappedJSObject || frame.contentWindow)._mindflowNativeImportRequests;
+        await waitFor(() => requests()?.length === 1, 'cold import file picker requested after render');
+        check(requests()[0].mounted, 'cold import clicked an unmounted input');
+        check(frame.contentDocument.querySelector('[data-mindflow-workspace-import]'), 'cold import input not mounted');
+      } finally {
+        tabs.close(importTab);
+      }
+    });
     await run('typing then immediate native tab close retains the latest title', async () => {
       tabs.select(tabA);
       const frame=frameFor(tabA),input=frame.contentDocument.querySelector('header input');
