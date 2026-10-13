@@ -1074,6 +1074,18 @@ test('item pane stays expandable without a literature selection and creates a bl
   assert.equal(options.forceNew, true);
 });
 
+test('MindFlow item-pane section is non-empty and opens on first mount', () => {
+  const f = fixture();
+  f.host.registerItemPaneSection();
+  const section = f.Zotero.ItemPaneManager.sections.get(f.host.itemPaneSectionID);
+  const collapsible = { empty: true, open: false };
+  section.onInit({ body: { parentElement: collapsible } });
+  assert.equal(collapsible.empty, false);
+  assert.equal(collapsible.open, true);
+  section.onInit({ body: { parentElement: collapsible } });
+  assert.equal(collapsible.open, true, 'initial expansion should be idempotent');
+});
+
 test('sidebar quick actions follow the selected PDF parent and keep standalone imports unlinked', async () => {
   const f = fixture(), paper = f.paper('QUICK001');
   const pdf = f.attachment('QUICKPDF', 1, paper.id, '/storage/paper.pdf');

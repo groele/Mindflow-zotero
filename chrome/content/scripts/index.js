@@ -1204,6 +1204,18 @@
           pluginID: ADDON_ID,
           header: { l10nID: 'mindflow-item-pane-header', icon },
           sidenav: { l10nID: 'mindflow-item-pane-sidenav', icon },
+          onInit: ({ body }) => {
+            // Custom Zotero sections start collapsed. Open the quick-action
+            // section when the MindFlow pane is first mounted so selecting its
+            // sidenav entry reveals the controls immediately.
+            const collapsible = body?.parentElement;
+            if (collapsible) {
+              // Zotero marks custom sections with no static bodyXHTML as empty;
+              // an empty collapsible suppresses both its twisty and open state.
+              collapsible.empty = false;
+              if (collapsible.open !== true) collapsible.open = true;
+            }
+          },
           onItemChange: ({ item, setEnabled }) => {
             currentItem = item || null;
             // Keep the section available even when the current selection is a
