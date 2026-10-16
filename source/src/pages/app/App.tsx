@@ -49,7 +49,7 @@ import { BackupService, MAX_BACKUP_BYTES, validateMindMapDocument, WorkspaceBack
 import { WebDAVService } from '../../services/sync/webdavService';
 import { safeStorage } from '../../services/storage/safeStorage';
 import { createResearchDocument, prepareResearchAnalysis, requestResearchAnalysis,
-  ResearchInputPreview, ResearchProgress, ResearchSourceSelection } from '../../services/zotero/researchAnalysis';
+  ResearchInputPreview, ResearchProgress, ResearchSourceSelection, ResearchModelSelection, ResearchReadingMode, ResearchRequestOptions } from '../../services/zotero/researchAnalysis';
 import { AIResearchModal, AIResearchStage } from '../../components/modal/AIResearchModal';
 import { Minimize2 } from 'lucide-react';
 import { sameDocumentSource, planIncomingDocument, detachedMetadata } from '../../services/zotero/documentIdentity';
@@ -109,6 +109,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isZenMode, setIsZenMode] = useState(false);
   const importFileInputRef = useRef<HTMLInputElement>(null);
+  const pendingFileImportRef = useRef(false);
 
   // New features: In-canvas Search, Presentation Mode, Node Context Menu, Commercial License
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -173,6 +174,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
         ? ((window as any)._mindflowInitialAction || (window.frameElement as any)?._mindflowInitialAction || window.arguments?.[0]?.wrappedJSObject || window.arguments?.[0])
         : null;
       if (initialAction && (
+        initialAction.mode === 'import_file' ||
         (initialAction.mode === 'open_document' && !!initialAction.doc) ||
         ((initialAction.mode === 'create_from_selection' || initialAction.mode === 'create_from_items') &&
           Array.isArray(initialAction.items) && initialAction.items.length > 0) ||
@@ -191,7 +193,12 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
 
   useEffect(() => {
     appMountedRef.current = true;
-    return () => { appMountedRef.current = false; };
+    return () => {
+      appMountedRef.current = false;
+      ++aiRequestTokenRef.current;
+      aiAbortRef.current?.abort();
+      aiAbortRef.current = null;
+    };
   }, []);
 
   useEffect(() => {
@@ -235,7 +242,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   };
 
   // Center canvas on root or specific node
-  const centerCanvas = useCallback((bounds?: { minX: number; maxX: number; minY: number; maxY: number }) => {
+  const centerCanvas = useCallback((bounds?: { minX: number; maxX: number; minY: number; maxY: number }, minimumScale = 0.05) => {
     if (!containerRef.current) return;
     const cw = containerRef.current.clientWidth || 1000;
     const ch = containerRef.current.clientHeight || 800;
@@ -246,7 +253,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       const bh = bounds.maxY - bounds.minY;
       const scaleW = (cw - 120) / Math.max(bw, 200);
       const scaleH = (ch - 120) / Math.max(bh, 200);
-      const fitScale = Math.min(Math.max(Math.min(scaleW, scaleH), 0.5), 1.15);
+      const fitScale = Math.min(Math.max(Math.min(scaleW, scaleH), minimumScale), 1.15);
 
       const midX = (bounds.minX + bounds.maxX) / 2;
       const midY = (bounds.minY + bounds.maxY) / 2;
@@ -714,6 +721,14 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     [centerCanvas, flushCurrentDocument, isZoteroMode, persistArchiveAssociation, settings, syncHistoryState]
   );
 
+  // The file input mounts with the document. A cold import request must wait
+  // for React to commit that render after workspace storage finishes loading.
+  useEffect(() => {
+    if (!doc || !pendingFileImportRef.current || !importFileInputRef.current) return;
+    pendingFileImportRef.current = false;
+    importFileInputRef.current.click();
+  }, [doc]);
+
   // Load active document or requested Zotero literature map on mount
   useEffect(() => {
     let disposed = false;
@@ -725,6 +740,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
 
     const hasInitialAction = initialAction && (
       initialAction.mode === 'create_blank' ||
+      initialAction.mode === 'import_file' ||
       (initialAction.mode === 'open_document' && !!initialAction.doc) ||
       ((initialAction.mode === 'create_from_selection' || initialAction.mode === 'create_from_items') &&
         Array.isArray(initialAction.items) && initialAction.items.length > 0) ||
@@ -737,7 +753,10 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       initialZoteroActionRef.current = true;
       workspaceReady = (async () => {
         try {
-          if (initialAction.mode === 'create_blank') {
+          if (initialAction.mode === 'import_file') {
+            pendingFileImportRef.current = true;
+            await reloadWorkspace();
+          } else if (initialAction.mode === 'create_blank') {
             await createBlankDocRef.current();
           } else if (initialAction.mode === 'open_document') {
             await openIncomingZoteroDocument(initialAction.doc, initialAction.workspaceDocumentId);
@@ -763,8 +782,15 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
 
     // Listen for live imports and document loads when running inside a persistent Zotero tab or standalone window
     const executeImportMessage = async (event: any) => {
-      if (event.type === 'message' && window.parent !== window && event.source !== window.parent) return;
-      if (event.type === 'message' && window.parent === window &&
+      // Gecko sends chrome-privileged postMessage calls with no source and
+      // an empty origin. Accept only native events in a host-owned editor;
+      // synthetic events and messages from other frames keep the usual checks.
+      const nativeHostMessage = event.type === 'message' && event.isTrusted === true &&
+        event.source === null && event.origin === '' &&
+        getZoteroInstance()?.MindFlow?.ownsWorkspaceWindow?.(window) === true;
+      if (event.type === 'message' && !nativeHostMessage && !event.source) return;
+      if (event.type === 'message' && !nativeHostMessage && window.parent !== window && event.source !== window.parent) return;
+      if (event.type === 'message' && !nativeHostMessage && window.parent === window &&
           event.source !== window && event.source !== window.opener && event.source !== getZoteroInstance()?.getMainWindow?.()) return;
       const data = event.data || event.detail;
       if (!data) return;
@@ -777,6 +803,10 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       } else if (data.type === 'MINDFLOW_OPEN_ACTION' && data.action) {
         const action = data.action;
         if (action.mode === 'open_document') await openIncomingZoteroDocument(action.doc, action.workspaceDocumentId);
+        else if (action.mode === 'import_file') {
+          if (importFileInputRef.current) importFileInputRef.current.click();
+          else pendingFileImportRef.current = true;
+        }
         else if (action.mode === 'create_blank') await createBlankDocRef.current();
         else if (action.mode === 'ai_analyze') await analyzeRequestRef.current(action.items?.[0]?.zoteroUri);
         else if (action.mode === 'create_from_collection') await importZoteroCollection(action.collectionName || '文献分类', action.items || []);
@@ -861,6 +891,9 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     }
 
     const handleBeforeUnload = () => {
+      ++aiRequestTokenRef.current;
+      aiAbortRef.current?.abort();
+      aiAbortRef.current = null;
       pendingSaveTokenRef.current += 1;
       const host = getZoteroInstance()?.MindFlow;
       if (typeof host?.captureWorkspaceOnClose === 'function') host.captureWorkspaceOnClose(window);
@@ -954,7 +987,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
           await BackupService.createAutoSnapshotIfDue(savedDocument, settings.autoSnapshotIntervalMinutes);
         } catch (error: any) {
           console.error('MindFlow recovery snapshot failed', error);
-          warning = '本地导图已保存，但自动版本快照失败。';
+          warning = `本地导图已保存，但自动版本快照失败：${error?.message || String(error)}`;
         }
       }
 
@@ -1907,7 +1940,8 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     void analyzeRequestRef.current(items[0].zoteroUri);
   }, [isZoteroMode]);
 
-  const handleAnalyzeZoteroPaper = useCallback(async (referenceOverride?: string) => {
+  const handleAnalyzeZoteroPaper = useCallback(async (referenceOverride?: string, readingMode: ResearchReadingMode = 'abstract',
+    abstractSelection?: ResearchRequestOptions['abstractSelection']) => {
     if (!isZoteroMode || aiAnalyzingRef.current) return;
     const selected = getSelectedZoteroItems();
     if (!referenceOverride && selected.length > 1) {
@@ -1929,7 +1963,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     try {
       if (!(await flushCurrentDocument())) throw new Error('当前导图尚未保存，暂不能开始论文分析。');
       if (controller.signal.aborted || token !== aiRequestTokenRef.current) return;
-      const preview = await prepareResearchAnalysis(reference, controller.signal);
+      const preview = await prepareResearchAnalysis(reference, controller.signal, readingMode, abstractSelection);
       if (controller.signal.aborted || token !== aiRequestTokenRef.current) return;
       setAiWorkflow({ reference, stage: 'ready', preview, progress: null, error: '' });
       setSaveStatus({ state: 'saved', message: '论文资料已准备；请确认分析范围后开始。' });
@@ -1959,9 +1993,12 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     setSaveStatus({ state: 'warning', message: 'AI 分析已取消；未创建或归档导图。' });
   }, []);
 
-  const handleStartAiAnalysis = useCallback(async (mode: 'quick' | 'deep', sources: ResearchSourceSelection) => {
+  const handleStartAiAnalysis = useCallback(async (mode: 'quick' | 'deep', sources: ResearchSourceSelection, model: ResearchModelSelection) => {
     const workflow = aiWorkflow;
     if (!workflow?.preview || aiAnalyzingRef.current) return;
+    const currentMap = latestDocRef.current;
+    const appearance = model.presentation || { themeId: currentMap?.themeId || settings.defaultThemeId,
+      layoutType: currentMap?.layoutType || settings.defaultLayout };
     const token = ++aiRequestTokenRef.current;
     const controller = new AbortController();
     aiAbortRef.current = controller;
@@ -1971,7 +2008,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     setSaveStatus({ state: 'saving', message: '正在分析论文；导图尚未创建。' });
     try {
       const analysis = await requestResearchAnalysis(workflow.reference, {
-        preparedId: workflow.preview.preparedId, mode, sources, signal: controller.signal,
+        preparedId: workflow.preview.preparedId, mode, sources, ...model, signal: controller.signal,
         expectedCalls: mode === 'deep' && sources.pdf ? workflow.preview.deepCalls : 1,
         onProgress: (progress) => {
           if (token === aiRequestTokenRef.current) {
@@ -1981,11 +2018,17 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       });
       if (controller.signal.aborted || token !== aiRequestTokenRef.current) return;
       setAiWorkflow((current) => current ? { ...current, stage: 'saving' } : current);
-      const newDoc = createResearchDocument(analysis, settings.defaultThemeId);
+      const newDoc = createResearchDocument(analysis, appearance);
+      newDoc.metadata = { ...newDoc.metadata, aiPresentation: { ...appearance } };
+      const generatedBounds = computeLayout(newDoc.root, newDoc.layoutType, getTheme(newDoc.themeId), {
+        rainbowBranches: settings.rainbowBranches, curveStyle: settings.curveStyle,
+      }).bounds;
       if (!(await flushCurrentDocument())) throw new Error('当前导图尚未保存，请稍后重试。');
+      if (controller.signal.aborted || token !== aiRequestTokenRef.current) return;
       const savedDoc = await StorageService.saveDocument(newDoc);
       if (controller.signal.aborted || token !== aiRequestTokenRef.current) return;
       await StorageService.setActiveDocumentId(savedDoc.id);
+      if (controller.signal.aborted || token !== aiRequestTokenRef.current) return;
       cleanDocRef.current = savedDoc;
       cleanRelationshipsRef.current = [];
       setRelationships(cleanRelationshipsRef.current);
@@ -1995,7 +2038,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       historyRef.current.clear();
       syncHistoryState();
       setIsWelcomeOpen(false);
-      setTimeout(() => centerCanvas(), 60);
+      setTimeout(() => centerCanvas(generatedBounds, 0.05), 60);
       setAiWorkflow(null);
       const evidenceCount = Number(newDoc.metadata?.aiEvidenceCount) || 0;
       const reviewCount = Number(newDoc.metadata?.aiReviewCount) || 0;
@@ -2005,7 +2048,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     } catch (error: any) {
       if (controller.signal.aborted || token !== aiRequestTokenRef.current) return;
       const message = String(error?.message || error);
-      const previewInvalid = message.includes('预览已过期') || message.includes('配置已变化');
+      const previewInvalid = message.includes('预览已过期') || message.includes('配置已变化') || message.includes('读取范围已变化');
       setAiWorkflow((current) => current ? {
         ...current, stage: 'error', preview: previewInvalid ? null : current.preview, error: message,
       } : current);
@@ -2017,7 +2060,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
         setIsAiAnalyzing(false);
       }
     }
-  }, [aiWorkflow, centerCanvas, flushCurrentDocument, settings.defaultThemeId, syncHistoryState]);
+  }, [aiWorkflow, centerCanvas, flushCurrentDocument, settings.defaultThemeId, settings.defaultLayout, syncHistoryState]);
 
   const handleArchiveAiDraft = useCallback(async () => {
     if (aiArchivingRef.current || !doc?.metadata?.aiDraft) return;
@@ -2273,11 +2316,38 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     }
   };
 
+  // AI can start before any map exists. Keep its preview visible in that state.
+  const aiResearchModal = (
+      <AIResearchModal
+        appearance={{ themeId: doc?.themeId || settings.defaultThemeId, layoutType: doc?.layoutType || settings.defaultLayout }}
+        isOpen={Boolean(aiWorkflow)}
+        stage={aiWorkflow?.stage || 'preparing'}
+        preview={aiWorkflow?.preview || null}
+        progress={aiWorkflow?.progress || null}
+        error={aiWorkflow?.error || ''}
+        onStart={(mode, sources, model) => { void handleStartAiAnalysis(mode, sources, model); }}
+        onRetry={(mode, sources, model) => {
+          if (aiWorkflow?.preview) void handleStartAiAnalysis(mode, sources, model);
+          else if (aiWorkflow?.reference) void handleAnalyzeZoteroPaper(aiWorkflow.reference);
+        }}
+        onCancel={handleCancelAiAnalysis}
+        onClose={() => setAiWorkflow(null)}
+        onRefresh={(readingMode, abstractSelection) => { if (aiWorkflow?.reference) void handleAnalyzeZoteroPaper(aiWorkflow.reference, readingMode || aiWorkflow.preview?.readingMode, abstractSelection); }}
+        onSettings={() => openZoteroPreferences('llm-for-zotero')}
+      />
+  );
+
   if (!doc) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-slate-50 text-slate-400 text-sm">
-        {saveStatus.state === 'error' ? saveStatus.message : '正在加载思维导图...'}
-      </div>
+      <>
+        <div className="w-full h-full flex flex-col gap-3 items-center justify-center bg-slate-50 text-slate-400 text-sm">
+          {aiWorkflow ? '请确认论文分析设置' : saveStatus.state === 'error' || saveStatus.state === 'warning' ? saveStatus.message : '正在加载思维导图...'}
+          {!aiWorkflow && (saveStatus.state === 'error' || saveStatus.state === 'warning') &&
+            <button type="button" onClick={() => { void createBlankDocRef.current(); }}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-white">新建空白导图</button>}
+        </div>
+        {aiResearchModal}
+      </>
     );
   }
 
@@ -2307,7 +2377,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
           onThemeChange={(th: string) => setDoc(prev => prev ? { ...prev, themeId: th } : null)}
           scale={viewport.scale}
           onZoomIn={() => setViewport(v => ({ ...v, scale: Math.min(v.scale * (1 + settings.zoomStep), 3.0) }))}
-          onZoomOut={() => setViewport(v => ({ ...v, scale: Math.max(v.scale / (1 + settings.zoomStep), 0.25) }))}
+          onZoomOut={() => setViewport(v => ({ ...v, scale: Math.max(v.scale / (1 + settings.zoomStep), 0.05) }))}
           onResetZoom={() => centerCanvas(layout.bounds)}
           isOutlineOpen={isWorkbenchOpen && workbenchTab === 'outline'}
           onToggleOutline={() => { void showWorkbenchTab('outline', true); }}
@@ -2541,6 +2611,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
       {/* Hidden file input for file import from WelcomeModal */}
       <input
         ref={importFileInputRef}
+        data-mindflow-workspace-import="true"
         type="file"
         accept=".mindflow,.json,.md,.markdown,.opml"
         className="hidden"
@@ -2572,22 +2643,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
         onFlushCurrentDocument={flushCurrentDocument}
       />
 
-      <AIResearchModal
-        isOpen={Boolean(aiWorkflow)}
-        stage={aiWorkflow?.stage || 'preparing'}
-        preview={aiWorkflow?.preview || null}
-        progress={aiWorkflow?.progress || null}
-        error={aiWorkflow?.error || ''}
-        onStart={(mode, sources) => { void handleStartAiAnalysis(mode, sources); }}
-        onRetry={(mode, sources) => {
-          if (aiWorkflow?.preview) void handleStartAiAnalysis(mode, sources);
-          else if (aiWorkflow?.reference) void handleAnalyzeZoteroPaper(aiWorkflow.reference);
-        }}
-        onCancel={handleCancelAiAnalysis}
-        onClose={() => setAiWorkflow(null)}
-        onRefresh={() => { if (aiWorkflow?.reference) void handleAnalyzeZoteroPaper(aiWorkflow.reference); }}
-        onSettings={handleOpenSettings}
-      />
+      {aiResearchModal}
 
       {/* Node Context Menu (Right Click) */}
       {contextMenuState && (

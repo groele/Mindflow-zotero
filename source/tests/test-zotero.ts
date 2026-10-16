@@ -6,6 +6,9 @@ import vm from 'node:vm';
 import { safeStorage } from '../src/services/storage/safeStorage';
 import { BackupService } from '../src/services/storage/backupService';
 import type { MindMapDocument } from '../src/core/model/types';
+import { prepareResearchAnalysis, requestResearchAnalysis, createResearchDocument } from '../src/services/zotero/researchAnalysis';
+import { computeLayout } from '../src/core/layout/layoutEngine';
+import { getTheme, THEMES } from '../src/core/theme/themes';
 
 let count=0;
 const run=async(name:string,fn:()=>unknown)=>{await fn();console.log(`PASS ${++count}: ${name}`);};
@@ -207,5 +210,179 @@ await run('first default document returns the exact committed revision and times
   const stored = await StorageService.getDocument(active.id);
   assert.equal(active.revision, 1);
   assert.deepEqual(active, stored);
+});
+await run('AI chrome iframe uses injected host API and forwards model, reasoning, cancellation and progress', async () => {
+  const previous = (globalThis as any).window;
+  const controller = new AbortController(), calls: any[] = [], progress: any[] = [];
+  const preview = { preparedId: 'prepared' };
+  const analysis = { title: 'Article', zoteroUri: 'zotero://select/library/items/PAPERAAA',
+    sourceScope: { model: 'gpt-5.4', reasoningLevel: 'high' }, sections: { findings: [] } };
+  (globalThis as any).window = { parent: { postMessage: () => { throw new Error('Must prefer native host API'); } },
+    Zotero: { MindFlow: {
+      preparePaperAnalysis: async (ref: string, opts: any) => { calls.push({ ref, opts }); return preview; },
+      analyzePaperWithAI: async (ref: string, opts: any) => { calls.push({ ref, opts }); opts.onProgress('分析', 1, 2); return analysis; },
+    } } };
+  try {
+    const selection = { preparedId: 'previous', text: 'Confirmed local abstract' };
+    assert.equal(await prepareResearchAnalysis('article-ref', controller.signal, 'abstract', selection), preview);
+    assert.equal(calls[0].opts.readingMode, 'abstract');
+    assert.deepEqual(calls[0].opts.abstractSelection, selection);
+    assert.equal(await requestResearchAnalysis('article-ref', { preparedId: 'prepared', modelEntryId: 'model-two',
+      reasoningLevel: 'high', templateId: 'experimental-evidence', signal: controller.signal, onProgress: value => progress.push(value) }), analysis);
+    assert.equal(calls[1].opts.modelEntryId, 'model-two');
+    assert.equal(calls[1].opts.reasoningLevel, 'high');
+    assert.equal(calls[1].opts.templateId, 'experimental-evidence');
+    assert.equal(calls[1].opts.signal, controller.signal);
+    assert.deepEqual(progress, [{ phase: '分析', completed: 1, total: 2 }]);
+    controller.abort();
+    await assert.rejects(() => prepareResearchAnalysis('article-ref', controller.signal), /取消/);
+    assert.equal(calls.length, 2);
+  } finally { (globalThis as any).window = previous; }
+});
+await run('structured upstream summary becomes an editable local draft retaining requested model and reasoning', () => {
+  const result = createResearchDocument({ title: 'Article', zoteroUri: 'zotero://select/library/items/PAPERAAA',
+    sourceScope: { templateId: 'experimental', model: 'gpt-5.4', reasoningLevel: 'high', hasAbstract: true, noteCount: 0, annotationCount: 0 },
+    sections: { findings: [{ text: 'Measured result', detail: 'Conditions', basis: 'paper', source: 'abstract',
+      sourceId: 'AB', quote: 'Measured result', verification: 'matched' }] } } as any, { themeId: 'classic-blue', layoutType: 'mindmap' });
+  assert.equal(result.metadata?.aiDraft, true);
+  assert.equal(result.metadata?.autoSyncToZotero, false);
+  assert.equal(result.metadata?.aiEvidenceCount, 1);
+  assert.ok(result.root.children.some(branch => branch.children.some(node => node.text.includes('Measured result'))));
+  assert.match(result.root.note || '', /llm-for-zotero.*gpt-5.4.*high/);
+});
+await run('all fixed templates preserve content structure and selected appearance', () => {
+  const configs: Array<[string, number]> = [['experimental', 12], ['experimental-compact', 8],
+    ['experimental-evidence', 10], ['experimental-protocol', 9],
+    ['theoretical', 12], ['mechanism', 12], ['review', 12]];
+  const claims = Array.from({ length: 5 }, (_, index) => ({ text: 'Finding ' + index, basis: 'inference' }));
+  for (const [templateId, size] of configs) {
+    const document = createResearchDocument({ title: 'Article', zoteroUri: 'zotero://select/library/items/PAPERAAA',
+      sourceScope: { templateId, readingMode: 'abstract' }, sections: { findings: claims, predictions: claims } } as any, { themeId: 'classic-blue', layoutType: 'mindmap' });
+    assert.equal(document.root.children.length, size);
+    assert.equal(document.layoutType, 'mindmap');
+    assert.equal(document.themeId, 'classic-blue');
+    assert.equal(document.metadata?.aiTemplateId, templateId);
+    assert.match(document.root.note || '', /仅摘要/);
+    if (templateId === 'experimental-compact') assert.equal(document.root.children.find(node => node.text.includes('主要发现'))?.children.length, 2);
+    if (templateId === 'theoretical') assert.ok(document.root.children.some(node => node.text.includes('理论预测')));
+  }
+});
+await run('evidence counts and badges cover only visible claims with verified paper sources', () => {
+  const claim = { text: 'Visible measured result', basis: 'paper', source: 'abstract', quote: 'measured result', verification: 'matched' };
+  const document = createResearchDocument({ title: 'Article', zoteroUri: 'zotero://select/library/items/PAPERAAA',
+    sourceScope: { templateId: 'experimental-compact' }, sections: {
+      findings: [{ ...claim, text: '' }, claim, { ...claim, text: 'Unmatched result', verification: 'unmatched' }, claim],
+      predictions: [claim], mechanism: [{ ...claim, text: 'Reader idea', source: 'note' }],
+    } } as any, { themeId: 'classic-blue', layoutType: 'mindmap' });
+  assert.equal(document.metadata?.aiEvidenceCount, 1);
+  assert.equal(document.metadata?.aiReviewCount, 2);
+  const findings = document.root.children.find(branch => branch.text.includes('主要发现'))!;
+  assert.equal(findings.children.length, 2);
+  assert.deepEqual(findings.children[1].icons, ['question']);
+  assert.match(findings.children[1].note || '', /推断／待核验/);
+  const mechanism = document.root.children.find(branch => branch.text.includes('作用机理'))!;
+  assert.deepEqual(mechanism.children[0].icons, ['question']);
+  assert.ok(!document.root.note?.includes('解决的问题：资料不足'));
+  assert.ok(!document.root.note?.includes('理论预测'));
+});
+await run('concise nodes preserve full model wording, numeric conditions, evidence and manual-source warning', () => {
+  const text = '长材料名称与解释'.repeat(30) + '；温度 300 K、激发波长 532 nm、准确率 >95%（动态视觉）';
+  const result = createResearchDocument({ title: 'Article', zoteroUri: 'zotero://select/library/items/PAPERAAA',
+    sourceScope: { abstractSource: 'manual', templateId: 'experimental-compact' }, sections: { findings: [{
+      text, detail: '作者解释，未独立验证', basis: 'inference', source: 'abstract', verification: 'matched', quote: 'accuracy >95%' }] } } as any, { themeId: 'classic-blue', layoutType: 'mindmap' });
+  const node = result.root.children.find(branch => branch.text === '主要发现')!.children[0];
+  assert.equal(node.text, text);
+  assert.deepEqual(node.icons, ['question']);
+  assert.match(node.note || '', /作者解释.*\n|作者解释/);
+  assert.match(node.note || '', /accuracy >95%/);
+  assert.match(result.root.note || '', /用户粘贴.*未与本地 PDF 核对/);
+});
+await run('default story groups observations and author explanations by discovery without fabricating missing sections', () => {
+  const fact = (text: string, topic = '光谱演化', subtopic = '实验观测') => ({
+    text, topic, subtopic, detail: '适用条件与对照', basis: 'paper', source: 'pdf',
+    sourceId: 'P1', quote: 'measured at 2 K', verification: 'matched',
+  });
+  const text = '激子光谱：在 2 K 和 7 T 条件下低能支的强度增加，需与未接触区对照，数值与不确定性完整保留。';
+  const document = createResearchDocument({ title: '长篇文章标题'.repeat(10), zoteroUri: 'zotero://select/library/items/PAPERAAA',
+    sourceScope: { readingMode: 'full' }, sections: {
+      question: [fact('核心问题：低能支增强来自何种弛豫通道？')],
+      findings: [fact(text), fact('温度效应：80 K 时谱重下降。', '温度依赖', '温度响应')],
+      mechanism: [{ ...fact('作者解释：层间耦合改变弛豫通道。', '光谱演化', '作者解释'), basis: 'inference' }],
+    } } as any, { themeId: 'paper-reading', layoutType: 'mindmap' });
+  assert.equal(document.themeId, 'paper-reading');
+  assert.equal(document.layoutType, 'mindmap');
+  assert.equal(document.root.children.length, 2);
+  const discoveries = document.root.children.find(branch => branch.text === '关键发现与机制')!.children;
+  assert.equal(discoveries.length, 2);
+  const leaf = discoveries[0].children[0];
+  assert.equal(leaf.text, text);
+  assert.match(discoveries[0].children[1].text, /^待核验：作者解释/);
+  assert.equal(document.metadata?.aiEvidenceCount, 3);
+  assert.equal(document.metadata?.aiReviewCount, 1);
+  const defaultLayout = computeLayout(document.root, document.layoutType, getTheme(document.themeId));
+  const rootLayout = defaultLayout.nodes.find(node => node.id === document.root.id)!;
+  const mainBranches = defaultLayout.nodes.filter(node => document.root.children.some(child => child.id === node.id));
+  assert.ok(mainBranches.some(node => node.x + node.width <= rootLayout.x), 'Reading map needs a left branch');
+  assert.ok(mainBranches.some(node => node.x >= rootLayout.x + rootLayout.width), 'Reading map needs a right branch');
+  for (const layoutType of ['logic-right', 'mindmap', 'org-down'] as const) {
+    const layout = computeLayout(document.root, layoutType, getTheme(document.themeId), { rainbowBranches: true });
+    const longNode = layout.nodes.find(node => node.id === leaf.id)!;
+    assert.equal(longNode.textLines?.join(''), text);
+    assert.ok(longNode.textLines!.length > 1 && longNode.height >= longNode.textLines!.length * 20 + 14);
+    for (let index = 0; index < layout.nodes.length; index++) {
+      const a = layout.nodes[index];
+      for (const b of layout.nodes.slice(index + 1)) assert.ok(
+        a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y,
+        `Overlapping reading nodes: ${a.node.text} and ${b.node.text}`);
+    }
+    assert.ok(layout.connections.every(connection => connection.color === '#549688' && connection.strokeWidth === 1));
+  }
+});
+await run('AI hierarchy and evidence are independent of every available theme and layout', () => {
+  const claim = { text: '在 2 K 和 7 T 下观测到发光强度增加；'.repeat(5), topic: '光谱演化', subtopic: '实验观测',
+    detail: '对照与不确定性', basis: 'paper', source: 'abstract', quote: 'measured at 2 K', verification: 'matched' };
+  const analysis = { title: '长篇文章标题'.repeat(12), zoteroUri: 'zotero://select/library/items/PAPERAAA',
+    sourceScope: { templateId: 'paper-story' }, sections: { findings: [claim], mechanism: [{ ...claim, basis: 'inference' }] } } as any;
+  const contentTree = (node: MindMapDocument['root']): any => ({ text: node.text, note: node.note, icons: node.icons,
+    link: node.link, children: node.children.map(contentTree) });
+  const reference = contentTree(createResearchDocument(analysis, { themeId: 'paper-reading', layoutType: 'mindmap' }).root);
+  for (const themeId of Object.keys(THEMES)) for (const layoutType of ['mindmap', 'logic-right', 'org-down'] as const) {
+    const document = createResearchDocument(analysis, { themeId, layoutType });
+    assert.equal(document.themeId, themeId);
+    assert.equal(document.layoutType, layoutType);
+    assert.deepEqual(contentTree(document.root), reference);
+    const theme = getTheme(themeId);
+    const layout = computeLayout(document.root, layoutType, theme, { rainbowBranches: true });
+    assert.equal(layout.nodes[0].bgColor, theme.rootBg);
+    const leaf = layout.nodes.find(node => node.node.text === claim.text)!;
+    assert.equal(leaf.textLines?.join(''), claim.text);
+    assert.equal(leaf.readingStyle, themeId === 'paper-reading');
+    for (let index = 0; index < layout.nodes.length; index++) {
+      const a = layout.nodes[index];
+      for (const b of layout.nodes.slice(index + 1)) assert.ok(
+        a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y,
+        `Overlapping nodes in ${themeId}/${layoutType}`);
+    }
+  }
+});
+await run('condensed story caps branches and preserves omitted facts and quotes in notes', () => {
+  const findings = Array.from({ length: 12 }, (_, index) => ({ text: `独立观测 ${index}：变化幅度 ${index + 1}%`,
+    topic: `主题 ${Math.floor(index / 2)}`, basis: 'paper', source: 'pdf', quote: `quote for result ${index}`, verification: 'matched' }));
+  const document = createResearchDocument({ title: 'Core question paper', zoteroUri: 'zotero://select/library/items/PAPERAAA',
+    sourceScope: { templateId: 'paper-story' }, sections: { findings, question: [findings[0]], significance: [findings[1]] } } as any,
+    { themeId: 'macaron', layoutType: 'mindmap' });
+  assert.ok(document.root.children.length <= 5);
+  assert.ok(document.root.children.find(branch => branch.text === '关键发现与机制')!.children.length <= 3);
+  const nodes: MindMapDocument['root'][] = [];
+  const walk = (node: MindMapDocument['root']) => { nodes.push(node); node.children.forEach(walk); };
+  walk(document.root);
+  const leaves = nodes.filter(node => !node.children.length && node.icons?.length);
+  assert.equal(new Set(leaves.map(node => node.text)).size, leaves.length);
+  assert.equal(document.metadata?.aiEvidenceCount, leaves.filter(node => node.icons?.includes('check')).length);
+  assert.ok(document.metadata?.aiSupplementaryCount > 0);
+  for (const claim of findings) {
+    assert.ok(nodes.some(node => node.text === claim.text) || document.root.note?.includes(claim.text));
+    assert.ok(nodes.some(node => node.note?.includes(claim.quote)));
+  }
 });
 console.log(`${count} frontend data-chain tests passed`);

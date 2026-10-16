@@ -25,8 +25,4 @@ pref("extensions.mindflow.webdavPassword", "");
 pref("extensions.mindflow.webdavAutoSync", false);
 
 // AI credentials stay in local Zotero preferences, outside workspace backups.
-pref("extensions.mindflow.aiPreset", "custom");
-pref("extensions.mindflow.aiEndpoint", "https://api.openai.com/v1/chat/completions");
-pref("extensions.mindflow.aiModel", "");
-pref("extensions.mindflow.aiApiKey", "");
 pref("extensions.mindflow.aiMaxPdfPages", 120);

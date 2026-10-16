@@ -1,0 +1,9 @@
+{
+  "version": "11.2.0",
+  "file": "mindflow-zotero-11.2.0.xpi",
+  "size": 279624,
+  "sha256": "d6fc34c7d41d28150377049818a6af7580c56a40d687ef31e521c9048d5833cb",
+  "entries": 25,
+  "payloadVerifiedAgainstWorkspace": true,
+  "testHarnessIncluded": false
+}

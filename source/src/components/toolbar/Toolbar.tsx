@@ -11,6 +11,7 @@ import { LayoutType, ThemeColors } from '../../core/model/types';
 import { THEMES } from '../../core/theme/themes';
 import { ToolbarButtonsConfig } from '../../core/model/settingsTypes';
 import { MindFlowMark } from '../brand/MindFlowMark';
+import { saveStatusLabel } from '../../core/model/saveStatus';
 
 interface ToolbarProps {
   title: string;
@@ -185,11 +186,11 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           title="点击修改思维导图标题"
         />
         {saveStatus && (
-          <span
+          <div
             role="status"
             aria-live="polite"
             title={saveStatus.message}
-            className={`hidden sm:inline text-[10px] whitespace-nowrap ${
+            className={`relative text-[10px] whitespace-nowrap ${
               saveStatus.state === 'error'
                 ? 'text-red-600 dark:text-red-400'
                 : saveStatus.state === 'warning'
@@ -199,8 +200,13 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                 : 'text-emerald-600 dark:text-emerald-400'
             }`}
           >
-            {saveStatus.state === 'saving' ? '保存中…' : saveStatus.state === 'error' ? '保存失败' : saveStatus.state === 'warning' ? '备份有问题' : '已保存'}
-          </span>
+            {saveStatus.state === 'warning' || saveStatus.state === 'error' ? (
+              <details key={saveStatus.message}>
+                <summary aria-label="查看状态详情" className="cursor-pointer">{saveStatusLabel(saveStatus)}</summary>
+                <p className="absolute left-0 top-full z-50 mt-2 w-[min(420px,80vw)] whitespace-normal rounded-lg border border-amber-200 bg-white p-3 text-xs leading-5 text-slate-800 shadow-lg dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">{saveStatus.message}</p>
+              </details>
+            ) : saveStatusLabel(saveStatus)}
+          </div>
         )}
       </div>
 
@@ -625,7 +631,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                   type="button"
                   disabled={isAiAnalyzing}
                   onClick={() => { onAnalyzeZoteroPaper(); setIsZoteroMenuOpen(false); }}
-                  title="将选中文献的摘要、笔记、批注及可读取的 PDF 文字发送至已配置的 AI 服务"
+                  title="将选中文献的摘要、笔记、批注及可读取的 PDF 文字通过 llm-for-zotero 发送至其已配置的大模型"
                   className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-2 disabled:opacity-50"
                 >
                   <Sparkles className="w-4 h-4 text-violet-600 shrink-0" />

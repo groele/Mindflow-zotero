@@ -39,30 +39,8 @@ window.MindFlow_Preferences = (() => {
     'webdav.basePath': 'webdavBasePath', 'webdav.username': 'webdavUsername',
     'webdav.password': 'webdavPassword', 'webdav.autoSyncOnSave': 'webdavAutoSync',
   };
-  const isPrivateOrLocalHost = (hostname) => {
-    if (!hostname) return false;
-    if (['localhost', '127.0.0.1', '[::1]', '::1', '0.0.0.0', 'host.docker.internal'].includes(hostname)) return true;
-    if (hostname.endsWith('.local') || hostname.endsWith('.lan') || hostname.endsWith('.home.arpa')) return true;
-    if (/^(?:10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)/.test(hostname)) return true;
-    return false;
-  };
-  const AI_PRESETS = [
-    { id: 'custom', name: '自定义 / 其他 (OpenAI 兼容)', endpoint: '', model: '' },
-    { id: 'csu', name: '中南大学 AI 平台 (CSU API)', endpoint: 'https://api.chat.csu.edu.cn/v1', model: 'deepseek-chat' },
-    { id: 'deepseek', name: 'DeepSeek 官方', endpoint: 'https://api.deepseek.com', model: 'deepseek-chat' },
-    { id: 'openai', name: 'OpenAI 官方', endpoint: 'https://api.openai.com/v1', model: 'gpt-4o-mini' },
-    { id: 'siliconflow', name: '硅基流动 (SiliconFlow)', endpoint: 'https://api.siliconflow.cn/v1', model: 'deepseek-ai/DeepSeek-V3' },
-    { id: 'kimi', name: 'Moonshot / Kimi', endpoint: 'https://api.moonshot.cn/v1', model: 'moonshot-v1-8k' },
-    { id: 'zhipu', name: '智谱 GLM', endpoint: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-flash' },
-    { id: 'qwen', name: '阿里通义千问 (DashScope)', endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen-plus' },
-    { id: 'openrouter', name: 'OpenRouter', endpoint: 'https://openrouter.ai/api/v1', model: 'deepseek/deepseek-chat' },
-    { id: 'ollama', name: 'Ollama (本地运行)', endpoint: 'http://localhost:11434/v1', model: 'qwen2.5:7b' },
-    { id: 'lmstudio', name: 'LM Studio (本地运行)', endpoint: 'http://localhost:1234/v1', model: 'local-model' },
-  ];
   const NATIVE_DEFAULTS = {
     autoArchiveToItem: true, autoOpenAfterExport: true, customSavePath: '',
-    aiPreset: 'custom',
-    aiEndpoint: 'https://api.openai.com/v1/chat/completions', aiModel: '', aiApiKey: '',
     aiMaxPdfPages: 120,
   };
   const THEMES = [
@@ -83,10 +61,6 @@ window.MindFlow_Preferences = (() => {
       ['autoOpenAfterExport', '保存为 Zotero 笔记后在文献库中定位', 'check', null, true],
     ],
     ai: [
-      ['aiPreset', '服务商预设', 'select', AI_PRESETS.map((p) => [p.id, p.name]), true],
-      ['aiEndpoint', '兼容 Chat Completions 的接口地址', 'url', null, true],
-      ['aiModel', '模型名称', 'text', null, true],
-      ['aiApiKey', 'API 密钥（仅保存在本机 Zotero 设置）', 'password', null, true],
       ['aiMaxPdfPages', '最多读取 PDF 页数', 'number-select', [['50', '50 页'], ['120', '120 页'], ['200', '200 页']], true],
     ],
     interface: [
@@ -198,7 +172,7 @@ window.MindFlow_Preferences = (() => {
     const [path, title, type, options, native] = field;
     const row = element(doc, 'div', type === 'check' ? 'mindflow-check-row' : 'mindflow-control-row');
     if (path === 'customSavePath') row.classList.add('mindflow-folder-row');
-    if (path === 'aiEndpoint' || path === 'webdav.serverUrl') row.classList.add('mindflow-wide-row');
+    if (path === 'webdav.serverUrl') row.classList.add('mindflow-wide-row');
     const label = element(doc, 'label', 'mindflow-control-label', title);
     const input = element(doc, type === 'check' || type === 'text' || type === 'url' || type === 'password' ? 'input' : 'select', 'mindflow-control');
     input.id = 'mindflow-pref-' + path.replace(/\./g, '-');
@@ -241,29 +215,6 @@ window.MindFlow_Preferences = (() => {
         : type === 'number-select' ? Number(input.value) : input.value.trim();
       try {
         if (native) {
-          if (path === 'aiPreset') {
-            const preset = AI_PRESETS.find((p) => p.id === next);
-            if (preset && preset.id !== 'custom') {
-              const epInput = doc.getElementById('mindflow-pref-aiEndpoint');
-              const modelInput = doc.getElementById('mindflow-pref-aiModel');
-              if (epInput && preset.endpoint) {
-                epInput.value = preset.endpoint;
-                Zotero.Prefs.set(PREFIX + 'aiEndpoint', preset.endpoint, true);
-              }
-              if (modelInput && preset.model) {
-                modelInput.value = preset.model;
-                Zotero.Prefs.set(PREFIX + 'aiModel', preset.model, true);
-              }
-            }
-          }
-          if (path === 'aiEndpoint') {
-            const url = new URL(next);
-            const local = isPrivateOrLocalHost(url.hostname);
-            if (!['https:', ...(local ? ['http:'] : [])].includes(url.protocol) ||
-                url.username || url.password || url.hash) {
-              throw new Error('AI 接口须使用 HTTPS；仅本机或局域网地址可使用 HTTP，地址不能包含账号或哈希片段');
-            }
-          }
           Zotero.Prefs.set(PREFIX + path, next, true);
           if (prefGet(PREFIX + path, null) !== next) throw new Error('Zotero 未保存此设置');
         } else {
@@ -333,89 +284,16 @@ window.MindFlow_Preferences = (() => {
           '附件和笔记保存在文献所属库；群组库写入取决于权限，跨设备附件同步取决于 Zotero 文件同步设置。');
         if (group === 'ai') {
           appendDescription(doc, container,
-            '仅在工作台确认资料范围并点击开始后，选中内容才会发送给模型。长 PDF 可能分段调用并增加费用；扫描件需先提取文字。生成结果须审阅后归档，密钥只保存在本机 Zotero 设置中。');
-
-          const testRow = element(doc, 'div', 'mindflow-ai-test-row');
-          const button = element(doc, 'button', 'mindflow-btn-test-ai', '测试 AI 连接');
+            'AI 总结与导图生成直接调用 llm-for-zotero 已配置、最近使用的 API 模型。请先安装并启用 llm-for-zotero；接口、密钥、模型和连接测试均在该插件中管理。MindFlow 只负责资料选择、原文核对和导图编辑。');
+          appendDescription(doc, container,
+            '仅在确认范围并点击开始后发送选中资料。长 PDF 可能分段调用；调用记录由 llm-for-zotero 管理。当前集成支持 API 模型，暂不支持 WebChat、Codex App Server 或 Claude Code 对话系统。生成草稿请审阅后归档。');
+          const button = element(doc, 'button', 'mindflow-btn-open-llm', '打开 llm-for-zotero 设置');
           button.type = 'button';
-
-          const feedbackBox = element(doc, 'div', 'mindflow-ai-test-feedback');
-          testRow.appendChild(button);
-          testRow.appendChild(feedbackBox);
-          container.appendChild(testRow);
-
-          button.addEventListener('click', async () => {
-            // 1. Immediately read current values from the form inputs
-            const epInput = doc.getElementById('mindflow-pref-aiEndpoint');
-            const modelInput = doc.getElementById('mindflow-pref-aiModel');
-            const keyInput = doc.getElementById('mindflow-pref-aiApiKey');
-
-            const currentEndpoint = epInput?.value?.trim() || '';
-            const currentModel = modelInput?.value?.trim() || '';
-            const currentApiKey = keyInput?.value?.trim() || '';
-
-            // Persist them to Zotero.Prefs immediately
-            if (currentEndpoint) Zotero.Prefs.set(PREFIX + 'aiEndpoint', currentEndpoint, true);
-            if (currentModel) Zotero.Prefs.set(PREFIX + 'aiModel', currentModel, true);
-            if (currentApiKey !== undefined) Zotero.Prefs.set(PREFIX + 'aiApiKey', currentApiKey, true);
-
-            // 2. Immediate Visual Loading State
-            button.disabled = true;
-            button.textContent = '正在测试连接…';
-            feedbackBox.replaceChildren();
-
-            const loadingCard = element(doc, 'div', 'mindflow-ai-test-card mindflow-ai-test-loading');
-            const spinner = element(doc, 'span', 'mindflow-spinner');
-            const loadingText = element(doc, 'span', '', ' 正在向模型发送探活请求 (Say OK)，请稍候…');
-            loadingCard.appendChild(spinner);
-            loadingCard.appendChild(loadingText);
-            feedbackBox.appendChild(loadingCard);
-
-            status(doc, '正在测试 AI 模型连接…');
-
-            try {
-              const result = await Zotero.MindFlow?.testAIConnection?.({
-                endpoint: currentEndpoint,
-                model: currentModel,
-                apiKey: currentApiKey,
-              });
-
-              if (!result) throw new Error('MindFlow AI 服务组件尚未加载完成，请稍候重试。');
-
-              feedbackBox.replaceChildren();
-
-              if (result.success) {
-                const card = element(doc, 'div', 'mindflow-ai-test-card mindflow-ai-test-success');
-                const title = element(doc, 'div', 'mindflow-ai-test-title', `✓ 连接成功 (响应耗时: ${result.latencyMs || 0}ms)`);
-                const body = element(doc, 'div', 'mindflow-ai-test-body',
-                  `接口状态: HTTP ${result.status || 200} OK\n请求地址: ${result.url}\n调用模型: ${result.model}\n模型回复: "${result.replyText || 'OK'}"`);
-                card.appendChild(title);
-                card.appendChild(body);
-                feedbackBox.appendChild(card);
-                status(doc, `AI 连接成功！耗时 ${result.latencyMs}ms，模型响应正常。`);
-              } else {
-                const card = element(doc, 'div', 'mindflow-ai-test-card mindflow-ai-test-error');
-                const title = element(doc, 'div', 'mindflow-ai-test-title', `✗ 连接未通过${result.status ? ` (HTTP ${result.status})` : ''}`);
-                const body = element(doc, 'div', 'mindflow-ai-test-body', result.message || '连接失败，未能获取模型响应');
-                card.appendChild(title);
-                card.appendChild(body);
-                feedbackBox.appendChild(card);
-                status(doc, 'AI 连接测试未通过：' + (result.message || '连接失败'), true);
-              }
-            } catch (error) {
-              feedbackBox.replaceChildren();
-              const card = element(doc, 'div', 'mindflow-ai-test-card mindflow-ai-test-error');
-              const title = element(doc, 'div', 'mindflow-ai-test-title', '✗ 请求发生异常');
-              const body = element(doc, 'div', 'mindflow-ai-test-body', String(error?.message || error));
-              card.appendChild(title);
-              card.appendChild(body);
-              feedbackBox.appendChild(card);
-              status(doc, '连接测试失败：' + error, true);
-            } finally {
-              button.disabled = false;
-              button.textContent = '测试 AI 连接';
-            }
+          button.addEventListener('click', () => {
+            try { Zotero.MindFlow.openLLMPreferences(); }
+            catch (error) { status(doc, String(error?.message || error), true); }
           });
+          container.appendChild(button);
         }
         if (group === 'backup') appendDescription(doc, container,
           '额外保存文件夹不代替文献下的 .mindflow 附件。导出、导入与恢复工作区请在导图工作台操作。');

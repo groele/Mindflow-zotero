@@ -920,14 +920,15 @@ export function getSampleAcademicItems(): ZoteroItemData[] {
 /**
  * Open Zotero Preferences / Settings Window (Focusing on MindFlow Plugin Settings)
  */
-export function openZoteroPreferences(): boolean {
+export function openZoteroPreferences(target: 'mindflow' | 'llm-for-zotero' = 'mindflow'): boolean {
+  const paneId = target === 'llm-for-zotero' ? 'zotero-llm@github.com.yilewang' : 'mindflow@groele.org';
   // Prefer direct Zotero API access; dispatching both paths can open two
   // Preferences windows from the same click.
   const Zotero = getZoteroInstance();
   if (Zotero) {
     try {
       if (typeof Zotero.openPreferences === 'function') {
-        Zotero.openPreferences('mindflow@groele.org');
+        Zotero.openPreferences(paneId);
         return true;
       }
       const win =
@@ -938,7 +939,7 @@ export function openZoteroPreferences(): boolean {
           'chrome://zotero/content/preferences/preferences.xhtml',
           'preferences',
           'chrome,titlebar,toolbar,centerscreen,resizable=yes',
-          { pane: 'mindflow@groele.org' }
+          { pane: paneId }
         );
         return true;
       }
@@ -953,7 +954,7 @@ export function openZoteroPreferences(): boolean {
 
   if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
     try {
-      window.parent.postMessage({ type: 'MINDFLOW_OPEN_PREFERENCES' }, '*');
+      window.parent.postMessage({ type: 'MINDFLOW_OPEN_PREFERENCES', target }, '*');
       return true;
     } catch {
       // ignore

@@ -47,6 +47,8 @@ export const NodeCard: React.FC<NodeCardProps> = ({
   onDrop,
 }) => {
   const { node, x, y, width, height, level, color, shape } = layoutNode;
+  const reading = Boolean(layoutNode.readingStyle);
+  const wrapped = Boolean(layoutNode.textLines);
   const [editText, setEditText] = useState(node.text);
   const [isDragOverTarget, setIsDragOverTarget] = useState(false);
   const [showNotePopover, setShowNotePopover] = useState(false);
@@ -118,6 +120,16 @@ export const NodeCard: React.FC<NodeCardProps> = ({
     nodeStyle.backgroundColor = layoutNode.bgColor;
     nodeStyle.borderColor = isSelected ? '#3b82f6' : (isLevel1 ? color : '#e2e8f0');
     nodeStyle.color = layoutNode.textColor;
+  }
+  if (reading) {
+    nodeStyle.backgroundColor = layoutNode.bgColor;
+    nodeStyle.borderColor = isSelected ? '#3b82f6' : layoutNode.borderColor;
+    nodeStyle.borderWidth = level === 1 ? 1 : 0;
+    nodeStyle.borderRadius = level <= 1 ? 5 : 0;
+    nodeStyle.boxShadow = 'none';
+    nodeStyle.fontFamily = '"Microsoft YaHei", "PingFang SC", sans-serif';
+    nodeStyle.fontSize = 14;
+    nodeStyle.fontWeight = level <= 1 ? 600 : 400;
   }
 
   // Render icons
@@ -246,9 +258,10 @@ export const NodeCard: React.FC<NodeCardProps> = ({
         ) : node.text ? (
           <span
             title={node.text}
-            className={`truncate flex-1 tracking-wide leading-tight ${isRoot ? 'font-semibold text-sm' : ''} ${node.task?.status === 'done' ? 'line-through opacity-70' : ''}`}
+            style={wrapped ? { fontFamily: '"Microsoft YaHei", "PingFang SC", sans-serif' } : undefined}
+            className={`${wrapped ? 'whitespace-pre leading-[20px] text-[14px]' : 'truncate tracking-wide leading-tight'} flex-1 ${isRoot ? 'font-semibold text-sm' : ''} ${node.task?.status === 'done' ? 'line-through opacity-70' : ''}`}
           >
-            {node.text}
+            {layoutNode.textLines?.join('\n') || node.text}
           </span>
         ) : null}
 

@@ -24,9 +24,6 @@ const ZOTERO_PREF_PATHS: Record<string, string> = {
   'webdav.username': 'webdavUsername',
   'webdav.password': 'webdavPassword',
   'webdav.autoSyncOnSave': 'webdavAutoSync',
-  aiEndpoint: 'aiEndpoint',
-  aiModel: 'aiModel',
-  aiApiKey: 'aiApiKey',
   aiMaxPdfPages: 'aiMaxPdfPages',
 };
 

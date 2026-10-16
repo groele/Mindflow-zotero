@@ -141,7 +141,7 @@ export const Canvas: React.FC<CanvasProps> = ({
       const mouseY = e.clientY - rect.top;
 
       const zoomFactor = e.deltaY < 0 ? 1 + zoomStep : 1 / (1 + zoomStep);
-      const newScale = Math.min(Math.max(viewport.scale * zoomFactor, 0.25), 3.0);
+      const newScale = Math.min(Math.max(viewport.scale * zoomFactor, 0.05), 3.0);
 
       // Adjust offset so point under mouse remains stable
       const newX = mouseX - (mouseX - viewport.x) * (newScale / viewport.scale);

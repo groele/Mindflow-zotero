@@ -6,6 +6,10 @@
 
 | 阶段 / Stage | 状态 / Status | 说明 / Description |
 | --- | --- | --- |
+| 11.2.0 / Add-on minor | 准备发布 / Release candidate | 可保存的论文研究提示词与呈现预设、AI 导图工作流改进 / Reusable research prompt and presentation presets with AI mind-map workflow improvements |
+| 11.1.2 | 历史发布 / Historical release | 修复 MindFlow 侧栏快捷操作显示 / Reliable MindFlow sidebar actions |
+| 11.1.1 | 历史发布 / Historical release | 修复首次展开侧栏快捷操作 / First-open sidebar action expansion |
+| 11.1.0 | 历史发布 / Historical release | 侧栏与分析工作流改进 / Sidebar and analysis workflow improvements |
 | 11.0.0 / Add-on major | 公开发布 / Public release | 文档与存储校验加固、任务状态快捷操作、侧栏展开和快速新建 / Document and storage validation, task status controls, expandable sidebar and quick create |
 | 10.0.7 / V10 | 公开发布 / Public release | WebDAV 路径与多级目录加固，清理旧模块 / WebDAV path and nested folder hardening; legacy module cleanup |
 | 10.0.6 | 历史发布 / Historical release | 附件重开身份、WebDAV、备份队列与工作区恢复加固 / Attachment reopen identity, WebDAV, backup queue, and workspace restore hardening |
@@ -17,6 +21,10 @@
 | 5.0.1、5.0.2 | 历史审查 / Historical audits | 修复已纳入 V10 / Fixes incorporated into V10 |
 
 ## 中文索引
+
+- [11.2.0 发布记录](release-v11.2.0.md)：提示词与呈现预设、AI 导图工作流及发布验证边界。
+
+- [2026-10-16 插件全流程审查与优化建议](插件全流程审查与优化建议-20261016.md)：逐步实现、已复现问题、优化优先级、提示词与呈现预设及本轮验证边界。
 
 - [11.0.0 大版本发布记录](release-v11.0.0.md)：校验、存储、任务与 MindFlow 侧栏改进，以及验证结果。
 - [10.0.5 发布记录](release-v10.0.5.md)：备份恢复版本校验、快照完整性与回滚输入保护。
@@ -40,6 +48,8 @@
 历史审查中的版本、校验值和未发布说明属于对应阶段。当前公开安装资产以 [GitHub Releases](https://github.com/groele/Mindflow-zotero/releases) 为准；本地验证报告不表示已发布。
 
 ## English index
+
+- [11.2.0 release report](release-v11.2.0.md): reusable prompt and presentation presets, AI mind-map workflow, and verification limits.
 
 - [11.0.0 major release report](release-v11.0.0.md): validation, storage, task, and MindFlow sidebar improvements with verification results.
 - [10.0.5 release report](release-v10.0.5.md): guarded backup restoration, snapshot validation, and protected editor input during rollback.

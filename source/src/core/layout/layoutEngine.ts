@@ -2,7 +2,7 @@ import { MindMapNode, LayoutNode, ConnectionCurve, LayoutType, ThemeColors, Node
 import { imageDisplayHeight, isSafeNodeImage } from '../model/nodeImage';
 
 // Approximate dimensions for a node based on content
-export function measureNode(node: MindMapNode, level: number): { width: number; height: number } {
+export function measureNode(node: MindMapNode, level: number, reading = false): { width: number; height: number } {
   const text = node.text || ' ';
   // Approximate character width (Chinese chars ~ 15px, Latin ~ 8.5px)
   let estimatedTextWidth = 0;
@@ -25,6 +25,7 @@ export function measureNode(node: MindMapNode, level: number): { width: number; 
   if (node.note) {
     extraWidth += 20;
   }
+  if (node.internalLink) extraWidth += 20;
   if (node.task) {
     extraWidth += 26;
   }
@@ -38,16 +39,37 @@ export function measureNode(node: MindMapNode, level: number): { width: number; 
     };
   }
 
-  if (level === 0) {
-    const w = Math.max(140, estimatedTextWidth + 48 + extraWidth);
-    return { width: Math.min(w, 520), height: 46 };
-  } else if (level === 1) {
-    const w = Math.max(90, estimatedTextWidth + 36 + extraWidth);
-    return { width: Math.min(w, 360), height: 38 };
-  } else {
-    const w = Math.max(70, estimatedTextWidth + 28 + extraWidth);
-    return { width: Math.min(w, 300), height: 32 };
+  if (reading) {
+    const maxWidth = level === 0 ? 480 : level === 1 ? 300 : level === 2 ? 240 : 500;
+    const width = Math.min(maxWidth, Math.max(100, readingTextWidth(text) + 28 + extraWidth));
+    const lines = wrapReadingText(text, Math.max(30, width - 28 - extraWidth));
+    return { width, height: lines.length * 20 + 14 };
   }
+
+  const padding = level === 0 ? 48 : level === 1 ? 36 : 28;
+  const width = Math.min(level === 0 ? 520 : level === 1 ? 360 : 300,
+    Math.max(level === 0 ? 140 : level === 1 ? 90 : 70, estimatedTextWidth + padding + extraWidth));
+  const lines = wrapReadingText(text, Math.max(30, width - padding - extraWidth));
+  return { width, height: Math.max(level === 0 ? 46 : level === 1 ? 38 : 32, lines.length * 20 + 14) };
+}
+
+// Conservatively sized for 14px Microsoft YaHei. One shared set of line breaks
+// prevents canvas, SVG, PNG and HTML from showing different or clipped text.
+function readingTextWidth(text: string): number {
+  return [...text].reduce((width, char) => width + (char.codePointAt(0)! > 255 ? 14.5 : 8.5), 0);
+}
+export function wrapReadingText(text: string, maxWidth: number): string[] {
+  const lines: string[] = [];
+  for (const paragraph of text.split('\n')) {
+    let line = '', width = 0;
+    for (const char of paragraph) {
+      const charWidth = readingTextWidth(char);
+      if (line && width + charWidth > maxWidth) { lines.push(line); line = ''; width = 0; }
+      line += char; width += charWidth;
+    }
+    lines.push(line);
+  }
+  return lines;
 }
 
 interface LayoutResult {
@@ -82,8 +104,9 @@ export function computeLayout(
 ): LayoutResult {
   const nodes: LayoutNode[] = [];
   const connections: ConnectionCurve[] = [];
-  const curveStyle = options?.curveStyle || 'bezier';
-  const branchColors = options?.rainbowBranches ? RAINBOW_BRANCH_COLORS : theme.branchColors;
+  const reading = theme.id === 'paper-reading';
+  const curveStyle = reading ? 'rounded' : options?.curveStyle || 'bezier';
+  const branchColors = !reading && options?.rainbowBranches ? RAINBOW_BRANCH_COLORS : theme.branchColors;
 
   switch (layoutType) {
     case 'mindmap':
@@ -97,6 +120,26 @@ export function computeLayout(
       break;
   }
 
+  for (const n of nodes) {
+    let extras = (n.node.icons?.length || 0) * 22 + (n.node.tags?.length || 0) * 36;
+    if (n.node.note) extras += 20;
+    if (n.node.link) extras += 20;
+    if (n.node.internalLink) extras += 20;
+    if (n.node.task) extras += 26;
+    if (!isSafeNodeImage(n.node.image)) {
+      const padding = reading ? 28 : n.level === 0 ? 48 : n.level === 1 ? 36 : 28;
+      const lines = wrapReadingText(n.node.text || ' ', Math.max(30, n.width - padding - extras));
+      if (reading || lines.length > 1) n.textLines = lines;
+    }
+    n.readingStyle = reading;
+    if (reading) {
+      n.bgColor = n.level === 0 ? theme.rootBg : n.level === 1 ? '#e2efea' : 'transparent';
+      n.borderColor = n.level === 1 ? '#c7ded6' : 'transparent';
+    }
+  }
+  if (reading) {
+    connections.forEach(connection => { connection.strokeWidth = 1; });
+  }
   // Calculate overall bounds
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
   for (const n of nodes) {
@@ -126,7 +169,7 @@ function computeMindmapLayout(
   branchColors: string[] = theme.branchColors,
   curveStyle: 'bezier' | 'straight' | 'rounded' = 'bezier'
 ) {
-  const rootDim = measureNode(root, 0);
+  const rootDim = measureNode(root, 0, theme.id === 'paper-reading');
   const rootNode: LayoutNode = {
     id: root.id,
     node: root,
@@ -194,15 +237,15 @@ function computeMindmapLayout(
 }
 
 // Subtree hierarchy height calculator
-function calculateSubtreeHeight(node: MindMapNode, level: number): number {
-  const selfHeight = measureNode(node, level).height;
+function calculateSubtreeHeight(node: MindMapNode, level: number, reading = false): number {
+  const selfHeight = measureNode(node, level, reading).height;
   if (!node.children || node.children.length === 0 || node.isExpanded === false) {
     return selfHeight;
   }
-  const childGap = 16;
+  const childGap = reading ? 12 : 16;
   let totalChildrenHeight = 0;
   for (let i = 0; i < node.children.length; i++) {
-    totalChildrenHeight += calculateSubtreeHeight(node.children[i], level + 1);
+    totalChildrenHeight += calculateSubtreeHeight(node.children[i], level + 1, reading);
     if (i < node.children.length - 1) totalChildrenHeight += childGap;
   }
   return Math.max(selfHeight, totalChildrenHeight);
@@ -221,11 +264,12 @@ function layoutSubtree(
   branchColors: string[] = theme.branchColors,
   curveStyle: 'bezier' | 'straight' | 'rounded' = 'bezier'
 ) {
-  const childGap = 16;
-  const levelXGap = 64;
+  const reading = theme.id === 'paper-reading';
+  const childGap = reading ? 12 : 16;
+  const levelXGap = reading ? (level === 1 ? 88 : 48) : 64;
 
   // Compute heights of each child subtree
-  const heights = children.map(c => calculateSubtreeHeight(c, level));
+  const heights = children.map(c => calculateSubtreeHeight(c, level, reading));
   const totalHeight = heights.reduce((sum, h) => sum + h, 0) + (children.length - 1) * childGap;
 
   const parentCenterY = parentNode.y + parentNode.height / 2;
@@ -233,7 +277,7 @@ function layoutSubtree(
 
   children.forEach((child, index) => {
     const subHeight = heights[index];
-    const childDim = measureNode(child, level);
+    const childDim = measureNode(child, level, theme.id === 'paper-reading');
 
     // Color: level 1 gets new color; subsequent levels inherit parent color
     const branchColor = level === 1
@@ -322,7 +366,9 @@ function createHorizontalCurve(
     path = `M ${x1.toFixed(1)} ${y1.toFixed(1)} L ${x2.toFixed(1)} ${y2.toFixed(1)}`;
   } else if (curveStyle === 'rounded') {
     const midX = (x1 + x2) / 2;
-    path = `M ${x1.toFixed(1)} ${y1.toFixed(1)} H ${midX.toFixed(1)} V ${y2.toFixed(1)} H ${x2.toFixed(1)}`;
+    const radius = Math.min(5, Math.abs(y2 - y1) / 2);
+    const signY = Math.sign(y2 - y1), signX = Math.sign(x2 - x1);
+    path = `M ${x1.toFixed(1)} ${y1.toFixed(1)} H ${midX.toFixed(1)} V ${(y2 - signY * radius).toFixed(1)} Q ${midX.toFixed(1)} ${y2.toFixed(1)} ${(midX + signX * radius).toFixed(1)} ${y2.toFixed(1)} H ${x2.toFixed(1)}`;
   } else {
     // bezier
     const dx = x2 - x1;
@@ -352,7 +398,7 @@ function computeLogicRightLayout(
   branchColors: string[] = theme.branchColors,
   curveStyle: 'bezier' | 'straight' | 'rounded' = 'bezier'
 ) {
-  const rootDim = measureNode(root, 0);
+  const rootDim = measureNode(root, 0, theme.id === 'paper-reading');
   const rootNode: LayoutNode = {
     id: root.id,
     node: root,
@@ -397,7 +443,7 @@ function computeOrgDownLayout(
   branchColors: string[] = theme.branchColors,
   curveStyle: 'bezier' | 'straight' | 'rounded' = 'bezier'
 ) {
-  const rootDim = measureNode(root, 0);
+  const rootDim = measureNode(root, 0, theme.id === 'paper-reading');
   const rootNode: LayoutNode = {
     id: root.id,
     node: root,
@@ -422,15 +468,15 @@ function computeOrgDownLayout(
   layoutOrgSubtree(rootNode, root.children, 1, theme, outNodes, outConnections, branchColors, curveStyle);
 }
 
-function calculateOrgSubtreeWidth(node: MindMapNode, level: number): number {
-  const selfWidth = measureNode(node, level).width;
+function calculateOrgSubtreeWidth(node: MindMapNode, level: number, reading = false): number {
+  const selfWidth = measureNode(node, level, reading).width;
   if (!node.children || node.children.length === 0 || node.isExpanded === false) {
     return selfWidth;
   }
   const childGap = 24;
   let totalChildWidth = 0;
   for (let i = 0; i < node.children.length; i++) {
-    totalChildWidth += calculateOrgSubtreeWidth(node.children[i], level + 1);
+    totalChildWidth += calculateOrgSubtreeWidth(node.children[i], level + 1, reading);
     if (i < node.children.length - 1) totalChildWidth += childGap;
   }
   return Math.max(selfWidth, totalChildWidth);
@@ -449,7 +495,7 @@ function layoutOrgSubtree(
   const childGap = 24;
   const levelYGap = 54;
 
-  const widths = children.map(c => calculateOrgSubtreeWidth(c, level));
+  const widths = children.map(c => calculateOrgSubtreeWidth(c, level, theme.id === 'paper-reading'));
   const totalWidth = widths.reduce((sum, w) => sum + w, 0) + (children.length - 1) * childGap;
 
   const parentCenterX = parentNode.x + parentNode.width / 2;
@@ -458,7 +504,7 @@ function layoutOrgSubtree(
 
   children.forEach((child, index) => {
     const subWidth = widths[index];
-    const childDim = measureNode(child, level);
+    const childDim = measureNode(child, level, theme.id === 'paper-reading');
     const branchColor = level === 1
       ? branchColors[index % branchColors.length]
       : parentNode.color;

@@ -1,6 +1,12 @@
 import { ThemeColors } from '../model/types';
 
 export const THEMES: Record<string, ThemeColors> = {
+  'paper-reading': {
+    id: 'paper-reading', name: '论文精读 · 青绿', background: '#fafafa',
+    surface: '#ffffff', text: '#253e38', nodeBg: '#f0f6f4', nodeBorder: '#549688',
+    nodeText: '#253e38', rootBg: '#549688', rootText: '#ffffff',
+    branchColors: ['#549688'], lineColor: '#549688', isDark: false,
+  },
   'classic-blue': {
     id: 'classic-blue',
     name: '经典商务蓝',

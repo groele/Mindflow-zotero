@@ -29,6 +29,10 @@
     await waitFor(() => Zotero.getMainWindow()?.Zotero_Tabs, 'main window');
     const win = Zotero.getMainWindow();
     const host = Zotero.MindFlow;
+    // Mutate the underlying chrome object when Zotero exposes it through an
+    // Xray wrapper; assigning a method on the wrapper only creates an expando
+    // and does not intercept calls made by the native UI.
+    const hostRuntime = host?.wrappedJSObject || host;
     check(host, 'Plugin runtime was not initialized');
     check(Zotero.DataDirectory.dir.includes('native-test-'), 'Test data directory isolation failed');
     Zotero.Prefs.set('extensions.mindflow.showWelcomeOnStartup', false, true);
@@ -195,6 +199,86 @@
       check(!custom.getAttribute('label'), 'sidenav button exposes a visual label');
       check(['MindFlow 导图', 'MindFlow Maps'].includes(custom.getAttribute('tooltiptext')),
         'sidenav tooltip localization is missing or incorrect: ' + custom.getAttribute('tooltiptext'));
+    });
+    await run('native sidebar quick actions render without overflow and route the selected paper', async () => {
+      const nav = [...win.document.querySelectorAll('item-pane-sidenav')].map(n => n.querySelector('.btn[data-pane*="mindflow"]')).find(Boolean);
+      nav.click();
+      for (const section of win.document.querySelectorAll('item-pane-custom-section[data-pane*="mindflow-item-pane"]')) {
+        const collapsible = section.querySelector('collapsible-section');
+        if (collapsible) collapsible.open = true;
+      }
+      const panel = await waitFor(() => [...win.document.querySelectorAll('.mindflow-sidebar-section')].find(n => n.getBoundingClientRect().width > 0), 'visible MindFlow sidebar');
+      await win.document.l10n.translateFragment(panel);
+      const action = id => panel.querySelector(`[data-mindflow-action="${id}"]`);
+      check(['create','ai','workspace','import','pdf','blank','refresh'].every(id => action(id)), 'missing sidebar action');
+      check(action('pdf').disabled, 'paper without PDF has enabled PDF shortcut');
+      const open = hostRuntime.openMindFlow, calls = [];
+      hostRuntime.openMindFlow = options => calls.push(options);
+      try {
+        for (const id of ['ai','workspace','import','blank','create']) { action(id).click(); await Zotero.Promise.delay(20); }
+        check(calls.map(c => c.mode).join(',') === 'ai_analyze,open,import_file,create_blank,create_from_selection', 'sidebar action routing mismatch');
+        check(calls[0].items[0].id === a.id && calls[4].items[0].id === a.id, 'sidebar used stale paper');
+        check(!calls[3].items && calls[3].forceNew, 'standalone map became linked');
+      } finally { hostRuntime.openMindFlow = open; }
+      const originalWidth = panel.style.width;
+      try {
+        for (const width of [320, 240, 200]) {
+          panel.style.width = width + 'px';
+          await Zotero.Promise.delay(80);
+          check(panel.scrollWidth <= panel.clientWidth + 1, 'sidebar overflows at ' + width + 'px');
+          for (const button of panel.querySelectorAll('button')) {
+            const box = button.getBoundingClientRect(), parent = panel.getBoundingClientRect();
+            check(box.right <= parent.right + 1, 'button overflows at ' + width + 'px');
+          }
+        }
+      } finally { panel.style.width = originalWidth; }
+      panel.scrollIntoView({ block: 'nearest' });
+      await Zotero.Promise.delay(150);
+      const rect = panel.getBoundingClientRect();
+      const rail = nav.closest('item-pane-sidenav').getBoundingClientRect();
+      check(rect.right <= rail.left + 1 || rect.left >= rail.right - 1, 'sidebar content overlaps the native icon rail');
+      const canvas = win.document.createElementNS('http://www.w3.org/1999/xhtml', 'canvas');
+      canvas.width = Math.ceil(rect.width + 16); canvas.height = Math.ceil(rect.height + 16);
+      canvas.getContext('2d').drawWindow(win, Math.max(0, rect.x - 8), Math.max(0, rect.y - 8), canvas.width, canvas.height, 'rgb(255,255,255)');
+      const binary = win.atob(canvas.toDataURL('image/png').split(',')[1]);
+      await IOUtils.write(PathUtils.join(Zotero.DataDirectory.dir, 'sidebar-ui.png'), Uint8Array.from(binary, c => c.charCodeAt(0)));
+    });
+    await run('native sidebar import reuses the workspace and requests its existing file picker', async () => {
+      host.openMindFlow({ mode: 'open', forceNew: true }, win);
+      const workspaceTab = tabs.selectedID;
+      const frame = await waitFor(() => frameFor(workspaceTab), 'workspace frame');
+      await waitFor(() => frame._mindflowReady && frame.contentDocument.querySelector('[data-mindflow-workspace-import]'), 'workspace import input');
+      const editor = frame.contentWindow.wrappedJSObject || frame.contentWindow;
+      const input = editor.document.querySelector('[data-mindflow-workspace-import]');
+      const original = input.click;
+      let requested = 0;
+      const messages = [];
+      const observe = Components.utils.exportFunction(event => {
+        if (event.data?.type === 'MINDFLOW_OPEN_ACTION') messages.push({ type: event.data.type,
+          mode: event.data.action?.mode, origin: event.origin, isTrusted: event.isTrusted, sourceNull: !event.source,
+          sourceParent: event.source === frame.contentWindow.parent });
+      }, editor);
+      editor.addEventListener('message', observe);
+      Components.utils.exportFunction(() => { requested++; }, input, { defineAs: 'click' });
+      try {
+        check(!host.ownsWorkspaceWindow(win), 'native main window was mistaken for an editor');
+        host.openMindFlow({ mode: 'import_file' }, win);
+        try { await waitFor(() => requested === 1, 'import shortcut reaches picker', 4000); }
+        catch (error) { throw new Error(String(error) + '; messages=' + JSON.stringify(messages) + '; status=' + frame.contentDocument.querySelector('[role="status"]')?.textContent); }
+        check(tabs.selectedID === workspaceTab, 'import shortcut created a duplicate workspace');
+      } finally { editor.removeEventListener('message', observe); input.click = original; tabs.close(workspaceTab); }
+    });
+    await run('native cold import waits for its file input to mount', async () => {
+      host.openMindFlow({ mode: 'import_file', forceNew: true }, win);
+      const importTab = tabs.selectedID, frame = frameFor(importTab);
+      try {
+        const requests = () => (frame.contentWindow.wrappedJSObject || frame.contentWindow)._mindflowNativeImportRequests;
+        await waitFor(() => requests()?.length === 1, 'cold import file picker requested after render');
+        check(requests()[0].mounted, 'cold import clicked an unmounted input');
+        check(frame.contentDocument.querySelector('[data-mindflow-workspace-import]'), 'cold import input not mounted');
+      } finally {
+        tabs.close(importTab);
+      }
     });
     await run('typing then immediate native tab close retains the latest title', async () => {
       tabs.select(tabA);
@@ -442,7 +526,7 @@
       const currentId = tabs._tabs.find(t => t.id === auditTab).data.docId;
       const before = (await auditState()).root.children.length;
       const original = host.workspaceStorage;
-      host.workspaceStorage = async function(action, payload) {
+      hostRuntime.workspaceStorage = async function(action, payload) {
         if (action === 'commitDocument' && payload?.doc?.id === currentId) throw new Error('injected inbox save failure');
         return original.call(this, action, payload);
       };
@@ -451,7 +535,7 @@
         const inbox = JSON.parse(await original.call(host, 'get', { key: 'mindflow_inbox_items' }));
         check(!inbox.find(item => item.id === 'native_inbox_a').isProcessed, 'failed map save marked inbox processed');
         check((await auditState()).root.children.length === before + 1, 'insertion draft was discarded');
-      } finally { host.workspaceStorage = original; }
+      } finally { hostRuntime.workspaceStorage = original; }
       insert.click();
       await waitFor(async () => JSON.parse(await original.call(host, 'get', { key: 'mindflow_inbox_items' })).find(item => item.id === 'native_inbox_a').isProcessed, 'successful inbox insertion persisted');
       const saved = JSON.parse(await original.call(host, 'get', { key: `mindflow_doc_${currentId}` }));
@@ -487,7 +571,7 @@
       const frame = auditFrame(), document = frame.contentDocument;
       const button = await waitFor(() => document.querySelector('button[title="还原此快照"]'), 'snapshot restore button');
       const editor = frame.contentWindow.wrappedJSObject;
-      const originalConfirm = editor.confirm, originalStorage = host.workspaceStorage;
+      const originalConfirm = editor.confirm, originalStorage = hostRuntime.workspaceStorage;
       Components.utils.exportFunction(() => true, editor, { defineAs: 'confirm' });
       const promptObserver = { observe(dialogWindow, topic) {
         if (topic !== 'domwindowopened') return;
@@ -497,7 +581,7 @@
         }, { once: true });
       } };
       Services.ww.registerNotification(promptObserver);
-      host.workspaceStorage = async function(action, payload) {
+      hostRuntime.workspaceStorage = async function(action, payload) {
         if (action === 'commitDocument' && payload?.doc?.title === old.title) await Zotero.Promise.delay(400);
         return originalStorage.call(this, action, payload);
       };
@@ -512,7 +596,7 @@
         await waitFor(() => titleFor(auditTab) === old.title, 'restored title');
         await waitFor(() => document.querySelectorAll('button[title="还原此快照"]').length >= 2, 'recovery history refresh');
         check(![...document.querySelectorAll('[role="status"]')].some(node => node.textContent.includes('正在恢复快照')), 'restore overlay remained stuck');
-      } finally { Services.ww.unregisterNotification(promptObserver); editor.confirm = originalConfirm; host.workspaceStorage = originalStorage; }
+      } finally { Services.ww.unregisterNotification(promptObserver); editor.confirm = originalConfirm; hostRuntime.workspaceStorage = originalStorage; }
     });
     await run('editor JSON export captures uncommitted node drafts before generating the file', async () => {
       const frame = auditFrame(), document = frame.contentDocument, editor = frame.contentWindow.wrappedJSObject;
@@ -547,9 +631,9 @@
       const files = new frame.contentWindow.DataTransfer();
       files.items.add(new frame.contentWindow.File([backup], 'native-backup.json', { type: 'application/json' }));
       input.files = files.files;
-      const originalConfirm = editor.confirm, originalStorage = host.workspaceStorage;
+      const originalConfirm = editor.confirm, originalStorage = hostRuntime.workspaceStorage;
       Components.utils.exportFunction(() => true, editor, { defineAs: 'confirm' });
-      host.workspaceStorage = async function(action, payload) {
+      hostRuntime.workspaceStorage = async function(action, payload) {
         if (action === 'commitDocument' && payload?.doc?.title === restored.title) await Zotero.Promise.delay(400);
         return originalStorage.call(this, action, payload);
       };
@@ -563,7 +647,7 @@
         await Zotero.Promise.delay(800);
         const saved = JSON.parse(await originalStorage.call(host, 'get', { key: 'mindflow_doc_' + restored.id }));
         check(saved.title === restored.title, 'old editor state overwrote restored document');
-      } finally { editor.confirm = originalConfirm; host.workspaceStorage = originalStorage; }
+      } finally { editor.confirm = originalConfirm; hostRuntime.workspaceStorage = originalStorage; }
     });
     tabs.close(auditTab); await host._closeSaveQueue;
     try {
@@ -576,8 +660,9 @@
     } catch(error) { await IOUtils.writeUTF8(PathUtils.join(Zotero.DataDirectory.dir,'screenshot-note.txt'),String(error)); }
     await host._closeSaveQueue;await host._archiveWriteQueue;
     const expectedTabs=[];
-    for(const tab of tabs._tabs.filter(t=>t.type==='mindflow')) {
+    for(const tab of tabs._tabs.filter(t=>t.type==='mindflow' && t.data?.docId)) {
       const doc=JSON.parse(await host.workspaceStorage('get',{key:`mindflow_doc_${tab.data.docId}`}));
+      check(doc, `workspace missing during restart capture: ${tab.data.docId}`);
       expectedTabs.push({docId:doc.id,title:doc.title,rootText:doc.root.text,source:doc.metadata?.zoteroAttachmentKey || null});
     }
     // Deliberately leave the last keystrokes inside the 600ms debounce window.
