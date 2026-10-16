@@ -68,6 +68,7 @@ The add-on and Zotero have separate version numbers. This README is bilingual; t
 | 图片 | PNG、JPEG、WebP 文件导入、粘贴和单文件拖入；图片数据随文档保存，会增加文件体积。 |
 | 文档关联 | Zotero 文献关联、内部文档/节点链接、跨节点关系线、独立导图和合集导图。 |
 | 文献整理 | 引入文献元数据、笔记、PDF 批注；可生成 Zotero 结构化大纲笔记。PDF 与导图附件分别保存。 |
+| Zotero 文献侧栏 | 查看当前条目并快速新建/打开导图、启动 AI 研读、打开工作台、导入导图、打开 PDF 或刷新。 |
 | 阅读与演示 | 禅模式、子树聚焦、缩放适配与演示模式。 |
 | 模板与收件箱 | 从模板开始，收集零散思路并整理到导图。 |
 | 编辑撤销 | 默认最多 50 步节点编辑历史；它与持久化快照不同。 |
@@ -368,6 +369,7 @@ The workspace supports tabs and separate windows; choose the opening mode in set
 | Images | Import PNG, JPEG, and WebP files, paste images, or drop a single file. Embedded image data increases document size. |
 | Document associations | Zotero paper links, internal document/node links, relationship lines, standalone maps, and collection maps. |
 | Literature organization | Bring in metadata, notes, and PDF annotations; generate a structured Zotero outline note. PDFs and map attachments remain separate files. |
+| Zotero item pane | Inspect the selected item; quickly create/open a map, start AI reading, open the workspace, import a map, open a PDF, or refresh. |
 | Reading and presentation | Zen mode, subtree focus, fit/zoom, and presentation mode. |
 | Templates and inbox | Start from a template and collect loose ideas before organizing them into maps. |
 | Editing undo | Up to 50 node-editing steps by default; separate from persistent snapshots. |

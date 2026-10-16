@@ -182,6 +182,8 @@
       check(button.getAttribute('aria-label')==='MindFlow' && button.getAttribute('tooltiptext'),'toolbar lacks accessible name');
     });
     await run('item-pane sidenav keeps the MindFlow entry icon-only', async () => {
+      check(Zotero.Prefs.get('panes.mindflow\\@groele\\.org-mindflow-item-pane.open') === false,
+        'native test did not start from the saved collapsed-section state');
       tabs.select('zotero-pane');
       await win.ZoteroPane.collectionsView.selectLibrary(a.libraryID);
       const itemsView = await waitFor(() => win.ZoteroPane.itemsView, 'library item view initialized');
@@ -203,11 +205,9 @@
     await run('native sidebar quick actions render without overflow and route the selected paper', async () => {
       const nav = [...win.document.querySelectorAll('item-pane-sidenav')].map(n => n.querySelector('.btn[data-pane*="mindflow"]')).find(Boolean);
       nav.click();
-      for (const section of win.document.querySelectorAll('item-pane-custom-section[data-pane*="mindflow-item-pane"]')) {
-        const collapsible = section.querySelector('collapsible-section');
-        if (collapsible) collapsible.open = true;
-      }
       const panel = await waitFor(() => [...win.document.querySelectorAll('.mindflow-sidebar-section')].find(n => n.getBoundingClientRect().width > 0), 'visible MindFlow sidebar');
+      const collapsible = panel.closest('collapsible-section');
+      check(collapsible?.empty === false && collapsible.open === true, 'MindFlow quick actions did not become visible on first open');
       await win.document.l10n.translateFragment(panel);
       const action = id => panel.querySelector(`[data-mindflow-action="${id}"]`);
       check(['create','ai','workspace','import','pdf','blank','refresh'].every(id => action(id)), 'missing sidebar action');

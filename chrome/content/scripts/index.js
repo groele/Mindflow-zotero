@@ -1204,6 +1204,21 @@
           pluginID: ADDON_ID,
           header: { l10nID: 'mindflow-item-pane-header', icon },
           sidenav: { l10nID: 'mindflow-item-pane-sidenav', icon },
+          onInit: ({ doc, body }) => {
+            const collapsible = body?.parentElement;
+            if (collapsible) {
+              collapsible.empty = false;
+              if (collapsible.open !== true) collapsible.open = true;
+              const expand = () => {
+                if (!body?.isConnected) return;
+                collapsible.empty = false;
+                collapsible.open = true;
+              };
+              const view = doc?.defaultView || body?.ownerDocument?.defaultView;
+              if (typeof view?.requestAnimationFrame === 'function') view.requestAnimationFrame(expand);
+              else view?.setTimeout?.(expand, 0);
+            }
+          },
           onItemChange: ({ item, setEnabled }) => {
             currentItem = item || null;
             // Keep the section available even when the current selection is a
@@ -1252,15 +1267,19 @@
               const target = this.resolveLiteratureTarget(sectionEntry.item);
               sectionEntry.targetID = target?.id || null;
               const maps = target ? this.getMindflowAttachments(target) : [];
-              try { setSectionSummary?.(maps.length ? String(maps.length) : ''); } catch (_) {}
+              try { setSectionSummary?.(maps.length ? String(maps.length) : '展开后快速新建导图'); } catch (_) {}
 
               if (!doc) return;
 
-              const container = doc.createElement('div');
+              const htmlNS = 'http://www.w3.org/1999/xhtml';
+              const createElement = (tag) => doc.createElementNS
+                ? doc.createElementNS(htmlNS, tag)
+                : doc.createElement(tag);
+              const container = createElement('div');
               container.className = 'mindflow-sidebar-section';
               const win = doc.defaultView?.ZoteroPane ? doc.defaultView : Zotero.getMainWindow?.();
               const createEl = (tag, className, text) => {
-                const el = doc.createElement(tag);
+                const el = createElement(tag);
                 el.className = className;
                 if (text) el.textContent = text;
                 return el;

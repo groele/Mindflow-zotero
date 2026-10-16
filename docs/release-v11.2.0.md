@@ -15,7 +15,7 @@ MindFlow 11.2.0 adds reusable research presets for AI-generated mind maps. A pre
 
 - Supported host range remains Zotero 10.0.x.
 - Model configuration and requests continue to use the installed `llm-for-zotero` plugin.
-- Host tests: 80/80 passed. Frontend data-chain, logic, and preset tests: 80/80 passed. TypeScript check and production build passed.
+- Host tests: 81/81 passed. Frontend data-chain, logic, and preset tests: 80/80 passed. TypeScript check and production build passed.
 - The XPI contains 25 verified entries, declares version 11.2.0, and excludes test harness files. Its SHA-256 is recorded in [package verification](package-verification-11.2.0.json).
 - Dedicated Zotero preset checks and a restart persistence check passed in the prior isolated run. The historical full native regression has known version drift and unresolved cases; the focused preset workflow is not a substitute for completing that regression.
 

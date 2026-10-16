@@ -1102,6 +1102,23 @@ test('item pane stays expandable without a literature selection and creates a bl
   assert.equal(options.forceNew, true);
 });
 
+test('item-pane reopens its empty quick-action section after Zotero restores saved collapsed state', () => {
+  const f = fixture();
+  f.host.registerItemPaneSection();
+  const section = f.Zotero.ItemPaneManager.sections.get(f.host.itemPaneSectionID);
+  const collapsible = { empty: true, open: false };
+  const body = Object.assign(f.doc.createElement('div'), { parentElement: collapsible, isConnected: true });
+  let expand;
+  f.doc.defaultView = { requestAnimationFrame: callback => { expand = callback; } };
+  section.onInit({ doc: f.doc, body });
+  assert.equal(collapsible.empty, false);
+  assert.equal(collapsible.open, true);
+  collapsible.open = false;
+  expand();
+  assert.equal(collapsible.empty, false);
+  assert.equal(collapsible.open, true);
+});
+
 test('sidebar quick actions follow the selected PDF parent and keep standalone imports unlinked', async () => {
   const f = fixture(), paper = f.paper('QUICK001');
   const pdf = f.attachment('QUICKPDF', 1, paper.id, '/storage/paper.pdf');
