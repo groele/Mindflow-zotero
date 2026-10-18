@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16" fill="none">
+  <!-- 顶层破界流翼 (100% 不透明度，视觉主锚点) -->
+  <path fill="context-fill, currentColor" 
+        d="M 3.2 4.5 C 7 2.2, 10 5, 14 2.2 C 11.8 6, 7.5 7.8, 3.2 4.5 Z" />
+  <!-- 中层承转流翼 (80% 不透明度) -->
+  <path fill="context-fill, currentColor" fill-opacity="0.8" opacity="0.8"
+        d="M 1.5 7.8 C 5.8 6.2, 9.8 8.8, 14.5 6.5 C 12 10, 7 11.8, 1.5 7.8 Z" />
+  <!-- 底层轻盈托翼 (50% 不透明度，营造螺旋景深) -->
+  <path fill="context-fill, currentColor" fill-opacity="0.5" opacity="0.5"
+        d="M 3.2 11.2 C 6.2 10.5, 8.8 11.8, 13 10.5 C 10.8 13, 7.5 14.5, 3.2 11.2 Z" />
+</svg>

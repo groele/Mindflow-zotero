@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16" fill="none">
+  <!-- 左下承托双流翼 -->
+  <path fill="context-fill, currentColor" 
+        d="M 1.2 8.5 C 4.8 7, 8 9.2, 12 7.2 C 10 10.2, 5.8 11.8, 1.2 8.5 Z" />
+  <path fill="context-fill, currentColor" fill-opacity="0.55" opacity="0.55"
+        d="M 2.5 11.8 C 5.2 11, 7.8 12.2, 11.2 11 C 9.5 13.2, 6.5 14.5, 2.5 11.8 Z" />
+  <!-- 右上新建节点十字 -->
+  <path d="M 11.5 1.5 V 6.5 M 9 4 H 14" 
+        stroke="context-fill, currentColor" stroke-width="1.6" stroke-linecap="round" />
+</svg>

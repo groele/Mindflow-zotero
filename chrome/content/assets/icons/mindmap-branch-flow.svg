@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16" fill="none">
+  <!-- 左侧根旋翼 -->
+  <path fill="context-fill, currentColor" 
+        d="M 1 8 C 3.5 6.5, 5.5 8.5, 8 7 C 6.2 9.5, 3.5 10.5, 1 8 Z" />
+  <!-- 右上衍生分支流翼 -->
+  <path fill="context-fill, currentColor" 
+        d="M 6.5 6.2 C 9.2 4, 11.5 5.5, 15 2.5 C 13.2 6, 10 7.2, 6.5 6.2 Z" />
+  <!-- 右中衍生分支流翼 -->
+  <path fill="context-fill, currentColor" fill-opacity="0.85" opacity="0.85"
+        d="M 7.5 8.2 C 10 7.2, 12.2 8.5, 15.2 7.2 C 13.5 9.5, 10.5 10.2, 7.5 8.2 Z" />
+  <!-- 右下衍生分支流翼 -->
+  <path fill="context-fill, currentColor" fill-opacity="0.65" opacity="0.65"
+        d="M 6.5 9.8 C 9.5 10, 11.8 12, 14.8 13 C 12.2 14, 9 12.5, 6.5 9.8 Z" />
+</svg>

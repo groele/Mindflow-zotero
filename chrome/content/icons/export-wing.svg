@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16" fill="none">
+  <!-- 左下双流翼基座 -->
+  <path fill="context-fill, currentColor" 
+        d="M 1.5 9 C 5 7.5, 8.2 9.8, 12.2 7.8 C 10.2 10.8, 6 12.2, 1.5 9 Z" />
+  <path fill="context-fill, currentColor" fill-opacity="0.55" opacity="0.55"
+        d="M 2.8 12.2 C 5.5 11.5, 8 12.5, 11.5 11.5 C 9.8 13.8, 6.8 14.8, 2.8 12.2 Z" />
+  <!-- 右上破界导出箭头 -->
+  <path d="M 6.5 6.5 L 13.8 2.2 M 9.8 2 H 14 V 6.2" 
+        stroke="context-fill, currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+</svg>

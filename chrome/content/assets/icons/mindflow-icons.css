@@ -1,0 +1,30 @@
+/* Mindflow-zotero v11.2.0 - Fluid Origami Wing Icon Stylesheet for Zotero 10 */
+
+.mindflow-icon,
+.zotero-tb-button[id^="mindflow-"],
+.mindflow-sidebar-tab {
+  -moz-context-properties: fill, stroke, fill-opacity, stroke-opacity;
+  fill: currentColor;
+  stroke: currentColor;
+  image-rendering: crisp-edges;
+}
+
+/* 主工具栏与阅读器按钮挂载 */
+#mindflow-toolbar-btn {
+  list-style-image: url("chrome://mindflow/content/icons/toolbar-mindflow.svg");
+}
+
+/* 侧边栏 Tab 挂载 */
+#mindflow-tab-icon {
+  list-style-image: url("chrome://mindflow/content/icons/sidebar-tab-mindflow.svg");
+}
+
+/* 思维导图内部画布工具条挂载 */
+.mindflow-btn-tree     { list-style-image: url("chrome://mindflow/content/icons/mindmap-branch-flow.svg"); }
+.mindflow-btn-add      { list-style-image: url("chrome://mindflow/content/icons/node-add-wing.svg"); }
+.mindflow-btn-extract  { list-style-image: url("chrome://mindflow/content/icons/extract-pdf-wing.svg"); }
+.mindflow-btn-sync     { list-style-image: url("chrome://mindflow/content/icons/sync-jump-wing.svg"); }
+.mindflow-btn-layout   { list-style-image: url("chrome://mindflow/content/icons/layout-switch-wing.svg"); }
+.mindflow-btn-collapse { list-style-image: url("chrome://mindflow/content/icons/collapse-expand-wing.svg"); }
+.mindflow-btn-focus    { list-style-image: url("chrome://mindflow/content/icons/focus-center-wing.svg"); }
+.mindflow-btn-export   { list-style-image: url("chrome://mindflow/content/icons/export-wing.svg"); }
