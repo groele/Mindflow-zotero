@@ -2,7 +2,7 @@
 
 日期：2026-09-29。标签：`v10.0.3`。兼容 Zotero `10.0.x`；原生回归环境为 Windows + Zotero 10.0.3。
 
-[下载 10.0.3 安装包](https://github.com/groele/Mindflow-zotero/releases/download/v10.0.3/mindflow-zotero-10.0.3.xpi) · [GitHub Release](https://github.com/groele/Mindflow-zotero/releases/tag/v10.0.3)
+[下载 10.0.3 安装包](https://github.com/groele/Zotero-MindFlow/releases/download/v10.0.3/mindflow-zotero-10.0.3.xpi) · [GitHub Release](https://github.com/groele/Zotero-MindFlow/releases/tag/v10.0.3)
 
 ## 修复与加固范围
 

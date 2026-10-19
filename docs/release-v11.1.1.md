@@ -18,4 +18,4 @@ This patch fixes the MindFlow item pane appearing as a heading with an empty bod
 - SHA-256: `4bc5fb7f16d1a9de34900a340ad0ae009a21c4b57be85a28cf022e562d96a2ec`
 - Package verification: [package-verification-v11.1.1.json](package-verification-v11.1.1.json)
 
-Install the XPI from the [11.1.1 GitHub Release](https://github.com/groele/Mindflow-zotero/releases/tag/v11.1.1), or let Zotero check the updated add-on metadata.
+Install the XPI from the [11.1.1 GitHub Release](https://github.com/groele/Zotero-MindFlow/releases/tag/v11.1.1), or let Zotero check the updated add-on metadata.

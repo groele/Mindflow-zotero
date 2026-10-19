@@ -26,4 +26,4 @@ MindFlow 11.1.0 adds convenient actions to the Zotero item pane and improves the
 - SHA-256: `3f91749f4dec3f14d79a30a867793606f014d6e87e3d96b4a7318ebab04c1899`
 - Package verification: [package-verification-v11.1.0.json](package-verification-v11.1.0.json)
 
-For installation, use the XPI attached to the [11.1.0 GitHub Release](https://github.com/groele/Mindflow-zotero/releases/tag/v11.1.0). GitHub's source archive is not an installable add-on package.
+For installation, use the XPI attached to the [11.1.0 GitHub Release](https://github.com/groele/Zotero-MindFlow/releases/tag/v11.1.0). GitHub's source archive is not an installable add-on package.

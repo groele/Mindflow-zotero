@@ -20,4 +20,4 @@ Detailed evidence: [workflow audit](深度逻辑审查与修复-20261007.md). AI
 
 ## Installation
 
-Download [mindflow-zotero-10.0.5.xpi](https://github.com/groele/Mindflow-zotero/releases/download/v10.0.5/mindflow-zotero-10.0.5.xpi) and install it from Zotero's add-on manager. Back up important maps before upgrading.
+Download [mindflow-zotero-10.0.5.xpi](https://github.com/groele/Zotero-MindFlow/releases/download/v10.0.5/mindflow-zotero-10.0.5.xpi) and install it from Zotero's add-on manager. Back up important maps before upgrading.

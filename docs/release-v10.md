@@ -2,7 +2,7 @@
 
 日期：2026-09-28。标签：`v10.0.0`。兼容 Zotero `10.0.x`；真实桌面验证使用 Zotero `10.0.3`、PowerShell `7.6.6`。
 
-[下载 V10 安装包](https://github.com/groele/Mindflow-zotero/releases/download/v10.0.0/mindflow-zotero-10.0.0.xpi) · [GitHub Release](https://github.com/groele/Mindflow-zotero/releases/tag/v10.0.0)
+[下载 V10 安装包](https://github.com/groele/Zotero-MindFlow/releases/download/v10.0.0/mindflow-zotero-10.0.0.xpi) · [GitHub Release](https://github.com/groele/Zotero-MindFlow/releases/tag/v10.0.0)
 
 ## 修复范围
 

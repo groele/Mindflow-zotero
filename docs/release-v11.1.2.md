@@ -17,4 +17,4 @@ This patch repairs the MindFlow quick-action section in Zotero's item pane. It n
 - SHA-256: `a953fe0a3a2b9b85ca7399792a21cfcc94fab08c7db31c27906e51dcdd97512e`
 - Package verification: [package-verification-v11.1.2.json](package-verification-v11.1.2.json)
 
-Install the XPI from the [11.1.2 GitHub Release](https://github.com/groele/Mindflow-zotero/releases/tag/v11.1.2), or let Zotero check the updated add-on metadata.
+Install the XPI from the [11.1.2 GitHub Release](https://github.com/groele/Zotero-MindFlow/releases/tag/v11.1.2), or let Zotero check the updated add-on metadata.
