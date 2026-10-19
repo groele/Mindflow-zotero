@@ -1108,7 +1108,7 @@
           Zotero.PreferencePanes.register({
             pluginID: ADDON_ID,
             src: prefSrc,
-            label: 'MindFlow',
+            label: 'Zotero MindFlow',
             image: prefIcon,
             scripts: [prefScript],
             stylesheets: [prefCss],

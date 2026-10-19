@@ -1,13 +1,17 @@
-/* Keep the MindFlow pane close to Zotero's built-in preference pages. */
+/* ==========================================================================
+   Zotero MindFlow - Modern Collapsible Card Settings Pane (v12.0.0)
+   Matches the macOS / Modern Zotero 10 card & accordion design language.
+   ========================================================================== */
+
 .mindflow-prefs-container {
   box-sizing: border-box;
   width: 100%;
-  max-width: 760px;
+  max-width: 780px;
   min-width: 0;
-  padding: 0 10px 24px 0;
+  padding: 4px 12px 28px 2px;
   color: inherit;
   font: inherit;
-  line-height: 1.45;
+  line-height: 1.5;
 }
 
 .mindflow-prefs-container *,
@@ -16,39 +20,311 @@
   box-sizing: border-box;
 }
 
+/* Header Area */
 .mindflow-pref-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  margin: 2px 0 10px;
+  gap: 16px;
+  margin: 4px 0 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 10%, transparent);
 }
 
-.mindflow-pref-header h1 {
+.mindflow-pref-title-area {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mindflow-pref-brand-icon {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.mindflow-pref-title {
   margin: 0;
   font-size: 19px;
-  font-weight: 400;
+  font-weight: 600;
   line-height: 1.35;
+  color: inherit;
 }
 
-.mindflow-pref-status {
-  margin: 0 0 16px;
-  color: var(--muted-text-color, GrayText);
+/* Primary and Secondary Buttons */
+.mindflow-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.4;
+  border-radius: 6px;
+  cursor: pointer;
+  background: #2563eb;
+  color: #ffffff !important;
+  border: 1px solid #1d4ed8;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.mindflow-btn-primary:hover {
+  background: #1d4ed8;
+  border-color: #1e40af;
+  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.25);
+}
+
+.mindflow-btn-primary:active {
+  background: #1e40af;
+  transform: translateY(1px);
+}
+
+.mindflow-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 13px;
   font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  border-radius: 5px;
+  cursor: pointer;
+  background: var(--fill-quaternary, #f1f5f9);
+  color: inherit;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.mindflow-btn-secondary:hover {
+  background: var(--fill-tertiary, #e2e8f0);
+  border-color: color-mix(in srgb, currentColor 28%, transparent);
+}
+
+.mindflow-btn-secondary:active {
+  transform: translateY(1px);
+}
+
+/* Status Text */
+.mindflow-pref-status {
+  margin: 0 0 14px;
+  color: var(--fill-secondary, #64748b);
+  font-size: 12px;
+  line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-all;
 }
 
+.mindflow-pref-error {
+  color: var(--error-text-color, #dc2626) !important;
+  font-weight: 500;
+}
+
+/* Collapsible Card Design (Mac/Modern Settings Card Style) */
+.mindflow-setting-card {
+  min-width: 0;
+  margin-block: 10px;
+  border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+  border-radius: 9px;
+  background-color: color-mix(in srgb, currentColor 2.5%, transparent);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  overflow: hidden;
+}
+
+.mindflow-setting-card:hover {
+  border-color: color-mix(in srgb, currentColor 22%, transparent);
+}
+
+.mindflow-setting-card[open] {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.mindflow-card-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 15px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  transition: background-color 0.15s ease;
+}
+
+.mindflow-card-summary::-webkit-details-marker,
+.mindflow-card-summary::marker {
+  display: none !important;
+}
+
+.mindflow-card-summary:hover {
+  background-color: color-mix(in srgb, currentColor 4%, transparent);
+}
+
+.mindflow-card-summary:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: -2px;
+  border-radius: 8px;
+}
+
+.mindflow-card-summary::after {
+  content: "›";
+  flex: 0 0 auto;
+  font-size: 19px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--fill-secondary, #64748b);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s ease;
+}
+
+.mindflow-setting-card[open] > .mindflow-card-summary::after {
+  transform: rotate(90deg);
+  color: #3b82f6;
+}
+
+.mindflow-card-title {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: inherit;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mindflow-card-body {
+  box-sizing: border-box;
+  min-width: 0;
+  padding: 10px 15px 16px;
+  border-top: 1px solid color-mix(in srgb, currentColor 10%, transparent);
+  background: color-mix(in srgb, currentColor 1%, transparent);
+}
+
+.mindflow-pref-group-last {
+  margin-bottom: 0;
+}
+
+/* Card Content Stack */
+.mindflow-pref-content {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+/* Rounded Box Option Rows (Matches user's screenshot) */
+.mindflow-control-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  margin: 4px 0;
+  background: var(--material-background, Field);
+  border: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+  border-radius: 6px;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.mindflow-control-row:hover {
+  border-color: color-mix(in srgb, currentColor 24%, transparent);
+}
+
+.mindflow-control-label {
+  min-width: 140px;
+  flex: 1 1 auto;
+  color: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.mindflow-control {
+  width: auto;
+  min-width: 140px;
+  max-width: 290px;
+  min-height: 28px;
+  margin: 0;
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 12px;
+  color: inherit;
+  background: var(--material-background, Field);
+  border: 1px solid color-mix(in srgb, currentColor 16%, transparent);
+  border-radius: 5px;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.mindflow-control:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+select.mindflow-control {
+  appearance: none;
+  -moz-appearance: none;
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="%23888888" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>');
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  padding-right: 28px;
+  cursor: pointer;
+}
+
+/* Checkbox Row */
+.mindflow-check-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 28px;
+  padding: 6px 4px;
+  margin: 2px 0;
+  cursor: pointer;
+}
+
+.mindflow-check-row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: #3b82f6;
+  flex-shrink: 0;
+}
+
+.mindflow-check-row .mindflow-control-label {
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 500;
+  user-select: none;
+}
+
+/* Description Text */
+.mindflow-pref-desc {
+  max-width: 720px;
+  margin: 4px 2px 8px;
+  color: var(--fill-secondary, #64748b);
+  font-size: 12px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+/* Password Wrapper */
 .mindflow-password-wrapper {
   display: flex;
   align-items: center;
   gap: 6px;
   width: 100%;
-  max-width: 430px;
+  max-width: 320px;
 }
 
 .mindflow-password-wrapper .mindflow-control {
   flex: 1;
+  max-width: none;
 }
 
 .mindflow-eye-btn {
@@ -58,147 +334,92 @@
   padding: 3px 8px;
   min-height: 28px;
   cursor: pointer;
-  background: var(--fill-quaternary, transparent);
-  border: 1px solid var(--fill-secondary, #ccc);
-  border-radius: 4px;
+  background: var(--fill-quaternary, #f1f5f9);
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 5px;
   font-size: 13px;
   user-select: none;
 }
 
 .mindflow-eye-btn:hover {
-  background: var(--fill-tertiary, #eaeaea);
+  background: var(--fill-tertiary, #e2e8f0);
 }
 
-.mindflow-pref-error {
-  color: var(--error-text-color, #b42318);
-}
-
-.mindflow-pref-group {
-  display: block;
-  min-width: 0;
-  padding: 0;
-  margin: 0 0 20px;
-  border: 0;
-  background: transparent;
-}
-
-.mindflow-pref-group-last {
-  margin-bottom: 0;
-}
-
-.mindflow-group-title {
-  margin: 0 0 8px;
-  color: inherit;
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1.4;
-}
-
-.mindflow-pref-content {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 7px 12px;
-  min-width: 0;
-}
-
-.mindflow-control-row {
-  display: grid;
-  grid-template-columns: minmax(145px, 190px) minmax(0, 1fr);
-  align-items: center;
-  gap: 9px;
-  min-width: 0;
-  max-width: 590px;
-}
-
-.mindflow-control-label {
-  min-width: 0;
-  color: inherit;
-  font-size: 12px;
-  font-weight: 400;
-  overflow-wrap: anywhere;
-}
-
-.mindflow-control {
-  width: 100%;
-  min-width: 0;
-  max-width: 290px;
-  min-height: 28px;
-  margin: 0;
-  font: inherit;
-}
-
-.mindflow-control[type="checkbox"] {
-  width: auto;
-  min-height: 0;
-  justify-self: start;
-}
-
-.mindflow-check-row {
+/* Folder Row */
+.mindflow-folder-row {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
-  min-width: 0;
-  min-height: 25px;
-}
-
-.mindflow-check-row .mindflow-control-label {
-  cursor: default;
-}
-
-.mindflow-check-row .mindflow-control {
-  flex: none;
-}
-
-.mindflow-wide-row {
-  max-width: 100%;
-}
-
-.mindflow-wide-row .mindflow-control {
-  max-width: 430px;
-}
-
-.mindflow-folder-row {
-  grid-template-columns: minmax(145px, 190px) minmax(0, 1fr) auto;
-  max-width: 100%;
 }
 
 .mindflow-folder-row .mindflow-control {
+  flex: 1;
   max-width: none;
 }
 
-.mindflow-pref-desc {
-  max-width: 680px;
-  margin: 3px 0 5px;
-  color: var(--muted-text-color, GrayText);
+.mindflow-folder-row > button {
+  padding: 4px 12px;
   font-size: 12px;
-  line-height: 1.5;
-  overflow-wrap: anywhere;
+  border-radius: 5px;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  background: var(--fill-quaternary, #f1f5f9);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
 }
 
-.mindflow-pref-content > button,
-.mindflow-pref-header > button {
-  justify-self: start;
-  font: inherit;
+.mindflow-folder-row > button:hover {
+  background: var(--fill-tertiary, #e2e8f0);
 }
 
+/* Wide Row */
+.mindflow-wide-row .mindflow-control {
+  max-width: 420px;
+}
+
+/* Buttons in Content */
+.mindflow-btn-open-llm {
+  align-self: flex-start;
+  margin-top: 8px;
+  padding: 6px 14px;
+  font-size: 12.5px;
+  font-weight: 500;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  background: var(--fill-quaternary, #f1f5f9);
+  color: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.mindflow-btn-open-llm:hover {
+  background: var(--fill-tertiary, #e2e8f0);
+  border-color: color-mix(in srgb, currentColor 28%, transparent);
+}
+
+/* Responsive adjustments */
 @media (max-width: 620px) {
   .mindflow-prefs-container {
     padding-right: 4px;
   }
 
-  .mindflow-control-row,
-  .mindflow-folder-row {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 3px;
+  .mindflow-control-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
   }
 
   .mindflow-control,
   .mindflow-wide-row .mindflow-control {
     max-width: 100%;
+    width: 100%;
   }
 
-  .mindflow-folder-row > button {
-    justify-self: start;
+  .mindflow-folder-row {
+    flex-direction: column;
+    align-items: stretch;
   }
 }
 
@@ -216,21 +437,21 @@
   align-items: center;
   gap: 6px;
   padding: 6px 14px;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 500;
   border-radius: 6px;
   cursor: pointer;
-  border: 1px solid var(--fill-secondary, #cbd5e1);
-  background: var(--fill-quaternary, #f8fafc);
-  color: var(--text-color, #1e293b);
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  background: var(--fill-quaternary, #f1f5f9);
+  color: inherit;
   transition: all 0.15s ease;
   user-select: none;
   align-self: flex-start;
 }
 
 .mindflow-btn-test-ai:hover:not(:disabled) {
-  background: var(--fill-tertiary, #f1f5f9);
-  border-color: #94a3b8;
+  background: var(--fill-tertiary, #e2e8f0);
+  border-color: color-mix(in srgb, currentColor 28%, transparent);
 }
 
 .mindflow-btn-test-ai:disabled {
@@ -304,4 +525,3 @@
   from { opacity: 0; transform: translateY(-3px); }
   to { opacity: 1; transform: translateY(0); }
 }
-
