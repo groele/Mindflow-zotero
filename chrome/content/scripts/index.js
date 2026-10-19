@@ -1577,8 +1577,15 @@
           const style = doc.createElement('style');
           style.id = 'mindflow-tab-style';
           style.textContent = `
+            .icon-css.icon-mindflow,
+            .tab .tab-icon.icon-mindflow,
+            .tab[data-type="mindflow"] .tab-icon,
             tab[type="mindflow"] .tab-icon,
             .tab[type="mindflow"] .tab-icon {
+              background-image: url("${CHROME_ROOT}icons/icon.svg") !important;
+              background-repeat: no-repeat !important;
+              background-position: center !important;
+              background-size: contain !important;
               list-style-image: url("${CHROME_ROOT}icons/icon.svg") !important;
               width: 16px !important;
               height: 16px !important;
@@ -2514,6 +2521,7 @@
                         : 'MindFlow 思维导图')));
 
           const tabData = {
+            icon: 'mindflow',
             ...options,
             targetItemId,
             items: serializedItems,
@@ -2534,6 +2542,28 @@
               Zotero.log?.('[MindFlow] Workspace tab closed: ' + tabTitle);
             },
           });
+
+          try {
+            const tabId = tabResult?.id;
+            if (tabId) {
+              const applyTabIcon = () => {
+                const tabEl = win.document?.querySelector?.(`.tab[data-id="${tabId}"]`);
+                if (tabEl) {
+                  tabEl.setAttribute('data-type', 'mindflow');
+                  const iconEl = tabEl.querySelector?.('.tab-icon');
+                  if (iconEl) {
+                    iconEl.style.setProperty('background-image', `url("${CHROME_ROOT}icons/icon.svg")`, 'important');
+                    iconEl.style.setProperty('background-repeat', 'no-repeat', 'important');
+                    iconEl.style.setProperty('background-position', 'center', 'important');
+                    iconEl.style.setProperty('background-size', 'contain', 'important');
+                  }
+                }
+              };
+              applyTabIcon();
+              win.setTimeout?.(applyTabIcon, 50);
+              win.setTimeout?.(applyTabIcon, 300);
+            }
+          } catch (_) {}
 
           const container =
             (tabResult && tabResult.container) ||

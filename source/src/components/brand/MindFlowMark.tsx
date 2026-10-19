@@ -4,45 +4,59 @@ interface MindFlowMarkProps {
   className?: string;
 }
 
-/** 02. MapGraph (星轨拓扑) - Scalable MindFlow brand identity mark with refined optical padding. */
+/** Fluid Origami Wing (流体折纸旋翼) - Official MindFlow Brand Mark */
 export const MindFlowMark: React.FC<MindFlowMarkProps> = ({ className = '' }) => (
   <svg
     aria-hidden="true"
-    viewBox="0 0 32 32"
+    viewBox="0 0 64 64"
     fill="none"
     className={className}
   >
     <defs>
-      <linearGradient id="mfMarkCenter" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stopColor="#0284C7" />
-        <stop offset="100%" stopColor="#0369A1" />
+      <linearGradient id="mfBrandWing1" x1="12" y1="16" x2="52" y2="24" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stopColor="#06B6D4" />
+        <stop offset="100%" stopColor="#3B82F6" />
+      </linearGradient>
+      <linearGradient id="mfBrandWing2" x1="10" y1="30" x2="54" y2="38" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stopColor="#6366F1" />
+        <stop offset="100%" stopColor="#A855F7" />
+      </linearGradient>
+      <linearGradient id="mfBrandWing3" x1="16" y1="44" x2="48" y2="52" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stopColor="#EC4899" />
+        <stop offset="100%" stopColor="#F43F5E" stopOpacity="0.3" />
       </linearGradient>
     </defs>
-    <g stroke="#0284C7" strokeWidth="1.6" strokeLinecap="round" opacity="0.85">
-      <line x1="16" y1="16" x2="16" y2="7.2" />
-      <line x1="16" y1="16" x2="21.7" y2="10.3" />
-      <line x1="16" y1="16" x2="24.8" y2="16" />
-      <line x1="16" y1="16" x2="21.7" y2="21.7" />
-      <line x1="16" y1="16" x2="16" y2="24.8" />
-      <line x1="16" y1="16" x2="10.3" y2="21.7" />
-      <line x1="16" y1="16" x2="7.2" y2="16" />
-      <line x1="16" y1="16" x2="10.3" y2="10.3" />
-    </g>
-    <circle cx="16" cy="7.2" r="1.9" fill="#0284C7" stroke="#FFFFFF" strokeWidth="0.5" />
-    <circle cx="21.7" cy="10.3" r="1.6" fill="#06B6D4" stroke="#FFFFFF" strokeWidth="0.5" />
-    <circle cx="24.8" cy="16" r="1.9" fill="#0EA5E9" stroke="#FFFFFF" strokeWidth="0.5" />
-    <circle cx="21.7" cy="21.7" r="1.6" fill="#6366F1" stroke="#FFFFFF" strokeWidth="0.5" />
-    <circle cx="16" cy="24.8" r="1.9" fill="#0284C7" stroke="#FFFFFF" strokeWidth="0.5" />
-    <circle cx="10.3" cy="21.7" r="1.6" fill="#8B5CF6" stroke="#FFFFFF" strokeWidth="0.5" />
-    <circle cx="7.2" cy="16" r="1.9" fill="#0EA5E9" stroke="#FFFFFF" strokeWidth="0.5" />
-    <circle cx="10.3" cy="10.3" r="1.6" fill="#06B6D4" stroke="#FFFFFF" strokeWidth="0.5" />
-    <circle cx="16" cy="16" r="4.0" fill="url(#mfMarkCenter)" stroke="#FFFFFF" strokeWidth="0.75" />
-    <g stroke="#FFFFFF" strokeWidth="0.85" strokeLinecap="round">
-      <line x1="14.8" y1="17.2" x2="16" y2="16" />
-      <line x1="16" y1="16" x2="17.2" y2="14.8" />
-    </g>
-    <circle cx="14.8" cy="17.2" r="0.7" fill="#FFFFFF" />
-    <circle cx="16" cy="16" r="0.9" fill="#FFFFFF" />
-    <circle cx="17.2" cy="14.8" r="0.7" fill="#FFFFFF" />
+
+    {/* 底层流翼：柔和托底 */}
+    <path
+      d="M 14 44 C 24 42, 34 46, 50 42 C 42 50, 30 56, 14 44 Z"
+      fill="url(#mfBrandWing3)"
+    />
+
+    {/* 中层流翼：主视觉承转，优雅的双曲率叶面 */}
+    <path
+      d="M 8 30 C 24 24, 38 34, 56 26 C 46 38, 28 44, 8 30 Z"
+      fill="url(#mfBrandWing2)"
+    />
+    <path
+      d="M 8 30 C 28 44, 46 38, 56 26"
+      stroke="#FFFFFF"
+      strokeWidth={1}
+      strokeLinecap="round"
+      opacity={0.5}
+    />
+
+    {/* 顶层流翼：向右上破界扬起 */}
+    <path
+      d="M 14 18 C 28 10, 40 20, 54 10 C 46 24, 30 30, 14 18 Z"
+      fill="url(#mfBrandWing1)"
+    />
+    <path
+      d="M 14 18 C 30 30, 46 24, 54 10"
+      stroke="#FFFFFF"
+      strokeWidth={1.2}
+      strokeLinecap="round"
+      opacity={0.75}
+    />
   </svg>
 );

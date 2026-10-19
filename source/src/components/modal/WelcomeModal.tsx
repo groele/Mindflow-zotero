@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
-  Sparkles, Plus, BookOpen, LayoutTemplate, Upload,
+  Plus, BookOpen, LayoutTemplate, Upload,
   Clock, ArrowRight, X, Lightbulb, RefreshCw
 } from 'lucide-react';
 import { DocumentSummary, StorageService } from '../../services/storage/storageService';
 import { getSelectedZoteroItems, ZoteroItemData } from '../../services/zotero/zoteroBridge';
 import { APP_VERSION } from '../../core/version';
+import { MindFlowMark } from '../brand/MindFlowMark';
 
 interface WelcomeModalProps {
   isOpen: boolean;
@@ -97,8 +98,8 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({
         {/* Header */}
         <div className="px-5 sm:px-7 py-5 border-b border-slate-200 dark:border-slate-700 flex items-start justify-between gap-4 bg-slate-50 dark:bg-slate-800/50">
           <div className="flex items-start gap-3 min-w-0">
-            <div className="mindflow-welcome-brand w-11 h-11 shrink-0 rounded-xl bg-blue-600 flex items-center justify-center shadow-sm">
-              <Sparkles className="w-5 h-5" aria-hidden="true" />
+            <div className="mindflow-welcome-brand w-11 h-11 shrink-0 rounded-xl bg-slate-900/5 dark:bg-white/10 flex items-center justify-center shadow-sm">
+              <MindFlowMark className="w-8 h-8" />
             </div>
             <div className="min-w-0">
               <h2 id="mindflow-welcome-title" className="text-lg sm:text-xl leading-snug font-bold text-slate-950 dark:text-white flex flex-wrap items-center gap-x-2 gap-y-1">
