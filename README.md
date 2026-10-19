@@ -28,7 +28,7 @@ The add-on and Zotero have separate version numbers. This README is bilingual; t
 
 ### 1. 安装与升级
 
-1. 打开 [12.0.0 Release（插件版本）](https://github.com/groele/Zotero-MindFlow/releases/tag/v12.0.0)，下载 [`zotero-mindflow-12.0.0.xpi`](https://github.com/groele/Zotero-MindFlow/releases/download/v12.0.0/zotero-mindflow-12.0.0.xpi)（或兼容命名的 [`mindflow-zotero-12.0.0.xpi`](https://github.com/groele/Zotero-MindFlow/releases/download/v12.0.0/mindflow-zotero-12.0.0.xpi)）。请选择 XPI 安装包，GitHub 的 Source code ZIP 不能直接作为插件安装。
+1. 打开 [12.0.0 Release（插件版本）](https://github.com/groele/Zotero-MindFlow/releases/tag/v12.0.0)，下载 [`zotero-mindflow-12.0.0.xpi`](https://github.com/groele/Zotero-MindFlow/releases/download/v12.0.0/zotero-mindflow-12.0.0.xpi)。请选择 XPI 安装包，GitHub 的 Source code ZIP 不能直接作为插件安装。
 2. 在 Zotero 中打开 **工具 → 插件**，点击齿轮，选择 **从文件安装插件**。
 3. 选择下载的 XPI，完成安装并重启 Zotero。
 4. 通过文献库工具栏的 MindFlow 图标、工具菜单或分类右键菜单打开工作台。
@@ -333,7 +333,7 @@ pwsh -NoProfile -File scripts/restart-native-test.ps1
 
 ### 1. Installation and upgrades
 
-1. Open the [12.0.0 Release (add-on version)](https://github.com/groele/Zotero-MindFlow/releases/tag/v12.0.0) and download [`zotero-mindflow-12.0.0.xpi`](https://github.com/groele/Zotero-MindFlow/releases/download/v12.0.0/zotero-mindflow-12.0.0.xpi) (or [`mindflow-zotero-12.0.0.xpi`](https://github.com/groele/Zotero-MindFlow/releases/download/v12.0.0/mindflow-zotero-12.0.0.xpi)). Use the XPI asset; GitHub's Source code ZIP cannot be installed directly as the add-on.
+1. Open the [12.0.0 Release (add-on version)](https://github.com/groele/Zotero-MindFlow/releases/tag/v12.0.0) and download [`zotero-mindflow-12.0.0.xpi`](https://github.com/groele/Zotero-MindFlow/releases/download/v12.0.0/zotero-mindflow-12.0.0.xpi). Use the XPI asset; GitHub's Source code ZIP cannot be installed directly as the add-on.
 2. In Zotero, open **Tools → Plugins**, click the gear button, and choose **Install Add-on From File**. Menu labels may vary with your Zotero language.
 3. Select the XPI, finish installation, and restart Zotero.
 4. Open MindFlow through its library toolbar icon, the Tools menu, or the collection's context menu.

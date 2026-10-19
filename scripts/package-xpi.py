@@ -7,7 +7,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--output', help='Local derivative package filename')
 parser.add_argument('--report', default='docs/package-verification.json')
 args = parser.parse_args()
-output = root / (args.output or f"mindflow-zotero-{manifest['version']}.xpi")
+output = root / (args.output or f"zotero-mindflow-{manifest['version']}.xpi")
 files = [root / name for name in ['manifest.json', 'bootstrap.js', 'prefs.js', 'chrome.manifest', 'update.json']]
 for directory in ['chrome', 'locale']:
     files.extend(p for p in (root / directory).rglob('*') if p.is_file())
