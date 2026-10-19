@@ -1073,6 +1073,7 @@
             box-sizing: border-box;
           }
 
+          /* Zotero ItemPane Sidenav Icon Rail */
           item-pane-sidenav .btn[data-pane*="mindflow-item-pane"] {
             width: 28px !important;
             height: 28px !important;
@@ -1093,9 +1094,13 @@
             display: none !important;
           }
 
+          /* ItemPane Section Header Icon (Native & Custom fallbacks) */
+          item-pane-custom-section[data-pane*="mindflow-item-pane"] collapsible-section > .head .title::before,
+          item-pane-custom-section[data-pane*="mindflow-item-pane"] .title::before,
           item-pane-custom-section[data-pane*="mindflow-item-pane"] .icon,
           item-pane-custom-section[data-pane*="mindflow-item-pane"] button.header .icon,
           item-pane-custom-section[data-pane*="mindflow-item-pane"] collapsible-section .icon {
+            content: "" !important;
             background-image: url("chrome://mindflow/content/icons/mindflow.svg") !important;
             background-size: 16px 16px !important;
             background-position: center !important;
@@ -1105,6 +1110,8 @@
             height: 16px !important;
             min-width: 16px !important;
             min-height: 16px !important;
+            margin-inline-end: 6px !important;
+            vertical-align: middle !important;
           }
 
           .mf-pane-wrap {
@@ -1126,13 +1133,14 @@
             box-sizing: border-box;
           }
 
+          /* Header card & Status badge */
           .mf-header-card {
             display: flex;
             flex-direction: column;
-            gap: 5px;
+            gap: 6px;
             padding: 8px 10px;
-            background: var(--color-quinary-on-sidepane, rgba(0, 0, 0, 0.03));
-            border: 1px solid var(--color-border, rgba(0, 0, 0, 0.1));
+            background: rgba(0, 0, 0, 0.025);
+            border: 1px solid rgba(0, 0, 0, 0.08);
             border-radius: 8px;
             box-sizing: border-box;
           }
@@ -1181,6 +1189,7 @@
             white-space: nowrap;
           }
 
+          /* Primary Action Button */
           .mf-btn-primary {
             display: flex;
             align-items: center;
@@ -1198,16 +1207,22 @@
             font-weight: 600;
             cursor: pointer;
             box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
-            transition: opacity 0.15s ease;
+            transition: opacity 0.15s ease, transform 0.1s ease;
             user-select: none;
+            box-sizing: border-box;
           }
 
           .mf-btn-primary:hover:not(:disabled) {
-            opacity: 0.9;
+            opacity: 0.92;
+            transform: translateY(-0.5px);
+          }
+
+          .mf-btn-primary:active:not(:disabled) {
+            transform: translateY(0);
           }
 
           .mf-btn-primary:disabled {
-            opacity: 0.6;
+            opacity: 0.55;
             cursor: not-allowed;
           }
 
@@ -1219,14 +1234,16 @@
             padding-left: 2px;
           }
 
+          /* Template Box */
           .mf-template-box {
             display: flex;
             flex-direction: column;
             gap: 6px;
             padding: 8px 10px;
-            background: var(--color-background, #ffffff);
-            border: 1px solid var(--color-border, rgba(0, 0, 0, 0.1));
+            background: #ffffff;
+            border: 1px solid rgba(0, 0, 0, 0.1);
             border-radius: 6px;
+            box-sizing: border-box;
           }
 
           .mf-template-row {
@@ -1245,14 +1262,15 @@
           .mf-template-select {
             flex: 1;
             min-width: 0;
-            height: 24px;
+            height: 25px;
             padding: 1px 6px;
             font-size: 11.5px;
             border-radius: 4px;
-            border: 1px solid var(--color-border, rgba(0, 0, 0, 0.15));
-            background: var(--color-control, #ffffff);
-            color: var(--fill-primary, inherit);
+            border: 1px solid rgba(0, 0, 0, 0.15);
+            background: transparent;
+            color: inherit;
             cursor: pointer;
+            box-sizing: border-box;
           }
 
           .mf-btn-template-create {
@@ -1264,50 +1282,68 @@
             font-size: 11.5px;
             font-weight: 500;
             border-radius: 4px;
-            border: 1px solid var(--color-border, rgba(0, 0, 0, 0.15));
-            background: var(--color-button, #ffffff);
+            border: 1px solid rgba(0, 0, 0, 0.15);
+            background: #ffffff;
             color: var(--fill-primary, inherit);
             cursor: pointer;
-            transition: background-color 0.15s ease;
+            transition: all 0.15s ease;
+            box-sizing: border-box;
           }
 
           .mf-btn-template-create:hover:not(:disabled) {
-            background: var(--color-quinary-on-sidepane, #e6e6e6);
+            background: rgba(0, 0, 0, 0.05);
+            border-color: var(--accent-blue, #4072e5);
+            color: var(--accent-blue, #2563eb);
           }
 
           .mf-btn-template-create:disabled {
-            opacity: 0.6;
+            opacity: 0.55;
             cursor: not-allowed;
           }
 
+          /* Quick Tools Grid (2 Columns, matching TaskFlow td-action-grid) */
           .mf-tools-grid {
             display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-template-columns: 1fr 1fr;
             gap: 6px;
+            margin-top: 2px;
+            box-sizing: border-box;
           }
 
           .mf-tool-btn {
-            display: flex;
+            display: inline-flex;
             align-items: center;
             justify-content: center;
-            gap: 6px;
+            gap: 4px;
+            padding: 5px 6px;
             min-height: 28px;
-            padding: 4px 8px;
-            font-size: 11.5px;
+            font-size: 11px;
             font-weight: 500;
-            color: var(--fill-primary, inherit);
-            background: var(--color-button, #ffffff);
-            border: 1px solid var(--color-border, rgba(0, 0, 0, 0.15));
-            border-radius: 4px;
-            cursor: pointer;
-            transition: all 0.15s ease;
-            user-select: none;
+            color: #334155 !important;
+            background: #ffffff !important;
+            border: 1px solid rgba(0, 0, 0, 0.1) !important;
+            border-radius: 6px !important;
+            cursor: pointer !important;
+            text-decoration: none;
+            overflow: hidden;
+            text-overflow: ellipsis;
             white-space: nowrap;
+            appearance: none;
+            -moz-appearance: none;
+            transition: all 0.15s ease;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+            box-sizing: border-box;
           }
 
           .mf-tool-btn:hover:not(:disabled) {
-            background: var(--color-quinary-on-sidepane, #e6e6e6);
-            border-color: var(--accent-blue, #4072e5);
+            background: #f8fafc !important;
+            border-color: rgba(64, 114, 229, 0.4) !important;
+            color: #2563eb !important;
+            transform: translateY(-0.5px);
+          }
+
+          .mf-tool-btn:active:not(:disabled) {
+            transform: translateY(0);
           }
 
           .mf-tool-btn:disabled {
@@ -1315,10 +1351,26 @@
             cursor: not-allowed;
           }
 
+          .mf-tool-btn-pdf {
+            grid-column: 1 / -1;
+            background: linear-gradient(135deg, rgba(37, 99, 235, 0.06), rgba(59, 130, 246, 0.1)) !important;
+            border-color: rgba(37, 99, 235, 0.25) !important;
+            color: #1d4ed8 !important;
+            font-weight: 600;
+          }
+
+          .mf-tool-btn-pdf:hover:not(:disabled) {
+            background: linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(59, 130, 246, 0.18)) !important;
+            border-color: #2563eb !important;
+            color: #1e40af !important;
+          }
+
+          /* Maps List */
           .mf-maps-section {
             display: flex;
             flex-direction: column;
             gap: 6px;
+            box-sizing: border-box;
           }
 
           .mf-maps-header {
@@ -1345,7 +1397,7 @@
           }
 
           .mf-btn-refresh:hover {
-            background: var(--color-quinary-on-sidepane, rgba(0, 0, 0, 0.05));
+            background: rgba(0, 0, 0, 0.05);
             color: var(--fill-primary, inherit);
           }
 
@@ -1355,6 +1407,7 @@
             gap: 6px;
             max-height: 260px;
             overflow-y: auto;
+            box-sizing: border-box;
           }
 
           .mf-map-card {
@@ -1363,10 +1416,11 @@
             gap: 6px;
             padding: 8px 10px;
             border-radius: 6px;
-            background: var(--color-background, #ffffff);
-            border: 1px solid var(--color-border, rgba(0, 0, 0, 0.12));
+            background: #ffffff;
+            border: 1px solid rgba(0, 0, 0, 0.1);
             box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
             transition: border-color 0.15s ease;
+            box-sizing: border-box;
           }
 
           .mf-map-card:hover {
@@ -1403,47 +1457,58 @@
           .mf-map-card-actions {
             display: flex;
             align-items: center;
-            gap: 6px;
-            margin-top: 2px;
+            gap: 5px;
+            margin-top: 3px;
+            flex-wrap: wrap;
           }
 
           .mf-card-btn {
             flex: 1;
+            min-width: 0;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            gap: 4px;
+            gap: 3px;
             height: 24px;
-            padding: 0 8px;
+            padding: 0 6px;
             font-size: 11px;
             font-weight: 500;
-            border-radius: 3px;
-            border: 1px solid var(--color-border, rgba(0, 0, 0, 0.15));
-            background: var(--color-button, #ffffff);
+            border-radius: 4px;
+            border: 1px solid rgba(0, 0, 0, 0.12);
+            background: #ffffff;
             color: var(--fill-primary, inherit);
             cursor: pointer;
-            transition: background-color 0.12s ease;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            transition: all 0.12s ease;
+            box-sizing: border-box;
           }
 
           .mf-card-btn:hover:not(:disabled) {
-            background: var(--color-quinary-on-sidepane, #e6e6e6);
+            background: rgba(0, 0, 0, 0.05);
+            border-color: var(--accent-blue, #4072e5);
+            color: var(--accent-blue, #2563eb);
           }
 
           .mf-card-btn:disabled {
-            opacity: 0.6;
+            opacity: 0.55;
             cursor: not-allowed;
           }
 
           .mf-card-btn-primary {
-            background: var(--accent-blue, #4072e5);
+            background: var(--accent-blue, #4072e5) !important;
             color: #ffffff !important;
-            border-color: var(--accent-blue, #4072e5);
+            border-color: var(--accent-blue, #4072e5) !important;
+            font-weight: 600;
           }
 
           .mf-card-btn-primary:hover:not(:disabled) {
-            opacity: 0.9;
+            opacity: 0.92;
+            color: #ffffff !important;
           }
 
+          /* Empty Guide Card */
           .mf-empty-guide {
             display: flex;
             flex-direction: column;
@@ -1451,9 +1516,10 @@
             text-align: center;
             gap: 6px;
             padding: 12px 10px;
-            background: var(--color-quinary-on-sidepane, rgba(0, 0, 0, 0.02));
-            border: 1px dashed var(--color-border, rgba(0, 0, 0, 0.15));
+            background: rgba(0, 0, 0, 0.02);
+            border: 1px dashed rgba(0, 0, 0, 0.15);
             border-radius: 8px;
+            box-sizing: border-box;
           }
 
           .mf-empty-icon {
@@ -1472,6 +1538,108 @@
             line-height: 1.45;
             color: var(--fill-secondary, #64748b);
             max-width: 240px;
+          }
+
+          /* Dark theme support */
+          @media (prefers-color-scheme: dark) {
+            .mf-pane-wrap {
+              color: #e2e8f0;
+            }
+            .mf-header-card {
+              background: rgba(255, 255, 255, 0.04);
+              border-color: rgba(255, 255, 255, 0.08);
+            }
+            .mf-target-title {
+              color: #f1f5f9;
+            }
+            .mf-template-box {
+              background: rgba(255, 255, 255, 0.03);
+              border-color: rgba(255, 255, 255, 0.1);
+            }
+            .mf-template-select {
+              background: #1e293b;
+              border-color: #334155;
+              color: #f1f5f9;
+            }
+            .mf-btn-template-create {
+              background: #1e293b;
+              border-color: rgba(255, 255, 255, 0.12);
+              color: #e2e8f0;
+            }
+            .mf-btn-template-create:hover:not(:disabled) {
+              background: #334155;
+              border-color: #60a5fa;
+              color: #ffffff;
+            }
+            .mf-tool-btn {
+              background: #1e293b !important;
+              border-color: rgba(255, 255, 255, 0.1) !important;
+              color: #e2e8f0 !important;
+            }
+            .mf-tool-btn:hover:not(:disabled) {
+              background: #334155 !important;
+              border-color: #60a5fa !important;
+              color: #93c5fd !important;
+            }
+            .mf-tool-btn-pdf {
+              background: rgba(37, 99, 235, 0.15) !important;
+              border-color: rgba(59, 130, 246, 0.35) !important;
+              color: #60a5fa !important;
+            }
+            .mf-tool-btn-pdf:hover:not(:disabled) {
+              background: rgba(37, 99, 235, 0.25) !important;
+              border-color: #3b82f6 !important;
+              color: #93c5fd !important;
+            }
+            .mf-map-card {
+              background: #1e293b;
+              border-color: rgba(255, 255, 255, 0.1);
+            }
+            .mf-map-name {
+              color: #f1f5f9;
+            }
+            .mf-card-btn {
+              background: #0f172a;
+              border-color: rgba(255, 255, 255, 0.12);
+              color: #e2e8f0;
+            }
+            .mf-card-btn:hover:not(:disabled) {
+              background: #334155;
+              border-color: #60a5fa;
+              color: #ffffff;
+            }
+            .mf-card-btn-primary {
+              background: #2563eb !important;
+              border-color: #3b82f6 !important;
+              color: #ffffff !important;
+            }
+            .mf-empty-guide {
+              background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+              border-color: rgba(255, 255, 255, 0.1);
+            }
+            .mf-empty-title {
+              color: #f1f5f9;
+            }
+            .mf-empty-desc {
+              color: #94a3b8;
+            }
+          }
+
+          /* Follow Zotero's semantic colors and native control metrics */
+          .mf-pane-wrap {
+            color: var(--fill-primary, CanvasText);
+            color-scheme: light dark;
+          }
+          .mf-header-card, .mf-template-box, .mf-map-card, .mf-tool-btn {
+            background: var(--material-background, Canvas) !important;
+            border-color: var(--fill-quinary, #cbd5e1) !important;
+            box-shadow: none;
+          }
+          .mf-target-title, .mf-map-name, .mf-tool-btn, .mf-card-btn {
+            color: var(--fill-primary, CanvasText) !important;
+          }
+          .mf-header-meta, .mf-hint-text, .mf-empty-desc, .mf-map-card-meta {
+            color: var(--fill-secondary, GrayText);
           }
         `;
         (doc.head || doc.documentElement)?.appendChild(style);
@@ -1826,11 +1994,12 @@
             templateBox.appendChild(templateBtn);
             wrapper.appendChild(templateBox);
 
-            // 4. Quick Tools Grid (4-Pill)
+            // 4. Action Buttons Grid (2 Columns, matching TaskFlow td-action-grid)
             const toolsGrid = createEl('div', 'mf-tools-grid');
 
             const toolAi = createEl('button', 'mf-tool-btn', '✨ AI 论文精读');
             toolAi.type = 'button';
+            toolAi.title = '为本文献启动 AI 智能精读与思维导图生成';
             toolAi.addEventListener('click', async (e) => {
               e.preventDefault(); e.stopPropagation();
               if (toolAi.disabled) return;
@@ -1845,17 +2014,26 @@
             });
             toolsGrid.appendChild(toolAi);
 
-            const toolPdf = createEl('button', 'mf-tool-btn', '📖 打开对应 PDF');
-            toolPdf.type = 'button';
-            if (!hasPDF) toolPdf.disabled = true;
-            toolPdf.addEventListener('click', (e) => {
+            const toolSubwin = createEl('button', 'mf-tool-btn', '🗗 伴读独立窗口');
+            toolSubwin.type = 'button';
+            toolSubwin.title = '打开轻量独立窗口，适合与 PDF 左右分屏伴读对照';
+            toolSubwin.addEventListener('click', (e) => {
               e.preventDefault(); e.stopPropagation();
-              openPDFForItem(selectedPDF || target);
+              try {
+                if (totalMaps > 0 && maps[0]) {
+                  this.openMindflowAttachment(maps[0], win);
+                } else {
+                  this.openStandaloneWindow({ mode: 'create_from_selection', items: [target], forceNew: false }, win);
+                }
+              } catch (err) {
+                Zotero.logError?.('[MindFlow] Open standalone window failed: ' + err);
+              }
             });
-            toolsGrid.appendChild(toolPdf);
+            toolsGrid.appendChild(toolSubwin);
 
-            const toolImport = createEl('button', 'mf-tool-btn', '📥 导入导图');
+            const toolImport = createEl('button', 'mf-tool-btn', '📥 导入外部导图');
             toolImport.type = 'button';
+            toolImport.title = '导入 MindFlow、JSON、Markdown 或 OPML 导图文件';
             toolImport.addEventListener('click', async (e) => {
               e.preventDefault(); e.stopPropagation();
               await this.openMindFlow({ mode: 'import_file' }, win);
@@ -1864,11 +2042,23 @@
 
             const toolBlank = createEl('button', 'mf-tool-btn', '📄 独立空白导图');
             toolBlank.type = 'button';
+            toolBlank.title = '新建不绑定本文献的独立空白思维导图';
             toolBlank.addEventListener('click', async (e) => {
               e.preventDefault(); e.stopPropagation();
               await this.openMindFlow({ mode: 'create_blank', forceNew: true }, win);
             });
             toolsGrid.appendChild(toolBlank);
+
+            if (hasPDF) {
+              const toolPdf = createEl('button', 'mf-tool-btn mf-tool-btn-pdf', '📖 打开伴读 PDF');
+              toolPdf.type = 'button';
+              toolPdf.title = '在 Zotero 内置阅读器中打开本文献的 PDF 全文';
+              toolPdf.addEventListener('click', (e) => {
+                e.preventDefault(); e.stopPropagation();
+                openPDFForItem(selectedPDF || target);
+              });
+              toolsGrid.appendChild(toolPdf);
+            }
 
             wrapper.appendChild(toolsGrid);
 
@@ -1917,6 +2107,7 @@
 
                 const openBtn = createEl('button', 'mf-card-btn mf-card-btn-primary', '打开导图 ↗');
                 openBtn.type = 'button';
+                openBtn.title = '在工作台中打开并编辑此思维导图';
                 openBtn.addEventListener('click', async (e) => {
                   e.preventDefault(); e.stopPropagation();
                   if (openBtn.disabled) return;
@@ -1931,8 +2122,9 @@
                 });
                 cardActions.appendChild(openBtn);
 
-                const exportBtn = createEl('button', 'mf-card-btn', '导出大纲笔记 📝');
+                const exportBtn = createEl('button', 'mf-card-btn', '大纲笔记 📝');
                 exportBtn.type = 'button';
+                exportBtn.title = '将思维导图结构一键导出为 Zotero 文献子笔记';
                 exportBtn.addEventListener('click', async (e) => {
                   e.preventDefault(); e.stopPropagation();
                   if (exportBtn.disabled) return;
@@ -1947,6 +2139,20 @@
                 });
                 cardActions.appendChild(exportBtn);
 
+                const locateBtn = createEl('button', 'mf-card-btn', '定位附件 📌');
+                locateBtn.type = 'button';
+                locateBtn.title = '在文献库列表中定位并选中此思维导图附件';
+                locateBtn.addEventListener('click', (e) => {
+                  e.preventDefault(); e.stopPropagation();
+                  try {
+                    const mainWin = Zotero.getMainWindow?.();
+                    mainWin?.ZoteroPane?.selectItem?.(att.id);
+                  } catch (err) {
+                    Zotero.logError?.('[MindFlow] Locate attachment failed: ' + err);
+                  }
+                });
+                cardActions.appendChild(locateBtn);
+
                 card.appendChild(cardActions);
                 mapsList.appendChild(card);
               }
@@ -1956,10 +2162,27 @@
               const emptyGuide = createEl('div', 'mf-empty-guide');
               emptyGuide.appendChild(createEl('div', 'mf-empty-icon', '💡'));
               emptyGuide.appendChild(createEl('div', 'mf-empty-title', '思维导图 + 划线互联'));
-              emptyGuide.appendChild(createEl('div', 'mf-empty-desc', '在 PDF 中划线做高亮，可在 MindFlow 导图中快速引用；导图节点亦可一键生成 Zotero 大纲笔记。'));
+              emptyGuide.appendChild(createEl('div', 'mf-empty-desc', '基于文献标题、摘要及 PDF 快速构建树状导图，阅读划线实时同步，节点可一键导出为 Zotero 大纲笔记。'));
+
+              const emptyCreateBtn = createEl('button', 'mf-btn-template-create', '⚡ 立即为此文献生成思维导图');
+              emptyCreateBtn.type = 'button';
+              emptyCreateBtn.title = '根据当前文献元数据一键生成思维导图';
+              emptyCreateBtn.addEventListener('click', async (e) => {
+                e.preventDefault(); e.stopPropagation();
+                if (emptyCreateBtn.disabled) return;
+                emptyCreateBtn.disabled = true;
+                try {
+                  await this.openMindFlow({ mode: 'create_from_selection', items: [target], forceNew: false }, win);
+                  state?.refresh?.();
+                } catch (err) {
+                  Zotero.logError?.('[MindFlow] Empty guide create failed: ' + err);
+                } finally {
+                  emptyCreateBtn.disabled = false;
+                }
+              });
+              emptyGuide.appendChild(emptyCreateBtn);
               wrapper.appendChild(emptyGuide);
             }
-
             body.appendChild(wrapper);
           },
         });
