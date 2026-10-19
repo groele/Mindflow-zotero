@@ -1583,7 +1583,9 @@
               width: 16px !important;
               height: 16px !important;
             }
+            #mindflow-toolbar-button,
             #mindflow-toolbar-button .toolbarbutton-icon {
+              list-style-image: url("${CHROME_ROOT}icons/mindflow-toolbar.svg") !important;
               width: 20px !important;
               height: 20px !important;
               max-width: 20px !important;
@@ -1994,7 +1996,8 @@
         button.getAttribute('data-mindflow') === 'true' ||
         (button.getAttribute('label') === 'MindFlow' &&
           String(button.getAttribute('image') || '').includes('/icons/mindflow.svg')) ||
-        String(button.getAttribute('image') || '').includes('/icons/mindflow.svg');
+        String(button.getAttribute('image') || '').includes('/icons/mindflow.svg') ||
+        String(button.getAttribute('image') || '').includes('/icons/mindflow-toolbar.svg');
       const toolbarButtons = leadingActionItems.filter((child) =>
         String(child.localName || child.tagName || '').toLowerCase() === 'toolbarbutton' &&
         !isMindFlowButton(child) &&

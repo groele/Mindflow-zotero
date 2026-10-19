@@ -75,16 +75,47 @@ ICONS = {
     # -------------------------------------------------------------------------
     # 03. Zotero 10 顶栏与阅读器主按钮 (16x16 单色自适应)
     # -------------------------------------------------------------------------
-    "addon/content/icons/toolbar-mindflow.svg": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16" fill="none">
-  <!-- 顶层破界流翼 (100% 不透明度，视觉主锚点) -->
-  <path fill="context-fill, currentColor" 
-        d="M 3.2 4.5 C 7 2.2, 10 5, 14 2.2 C 11.8 6, 7.5 7.8, 3.2 4.5 Z" />
-  <!-- 中层承转流翼 (80% 不透明度) -->
-  <path fill="context-fill, currentColor" fill-opacity="0.8" opacity="0.8"
-        d="M 1.5 7.8 C 5.8 6.2, 9.8 8.8, 14.5 6.5 C 12 10, 7 11.8, 1.5 7.8 Z" />
-  <!-- 底层轻盈托翼 (50% 不透明度，营造螺旋景深) -->
-  <path fill="context-fill, currentColor" fill-opacity="0.5" opacity="0.5"
-        d="M 3.2 11.2 C 6.2 10.5, 8.8 11.8, 13 10.5 C 10.8 13, 7.5 14.5, 3.2 11.2 Z" />
+    "addon/content/icons/toolbar-mindflow.svg": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="20" height="20" fill="none">
+  <defs>
+    <linearGradient id="mf-tb-w1" x1="12" y1="16" x2="52" y2="24" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#06B6D4" />
+      <stop offset="100%" stop-color="#3B82F6" />
+    </linearGradient>
+    <linearGradient id="mf-tb-w2" x1="10" y1="30" x2="54" y2="38" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#6366F1" />
+      <stop offset="100%" stop-color="#A855F7" />
+    </linearGradient>
+    <linearGradient id="mf-tb-w3" x1="16" y1="44" x2="48" y2="52" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#EC4899" />
+      <stop offset="100%" stop-color="#F43F5E" stop-opacity="0.3" />
+    </linearGradient>
+  </defs>
+  <path d="M 14 44 C 24 42, 34 46, 50 42 C 42 50, 30 56, 14 44 Z" fill="url(#mf-tb-w3)" />
+  <path d="M 8 30 C 24 24, 38 34, 56 26 C 46 38, 28 44, 8 30 Z" fill="url(#mf-tb-w2)" />
+  <path d="M 8 30 C 28 44, 46 38, 56 26" stroke="#FFFFFF" stroke-width="1.2" stroke-linecap="round" opacity="0.6" />
+  <path d="M 14 18 C 28 10, 40 20, 54 10 C 46 24, 30 30, 14 18 Z" fill="url(#mf-tb-w1)" />
+  <path d="M 14 18 C 30 30, 46 24, 54 10" stroke="#FFFFFF" stroke-width="1.4" stroke-linecap="round" opacity="0.85" />
+</svg>""",
+    "addon/content/icons/mindflow-toolbar.svg": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="20" height="20" fill="none">
+  <defs>
+    <linearGradient id="mf-tb-w1" x1="12" y1="16" x2="52" y2="24" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#06B6D4" />
+      <stop offset="100%" stop-color="#3B82F6" />
+    </linearGradient>
+    <linearGradient id="mf-tb-w2" x1="10" y1="30" x2="54" y2="38" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#6366F1" />
+      <stop offset="100%" stop-color="#A855F7" />
+    </linearGradient>
+    <linearGradient id="mf-tb-w3" x1="16" y1="44" x2="48" y2="52" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#EC4899" />
+      <stop offset="100%" stop-color="#F43F5E" stop-opacity="0.3" />
+    </linearGradient>
+  </defs>
+  <path d="M 14 44 C 24 42, 34 46, 50 42 C 42 50, 30 56, 14 44 Z" fill="url(#mf-tb-w3)" />
+  <path d="M 8 30 C 24 24, 38 34, 56 26 C 46 38, 28 44, 8 30 Z" fill="url(#mf-tb-w2)" />
+  <path d="M 8 30 C 28 44, 46 38, 56 26" stroke="#FFFFFF" stroke-width="1.2" stroke-linecap="round" opacity="0.6" />
+  <path d="M 14 18 C 28 10, 40 20, 54 10 C 46 24, 30 30, 14 18 Z" fill="url(#mf-tb-w1)" />
+  <path d="M 14 18 C 30 30, 46 24, 54 10" stroke="#FFFFFF" stroke-width="1.4" stroke-linecap="round" opacity="0.85" />
 </svg>""",
 
     # -------------------------------------------------------------------------
