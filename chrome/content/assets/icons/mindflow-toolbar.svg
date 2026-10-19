@@ -1,14 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="20" height="20" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="100%" height="100%" fill="none">
   <defs>
-    <linearGradient id="mf-tb-w1" x1="12" y1="16" x2="52" y2="24" gradientUnits="userSpaceOnUse">
+    <linearGradient id="wing-1" x1="12" y1="16" x2="52" y2="24" gradientUnits="userSpaceOnUse">
       <stop offset="0%" stop-color="#06B6D4" />
       <stop offset="100%" stop-color="#3B82F6" />
     </linearGradient>
-    <linearGradient id="mf-tb-w2" x1="10" y1="30" x2="54" y2="38" gradientUnits="userSpaceOnUse">
+    <linearGradient id="wing-2" x1="10" y1="30" x2="54" y2="38" gradientUnits="userSpaceOnUse">
       <stop offset="0%" stop-color="#6366F1" />
       <stop offset="100%" stop-color="#A855F7" />
     </linearGradient>
-    <linearGradient id="mf-tb-w3" x1="16" y1="44" x2="48" y2="52" gradientUnits="userSpaceOnUse">
+    <linearGradient id="wing-3" x1="16" y1="44" x2="48" y2="52" gradientUnits="userSpaceOnUse">
       <stop offset="0%" stop-color="#EC4899" />
       <stop offset="100%" stop-color="#F43F5E" stop-opacity="0.3" />
     </linearGradient>
@@ -16,17 +16,17 @@
 
   <!-- 底层流翼：柔和托底 -->
   <path d="M 14 44 C 24 42, 34 46, 50 42 C 42 50, 30 56, 14 44 Z" 
-        fill="url(#mf-tb-w3)" />
+        fill="url(#wing-3)" />
 
   <!-- 中层流翼：主视觉承转，优雅的双曲率叶面 -->
   <path d="M 8 30 C 24 24, 38 34, 56 26 C 46 38, 28 44, 8 30 Z" 
-        fill="url(#mf-tb-w2)" />
+        fill="url(#wing-2)" />
   <path d="M 8 30 C 28 44, 46 38, 56 26" 
-        stroke="#FFFFFF" stroke-width="1.2" stroke-linecap="round" opacity="0.6" />
+        stroke="#FFFFFF" stroke-width="1" stroke-linecap="round" opacity="0.5" />
 
   <!-- 顶层流翼：向右上破界扬起 -->
   <path d="M 14 18 C 28 10, 40 20, 54 10 C 46 24, 30 30, 14 18 Z" 
-        fill="url(#mf-tb-w1)" />
+        fill="url(#wing-1)" />
   <path d="M 14 18 C 30 30, 46 24, 54 10" 
-        stroke="#FFFFFF" stroke-width="1.4" stroke-linecap="round" opacity="0.85" />
+        stroke="#FFFFFF" stroke-width="1.2" stroke-linecap="round" opacity="0.75" />
 </svg>

@@ -1579,13 +1579,12 @@
           style.textContent = `
             tab[type="mindflow"] .tab-icon,
             .tab[type="mindflow"] .tab-icon {
-              list-style-image: url("${CHROME_ROOT}icons/mindflow.svg") !important;
+              list-style-image: url("${CHROME_ROOT}icons/icon.svg") !important;
               width: 16px !important;
               height: 16px !important;
             }
-            #mindflow-toolbar-button,
             #mindflow-toolbar-button .toolbarbutton-icon {
-              list-style-image: url("${CHROME_ROOT}icons/mindflow-toolbar.svg") !important;
+              list-style-image: url("${CHROME_ROOT}icons/icon.svg") !important;
               width: 20px !important;
               height: 20px !important;
               max-width: 20px !important;
@@ -1995,9 +1994,11 @@
         button.id === 'mindflow-toolbar-button' ||
         button.getAttribute('data-mindflow') === 'true' ||
         (button.getAttribute('label') === 'MindFlow' &&
-          String(button.getAttribute('image') || '').includes('/icons/mindflow.svg')) ||
+          String(button.getAttribute('image') || '').includes('/icons/')) ||
+        String(button.getAttribute('image') || '').includes('/icons/icon.svg') ||
         String(button.getAttribute('image') || '').includes('/icons/mindflow.svg') ||
-        String(button.getAttribute('image') || '').includes('/icons/mindflow-toolbar.svg');
+        String(button.getAttribute('image') || '').includes('/icons/mindflow-toolbar.svg') ||
+        String(button.getAttribute('image') || '').includes('/icons/toolbar-mindflow.svg');
       const toolbarButtons = leadingActionItems.filter((child) =>
         String(child.localName || child.tagName || '').toLowerCase() === 'toolbarbutton' &&
         !isMindFlowButton(child) &&
@@ -2031,7 +2032,7 @@
       }
       btn.setAttribute('tooltiptext', '打开 MindFlow 思维导图与文献研读工作区');
       btn.setAttribute('aria-label', 'MindFlow');
-      btn.setAttribute('image', `${CHROME_ROOT}icons/mindflow-toolbar.svg`);
+      btn.setAttribute('image', `${CHROME_ROOT}icons/icon.svg`);
       btn.setAttribute('class', 'zotero-tb-button toolbarbutton-1 chromeclass-toolbar-additional');
       btn.setAttribute(
         'style',
