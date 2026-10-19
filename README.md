@@ -1,14 +1,13 @@
-# MindFlow for Zotero — Add-on Version 11.2.0
+# Zotero MindFlow
 
-**在 Zotero 中，把文献、批注与研究思路组织成可编辑的思维导图。**
+> **From Papers to Ideas, From Ideas to Knowledge.**  
+> **面向科研文献的可视化知识组织与智能思维导图工具。**
 
-**Turn papers, annotations, and research ideas into editable mind maps inside Zotero.**
-
-[中文文档](#zh) · [English documentation](#en) · [Releases](https://github.com/groele/Mindflow-zotero/releases) · [Issues](https://github.com/groele/Mindflow-zotero/issues) · [审查与验证 / Audits and validation](docs/README.md)
+[中文文档](#zh) · [English documentation](#en) · [Releases](https://github.com/groele/Zotero-MindFlow/releases) · [Issues](https://github.com/groele/Zotero-MindFlow/issues) · [审查与验证 / Audits and validation](docs/README.md)
 
 | 项目 / Item | 当前状态 / Current status |
 | --- | --- |
-| 公开版本 / Public release | **11.2.0**, [v11.2.0](https://github.com/groele/Mindflow-zotero/releases/tag/v11.2.0) |
+| 公开版本 / Public release | **11.2.0**, [v11.2.0](https://github.com/groele/Zotero-MindFlow/releases/tag/v11.2.0) |
 | 支持宿主 / Supported host | **Zotero 10.0.x**；原生回归环境为 Windows + Zotero 10.0.6 / Native regression environment: Windows + Zotero 10.0.6 |
 | 插件 ID / Add-on ID | `mindflow@groele.org` |
 | 许可 / License | [MIT](LICENSE) |
@@ -29,7 +28,7 @@ The add-on and Zotero have separate version numbers. This README is bilingual; t
 
 ### 1. 安装与升级
 
-1. 打开 [11.2.0 Release（插件版本）](https://github.com/groele/Mindflow-zotero/releases/tag/v11.2.0)，下载 [`mindflow-zotero-11.2.0.xpi`](https://github.com/groele/Mindflow-zotero/releases/download/v11.2.0/mindflow-zotero-11.2.0.xpi)。请选择 XPI 安装包，GitHub 的 Source code ZIP 不能直接作为插件安装。
+1. 打开 [11.2.0 Release（插件版本）](https://github.com/groele/Zotero-MindFlow/releases/tag/v11.2.0)，下载 [`mindflow-zotero-11.2.0.xpi`](https://github.com/groele/Zotero-MindFlow/releases/download/v11.2.0/mindflow-zotero-11.2.0.xpi)。请选择 XPI 安装包，GitHub 的 Source code ZIP 不能直接作为插件安装。
 2. 在 Zotero 中打开 **工具 → 插件**，点击齿轮，选择 **从文件安装插件**。
 3. 选择下载的 XPI，完成安装并重启 Zotero。
 4. 通过文献库工具栏的 MindFlow 图标、工具菜单或分类右键菜单打开工作台。
@@ -318,7 +317,7 @@ pwsh -NoProfile -File scripts/restart-native-test.ps1
 
 历史文档中的版本、校验值与未发布状态属于相应阶段；当前公开安装资产以 GitHub Release 为准。
 
-在 [GitHub Issues](https://github.com/groele/Mindflow-zotero/issues) 提交反馈时，请提供插件版本、Zotero 版本、操作系统、入口、最短复现步骤、预期与实际结果，以及脱敏错误日志或最小示例导图。涉及串图时还需说明是否为不同库、同一文献多附件、复制导图、标签页/独立窗口或恢复操作。
+在 [GitHub Issues](https://github.com/groele/Zotero-MindFlow/issues) 提交反馈时，请提供插件版本、Zotero 版本、操作系统、入口、最短复现步骤、预期与实际结果，以及脱敏错误日志或最小示例导图。涉及串图时还需说明是否为不同库、同一文献多附件、复制导图、标签页/独立窗口或恢复操作。
 
 代码采用 [MIT License](LICENSE)。论文、图片和第三方服务具有各自的权利与使用条款。
 
@@ -334,7 +333,7 @@ pwsh -NoProfile -File scripts/restart-native-test.ps1
 
 ### 1. Installation and upgrades
 
-1. Open the [11.2.0 Release (add-on version)](https://github.com/groele/Mindflow-zotero/releases/tag/v11.2.0) and download [`mindflow-zotero-11.2.0.xpi`](https://github.com/groele/Mindflow-zotero/releases/download/v11.2.0/mindflow-zotero-11.2.0.xpi). Use the XPI asset; GitHub's Source code ZIP cannot be installed directly as the add-on.
+1. Open the [11.2.0 Release (add-on version)](https://github.com/groele/Zotero-MindFlow/releases/tag/v11.2.0) and download [`mindflow-zotero-11.2.0.xpi`](https://github.com/groele/Zotero-MindFlow/releases/download/v11.2.0/mindflow-zotero-11.2.0.xpi). Use the XPI asset; GitHub's Source code ZIP cannot be installed directly as the add-on.
 2. In Zotero, open **Tools → Plugins**, click the gear button, and choose **Install Add-on From File**. Menu labels may vary with your Zotero language.
 3. Select the XPI, finish installation, and restart Zotero.
 4. Open MindFlow through its library toolbar icon, the Tools menu, or the collection's context menu.
@@ -619,6 +618,6 @@ These results do not replace acceptance testing in every user environment. Remai
 
 Version numbers, hashes, and unpublished status in historical documents belong to their respective stages. Use GitHub Releases to identify current public installation assets. The detailed audit reports are currently written in Chinese.
 
-When opening a [GitHub Issue](https://github.com/groele/Mindflow-zotero/issues), provide the add-on version, Zotero version, operating system, entry point, minimal reproduction steps, expected/actual behavior, and sanitized errors or a minimal example map. For incorrect-map opening, state whether it involves different libraries, multiple attachments under one paper, copied maps, tabs/separate windows, or restoration.
+When opening a [GitHub Issue](https://github.com/groele/Zotero-MindFlow/issues), provide the add-on version, Zotero version, operating system, entry point, minimal reproduction steps, expected/actual behavior, and sanitized errors or a minimal example map. For incorrect-map opening, state whether it involves different libraries, multiple attachments under one paper, copied maps, tabs/separate windows, or restoration.
 
 The code is distributed under the [MIT License](LICENSE). Papers, images, and third-party services retain their own rights and terms.

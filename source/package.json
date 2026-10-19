@@ -1,5 +1,5 @@
 {
-  "name": "mindflow",
+  "name": "zotero-mindflow",
   "version": "11.2.3",
   "type": "module",
   "main": "index.js",
@@ -19,7 +19,7 @@
   ],
   "author": "groele",
   "license": "MIT",
-  "description": "MindFlow for Zotero 10 - 专为现代 Zotero 10 打造的高颜值全功能学术思维导图与文献研读伴读插件",
+  "description": "Zotero MindFlow - 面向科研文献的可视化知识组织与智能思维导图工具。 From Papers to Ideas, From Ideas to Knowledge.",
   "dependencies": {
     "clsx": "^2.1.1",
     "lucide-react": "^1.47.0",

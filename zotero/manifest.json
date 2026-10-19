@@ -1,9 +1,9 @@
 {
   "manifest_version": 2,
-  "name": "MindFlow for Zotero 10",
+  "name": "Zotero MindFlow",
   "version": "11.2.3",
-  "description": "MindFlow for Zotero 10: 专为现代 Zotero 10 打造的高颜值全功能学术思维导图与文献研读伴读插件",
-  "homepage_url": "https://github.com/groele/Mindflow-zotero",
+  "description": "面向科研文献的可视化知识组织与智能思维导图工具。 From Papers to Ideas, From Ideas to Knowledge.",
+  "homepage_url": "https://github.com/groele/Zotero-MindFlow",
   "author": "groele",
   "icons": {
     "16": "chrome/content/icons/icon.svg",
@@ -18,7 +18,7 @@
       "id": "mindflow@groele.org",
       "strict_min_version": "10.0",
       "strict_max_version": "10.0.*",
-      "update_url": "https://raw.githubusercontent.com/groele/Mindflow-zotero/main/zotero/update.json"
+      "update_url": "https://raw.githubusercontent.com/groele/Zotero-MindFlow/main/zotero/update.json"
     }
   }
 }

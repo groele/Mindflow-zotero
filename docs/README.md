@@ -48,7 +48,7 @@
 - [10.0.1 验证汇总](toolbar-icon-validation-10.0.1.json)、[安装包校验](toolbar-icon-package-10.0.1.json)、[真实桌面结果](toolbar-icon-native-regression-results-10.0.1.json)、[重启结果](toolbar-icon-native-restart-results-10.0.1.json)：本地补丁证据。
 - [5.0.1 原生基线](baseline-5.0.1-native-results.json)：立即关闭保存的历史失败证据。
 
-历史审查中的版本、校验值和未发布说明属于对应阶段。当前公开安装资产以 [GitHub Releases](https://github.com/groele/Mindflow-zotero/releases) 为准；本地验证报告不表示已发布。
+历史审查中的版本、校验值和未发布说明属于对应阶段。当前公开安装资产以 [GitHub Releases](https://github.com/groele/Zotero-MindFlow/releases) 为准；本地验证报告不表示已发布。
 
 ## English index
 
@@ -74,4 +74,4 @@
 - [10.0.1 validation summary](toolbar-icon-validation-10.0.1.json), [package verification](toolbar-icon-package-10.0.1.json), [native workflows](toolbar-icon-native-regression-results-10.0.1.json), and [restart results](toolbar-icon-native-restart-results-10.0.1.json): local patch evidence.
 - [5.0.1 native baseline](baseline-5.0.1-native-results.json): historical failure evidence for immediate-close saving.
 
-Detailed audit reports are currently in Chinese. Historical versions, hashes, and unpublished status refer to their respective stages. Use [GitHub Releases](https://github.com/groele/Mindflow-zotero/releases) to identify public installation assets; a local validation report does not imply publication.
+Detailed audit reports are currently in Chinese. Historical versions, hashes, and unpublished status refer to their respective stages. Use [GitHub Releases](https://github.com/groele/Zotero-MindFlow/releases) to identify public installation assets; a local validation report does not imply publication.
