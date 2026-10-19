@@ -6,7 +6,8 @@
 
 | 阶段 / Stage | 状态 / Status | 说明 / Description |
 | --- | --- | --- |
-| 11.2.0 / Add-on minor | 公开发布 / Public release | 可保存的论文研究提示词与呈现预设、AI 导图工作流改进 / Reusable research prompt and presentation presets with AI mind-map workflow improvements |
+| 12.0.0 / Add-on major | 公开发布 / Public release | 全新品牌视觉系统（Zotero MindFlow & Fluid Origami Wing 流体折纸旋翼标识系统），覆盖工具栏、原生标签页、应用内工作台与欢迎看板 / Major brand rebrand and Fluid Origami Wing visual identity across toolbar, native tabs, in-app canvas, and welcome modal |
+| 11.2.0 / Add-on minor | 历史发布 / Historical release | 可保存的论文研究提示词与呈现预设、AI 导图工作流改进 / Reusable research prompt and presentation presets with AI mind-map workflow improvements |
 | 11.1.2 / Add-on patch | 历史发布 / Historical release | 修复折叠偏好覆盖、空状态无提示及动态元素命名空间 / Fix restored collapse state, empty-state hint, and dynamic element namespace |
 | 11.1.1 / Add-on patch | 历史发布 / Historical release | 首次打开时自动展开侧栏便捷操作 / Auto-expand item-pane quick actions on first open |
 | 11.1.0 / Add-on minor | 历史发布 / Historical release | Zotero 文献侧栏便捷操作与 AI 研读工作流 / Zotero item-pane quick actions and AI reading workflow |
@@ -22,6 +23,7 @@
 
 ## 中文索引
 
+- [12.0.0 重大里程碑发布记录](release-v12.0.0.md)：全新品牌视觉系统（Zotero MindFlow & Fluid Origami Wing 流体折纸旋翼）、全场景触点覆盖与高分屏适配。
 - [11.2.0 发布记录](release-v11.2.0.md)：提示词与呈现预设、AI 导图工作流及发布验证边界。
 
 - [2026-10-16 插件全流程审查与优化建议](插件全流程审查与优化建议-20261016.md)：逐步实现、已复现问题、优化优先级、提示词与呈现预设及本轮验证边界。
@@ -52,6 +54,7 @@
 
 ## English index
 
+- [12.0.0 major milestone report](release-v12.0.0.md): brand-new visual identity system (Zotero MindFlow & Fluid Origami Wing), full-touchpoint vector rendering, and high-DPI scaling.
 - [11.2.0 release report](release-v11.2.0.md): reusable prompt and presentation presets, AI mind-map workflow, and verification limits.
 - [11.1.2 patch report](release-v11.1.2.md): fix blank item-pane actions and restored collapse state.
 - [11.1.1 patch report](release-v11.1.1.md): expand the MindFlow item-pane actions on first open.

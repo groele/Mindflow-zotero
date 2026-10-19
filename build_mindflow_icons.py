@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Mindflow-zotero v11.2.0 - Fluid Origami Wing (流体折纸旋翼) 全套无边界图标打包脚本
+Zotero MindFlow v12.0.0 - Fluid Origami Wing (流体折纸旋翼) 全套无边界图标打包脚本
 适配平台: Zotero 10 (Gecko context-fill & High-DPI SVG)
 运行方式: python3 build_mindflow_icons.py
-输出文件: Mindflow-Zotero-v11.2.0-Fluid-Origami-Icons.zip
+输出文件: Zotero-MindFlow-v12.0.0-Fluid-Origami-Icons.zip
 """
 
 import zipfile
 import os
 
-ZIP_FILENAME = "Mindflow-Zotero-v11.2.0-Fluid-Origami-Icons.zip"
+ZIP_FILENAME = "Zotero-MindFlow-v12.0.0-Fluid-Origami-Icons.zip"
 
 ICONS = {
     # -------------------------------------------------------------------------
@@ -311,7 +311,9 @@ ICONS = {
     # -------------------------------------------------------------------------
     # 附带 manifest.json 图标配置片段说明
     # -------------------------------------------------------------------------
-    "README-ICONS.md": """# Mindflow-zotero v11.2.0 流体折纸旋翼 (Fluid Origami Wing) 图标集
+    "README-ICONS.md": """# Zotero MindFlow v12.0.0 流体折纸旋翼 (Fluid Origami Wing) 图标集
+# Slogan: From Papers to Ideas, From Ideas to Knowledge.
+# 定位: 面向科研文献的可视化知识组织与智能思维导图工具。
 
 ## 1. `manifest.json` 挂载配置
 在 `manifest.json` 中指向主图标 `icon.svg`：
@@ -319,13 +321,17 @@ ICONS = {
 ```json
 {
   "manifest_version": 2,
-  "name": "Mindflow for Zotero",
-  "version": "11.2.0",
+  "name": "Zotero MindFlow",
+  "version": "12.0.0",
   "icons": {
+    "16": "chrome/content/icons/icon.svg",
     "32": "chrome/content/icons/icon.svg",
     "48": "chrome/content/icons/icon.svg",
     "64": "chrome/content/icons/icon.svg",
-    "96": "chrome/content/icons/icon.svg"
+    "96": "chrome/content/icons/icon.svg",
+    "128": "chrome/content/icons/icon.svg",
+    "256": "chrome/content/icons/icon.svg",
+    "512": "chrome/content/icons/icon.svg"
   }
 }
 ```
