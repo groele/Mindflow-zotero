@@ -4,11 +4,14 @@ mindflow-item-menu-add = Add to Current MindFlow Map
 mindflow-collection-menu-create = Generate Mind Map for Collection
 mindflow-toolbar-tooltip = Open MindFlow Mind Map Workspace
 mindflow-reader-send = Send Excerpt to MindFlow Map
-mindflow-item-pane-header = MindFlow Maps
-    .label = MindFlow Maps
-    .tooltiptext = MindFlow Maps
+# This message targets the native collapsible-section. A value would erase its controls.
+mindflow-item-pane-header =
+    .label = MindFlow Mind Maps
+    .tooltiptext = MindFlow Mind Maps & Research
 mindflow-item-pane-sidenav =
-    .tooltiptext = MindFlow Maps
+    .title = Open MindFlow Mind Maps
+    .aria-label = MindFlow Mind Maps
+    .tooltiptext = Open MindFlow Mind Maps
 mindflow-item-pane-count =
     { $count ->
         [0] No MindFlow maps for this item yet

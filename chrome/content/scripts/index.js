@@ -1083,6 +1083,28 @@
             line-height: 0 !important;
             color: transparent !important;
             white-space: nowrap !important;
+            background-image: url("chrome://mindflow/content/icons/mindflow.svg") !important;
+            background-size: 18px 18px !important;
+            background-position: center !important;
+            background-repeat: no-repeat !important;
+          }
+
+          item-pane-sidenav .btn[data-pane*="mindflow-item-pane"] .icon {
+            display: none !important;
+          }
+
+          item-pane-custom-section[data-pane*="mindflow-item-pane"] .icon,
+          item-pane-custom-section[data-pane*="mindflow-item-pane"] button.header .icon,
+          item-pane-custom-section[data-pane*="mindflow-item-pane"] collapsible-section .icon {
+            background-image: url("chrome://mindflow/content/icons/mindflow.svg") !important;
+            background-size: 16px 16px !important;
+            background-position: center !important;
+            background-repeat: no-repeat !important;
+            display: inline-block !important;
+            width: 16px !important;
+            height: 16px !important;
+            min-width: 16px !important;
+            min-height: 16px !important;
           }
 
           .mf-pane-wrap {
@@ -1549,6 +1571,7 @@
     registerItemPaneSection() {
       if (typeof Zotero.ItemPaneManager?.registerSection !== 'function') return;
       try {
+        const sectionStates = new WeakMap();
         if (!this._itemPaneStates) this._itemPaneStates = new Set();
         const icon = `${CHROME_ROOT}icons/mindflow.svg`;
 
@@ -1559,10 +1582,6 @@
                 if (type !== 'item' || !Array.isArray(ids)) return;
                 const idSet = new Set(ids.map(Number));
                 for (const state of [...this._itemPaneStates]) {
-                  if (!state.body || (typeof state.body.isConnected === 'boolean' && !state.body.isConnected)) {
-                    this._itemPaneStates.delete(state);
-                    continue;
-                  }
                   const targetID = state.targetID;
                   let shouldRefresh = !targetID || idSet.has(Number(targetID)) || event === 'delete';
                   if (!shouldRefresh && targetID) {
@@ -1574,12 +1593,8 @@
                       }
                     }
                   }
-                  if (shouldRefresh) {
-                    if (typeof state.refresh === 'function') {
-                      try { state.refresh(); } catch (_) { state.render?.(); }
-                    } else if (typeof state.render === 'function') {
-                      state.render();
-                    }
+                  if (shouldRefresh && typeof state.refresh === 'function') {
+                    try { state.refresh(); } catch (_) {}
                   }
                 }
               },
@@ -1595,358 +1610,362 @@
           header: { l10nID: 'mindflow-item-pane-header', icon },
           sidenav: { l10nID: 'mindflow-item-pane-sidenav', icon },
           onInit: ({ doc, body, item, refresh }) => {
-            const docToUse = doc || body?.ownerDocument || Zotero.getMainWindow?.()?.document;
-            if (docToUse) {
-              this.ensureLocalization(docToUse);
-              this.ensureItemPaneStyles(docToUse);
+            const document = doc || body?.ownerDocument;
+            if (document) {
+              this.ensureLocalization(document);
+              this.ensureItemPaneStyles(document);
             }
-            const state = { doc: docToUse, body, item, refresh, targetID: null, render: null, renderVersion: 0 };
+            const target = this.resolveLiteratureTarget(item);
+            const state = {
+              itemKey: target?.key || null,
+              libraryID: target?.libraryID || null,
+              targetID: target?.id || null,
+              renderVersion: 0,
+              saving: false,
+              refresh,
+            };
             this._itemPaneStates.add(state);
-            const collapsible = body?.parentElement;
-            if (collapsible) {
-              collapsible.empty = false;
-              if (collapsible.open !== true) collapsible.open = true;
-              const expand = () => {
-                if (!body?.isConnected) return;
-                collapsible.empty = false;
-                collapsible.open = true;
-              };
-              const view = docToUse?.defaultView || body?.ownerDocument?.defaultView;
-              if (typeof view?.requestAnimationFrame === 'function') view.requestAnimationFrame(expand);
-              else view?.setTimeout?.(expand, 0);
-            }
+            sectionStates.set(body, state);
           },
           onDestroy: ({ body }) => {
-            for (const state of [...this._itemPaneStates]) {
-              if (!body || state.body === body) {
-                this._itemPaneStates.delete(state);
-              }
+            const state = sectionStates.get(body);
+            if (state) {
+              state.renderVersion++;
+              this._itemPaneStates.delete(state);
             }
+            sectionStates.delete(body);
           },
           onItemChange: ({ body, item, setEnabled }) => {
-            if (typeof setEnabled === 'function') {
-              setEnabled(true);
+            const target = this.resolveLiteratureTarget(item) || this.resolveLiteratureTarget(
+              Zotero.getMainWindow?.()?.ZoteroPane?.getSelectedItems?.()?.[0]
+            );
+            const state = sectionStates.get(body);
+            if (state) {
+              state.itemKey = target?.key || null;
+              state.libraryID = target?.libraryID || null;
+              state.targetID = target?.id || null;
+              state.renderVersion++;
             }
-            for (const state of [...this._itemPaneStates]) {
-              if (!body || state.body === body) {
-                state.item = item;
-                state.render?.();
+            setEnabled(Boolean(target));
+          },
+          onRender: ({ body, item, setSectionSummary }) => {
+            if (!body) return;
+            const document = body.ownerDocument;
+            if (document) {
+              this.ensureItemPaneStyles(document);
+            }
+            const target = this.resolveLiteratureTarget(item) || this.resolveLiteratureTarget(
+              Zotero.getMainWindow?.()?.ZoteroPane?.getSelectedItems?.()?.[0]
+            );
+            const state = sectionStates.get(body);
+            const maps = target ? this.getMindflowAttachments(target) : [];
+            const totalMaps = maps.length;
+            setSectionSummary?.(totalMaps ? `${totalMaps} 份导图` : '展开后快速新建');
+            body.replaceChildren();
+
+            const html = 'http://www.w3.org/1999/xhtml';
+            const createEl = (tag, className = '', text = null) => {
+              const el = document.createElementNS ? document.createElementNS(html, tag) : document.createElement(tag);
+              if (className) el.className = className;
+              if (text !== null && text !== undefined) el.textContent = text;
+              return el;
+            };
+
+            const fallback = createEl('div', 'mf-pane-wrap mf-pane-fallback');
+            const primaryBtn = createEl('button', 'mf-btn-primary', totalMaps > 0 ? '🧠 打开思维导图工作台' : '＋ 一键生成文献思维导图');
+            primaryBtn.type = 'button';
+            primaryBtn.disabled = !target || Boolean(state?.saving);
+            primaryBtn.addEventListener('click', async () => {
+              if (!target || primaryBtn.disabled) return;
+              primaryBtn.disabled = true;
+              try {
+                if (totalMaps > 0 && maps[0]) {
+                  await this.openMindflowAttachment(maps[0], Zotero.getMainWindow?.());
+                } else {
+                  await this.openMindFlow({ mode: 'create_from_selection', items: [target], forceNew: false }, Zotero.getMainWindow?.());
+                }
+                await state?.refresh?.();
+              } catch (error) {
+                primaryBtn.disabled = false;
               }
+            });
+            fallback.appendChild(primaryBtn);
+            body.appendChild(fallback);
+          },
+          onAsyncRender: async ({ doc, body, item, setSectionSummary }) => {
+            if (!body) return;
+            const document = doc || body.ownerDocument;
+            if (document) {
+              this.ensureItemPaneStyles(document);
             }
-          },
-          onRender: (props) => {
-            this.renderItemPaneSection(props);
-          },
-          onAsyncRender: async (props) => {
-            await this.renderItemPaneSection(props);
+            const target = this.resolveLiteratureTarget(item) || this.resolveLiteratureTarget(
+              Zotero.getMainWindow?.()?.ZoteroPane?.getSelectedItems?.()?.[0]
+            );
+            if (!target) return;
+
+            const state = sectionStates.get(body);
+            const renderVersion = state ? ++state.renderVersion : 0;
+            const html = 'http://www.w3.org/1999/xhtml';
+            const createEl = (tag, className = '', text = null) => {
+              const el = document.createElementNS
+                ? document.createElementNS(html, tag)
+                : document.createElement(tag);
+              if (className) el.className = className;
+              if (text !== null && text !== undefined) {
+                el.textContent = text;
+              }
+              return el;
+            };
+
+            const maps = this.getMindflowAttachments(target);
+            const totalMaps = maps.length;
+
+            if (state && renderVersion !== state.renderVersion) return;
+            body.replaceChildren();
+
+            setSectionSummary?.(totalMaps ? `${totalMaps} 份导图` : '展开后快速新建');
+
+            const win = document.defaultView?.ZoteroPane ? document.defaultView : Zotero.getMainWindow?.();
+            const wrapper = createEl('div', 'mf-pane-wrap');
+
+            // 1. Header Card with Status Badge
+            const headerCard = createEl('div', 'mf-header-card');
+            const headerTop = createEl('div', 'mf-header-top');
+
+            const statusBadge = createEl('span', `mf-status-badge ${totalMaps > 0 ? 'mf-status-active' : 'mf-status-empty'}`);
+            statusBadge.textContent = totalMaps > 0 ? `🧠 已有关联导图 (${totalMaps})` : '💡 尚未创建导图';
+            headerTop.appendChild(statusBadge);
+
+            const selectedPDF = item?.isPDFAttachment?.() || /\.pdf$/i.test(item?.attachmentFilename || '') ? item : null;
+            const hasPDF = Boolean(selectedPDF || (target?.getAttachments?.().some(id => {
+              const att = Zotero.Items.get(id);
+              return att && !att.deleted && (att.isPDFAttachment?.() || att.attachmentContentType === 'application/pdf' || /\.pdf$/i.test(att.attachmentFilename || ''));
+            })));
+
+            const metaIndicator = createEl('span', 'mf-header-meta', hasPDF ? '📄 PDF 就绪' : '⚠️ 无 PDF');
+            headerTop.appendChild(metaIndicator);
+            headerCard.appendChild(headerTop);
+
+            const paperTitle = target.getField?.('title') || '未命名文献';
+            const targetTitleEl = createEl('div', 'mf-target-title', paperTitle);
+            targetTitleEl.title = paperTitle;
+            headerCard.appendChild(targetTitleEl);
+            wrapper.appendChild(headerCard);
+
+            // 2. Primary Action Button
+            const primaryBtn = createEl('button', 'mf-btn-primary');
+            primaryBtn.type = 'button';
+            primaryBtn.textContent = totalMaps > 0 ? '🧠 打开思维导图工作台' : '＋ 一键生成文献思维导图';
+            primaryBtn.addEventListener('click', async (e) => {
+              e.preventDefault(); e.stopPropagation();
+              if (primaryBtn.disabled) return;
+              primaryBtn.disabled = true;
+              try {
+                if (totalMaps > 0 && maps[0]) {
+                  await this.openMindflowAttachment(maps[0], win);
+                } else {
+                  await this.openMindFlow({ mode: 'create_from_selection', items: [target], forceNew: false }, win);
+                }
+                state?.refresh?.();
+              } catch (err) {
+                Zotero.logError?.('[MindFlow] Sidebar primary action failed: ' + err);
+              } finally {
+                primaryBtn.disabled = false;
+              }
+            });
+            wrapper.appendChild(primaryBtn);
+
+            const hintText = createEl('div', 'mf-hint-text');
+            hintText.textContent = totalMaps > 0
+              ? `已关联 ${totalMaps} 份导图源文件，点击直接进入工作台编辑。`
+              : '根据当前文献元数据与 PDF 快速构建树状导图，双向同步笔记。';
+            wrapper.appendChild(hintText);
+
+            // 3. Academic Template Box
+            const templateBox = createEl('div', 'mf-template-box');
+            const templateRow = createEl('div', 'mf-template-row');
+            templateRow.appendChild(createEl('span', 'mf-template-label', '📚 模板:'));
+
+            const templateSelect = createEl('select', 'mf-template-select');
+            const templates = [
+              { id: 'imrad', name: '经典论文框架 (IMRaD 结构)' },
+              { id: 'review', name: '文献对比与综述导图' },
+              { id: 'critical', name: '批判性精读导图' },
+              { id: 'outline', name: '极简结构大纲' },
+              { id: 'blank', name: '空白思维导图' },
+            ];
+            for (const t of templates) {
+              const opt = createEl('option', '', t.name);
+              opt.value = t.id;
+              templateSelect.appendChild(opt);
+            }
+            templateRow.appendChild(templateSelect);
+            templateBox.appendChild(templateRow);
+
+            const templateBtn = createEl('button', 'mf-btn-template-create', '⚡ 按此模板创建导图');
+            templateBtn.type = 'button';
+            templateBtn.addEventListener('click', async (e) => {
+              e.preventDefault(); e.stopPropagation();
+              if (templateBtn.disabled) return;
+              templateBtn.disabled = true;
+              try {
+                const chosenTemplate = templateSelect.value || 'imrad';
+                await this.openMindFlow({
+                  mode: 'create_from_selection',
+                  items: [target],
+                  template: chosenTemplate,
+                  forceNew: totalMaps > 0,
+                }, win);
+                state?.refresh?.();
+              } catch (err) {
+                Zotero.logError?.('[MindFlow] Sidebar template create failed: ' + err);
+              } finally {
+                templateBtn.disabled = false;
+              }
+            });
+            templateBox.appendChild(templateBtn);
+            wrapper.appendChild(templateBox);
+
+            // 4. Quick Tools Grid (4-Pill)
+            const toolsGrid = createEl('div', 'mf-tools-grid');
+
+            const toolAi = createEl('button', 'mf-tool-btn', '✨ AI 论文精读');
+            toolAi.type = 'button';
+            toolAi.addEventListener('click', async (e) => {
+              e.preventDefault(); e.stopPropagation();
+              if (toolAi.disabled) return;
+              toolAi.disabled = true;
+              try {
+                await this.openMindFlow({ mode: 'ai_analyze', items: [target] }, win);
+              } catch (err) {
+                Zotero.logError?.('[MindFlow] AI analyze action failed: ' + err);
+              } finally {
+                toolAi.disabled = false;
+              }
+            });
+            toolsGrid.appendChild(toolAi);
+
+            const toolPdf = createEl('button', 'mf-tool-btn', '📖 打开对应 PDF');
+            toolPdf.type = 'button';
+            if (!hasPDF) toolPdf.disabled = true;
+            toolPdf.addEventListener('click', (e) => {
+              e.preventDefault(); e.stopPropagation();
+              openPDFForItem(selectedPDF || target);
+            });
+            toolsGrid.appendChild(toolPdf);
+
+            const toolImport = createEl('button', 'mf-tool-btn', '📥 导入导图');
+            toolImport.type = 'button';
+            toolImport.addEventListener('click', async (e) => {
+              e.preventDefault(); e.stopPropagation();
+              await this.openMindFlow({ mode: 'import_file' }, win);
+            });
+            toolsGrid.appendChild(toolImport);
+
+            const toolBlank = createEl('button', 'mf-tool-btn', '📄 独立空白导图');
+            toolBlank.type = 'button';
+            toolBlank.addEventListener('click', async (e) => {
+              e.preventDefault(); e.stopPropagation();
+              await this.openMindFlow({ mode: 'create_blank', forceNew: true }, win);
+            });
+            toolsGrid.appendChild(toolBlank);
+
+            wrapper.appendChild(toolsGrid);
+
+            // 5. Maps Section or Empty Guide
+            if (totalMaps > 0) {
+              const mapsSection = createEl('div', 'mf-maps-section');
+              const mapsHeader = createEl('div', 'mf-maps-header');
+              mapsHeader.appendChild(createEl('span', 'mf-maps-title', `关联导图列表 (${totalMaps})`));
+
+              const refreshBtn = createEl('button', 'mf-btn-refresh', '🔄');
+              refreshBtn.type = 'button';
+              refreshBtn.title = '刷新列表';
+              refreshBtn.addEventListener('click', (e) => {
+                e.preventDefault(); e.stopPropagation();
+                state?.refresh?.();
+              });
+              mapsHeader.appendChild(refreshBtn);
+              mapsSection.appendChild(mapsHeader);
+
+              const mapsList = createEl('div', 'mf-maps-list');
+              for (const att of maps) {
+                const rawTitle = att.getField?.('title') || att.attachmentFilename || '思维导图';
+                const cleanTitle = String(rawTitle)
+                  .replace(/\s*\(MindFlow\s*导图源文件\)$/i, '')
+                  .replace(/\.mindflow$/i, '')
+                  .trim() || String(rawTitle);
+
+                const card = createEl('div', 'mf-map-card');
+
+                const cardTop = createEl('div', 'mf-map-card-top');
+                cardTop.appendChild(createEl('span', 'mf-map-icon', '🧠'));
+                const cardName = createEl('span', 'mf-map-name', cleanTitle);
+                cardName.title = cleanTitle;
+                cardTop.appendChild(cardName);
+                card.appendChild(cardTop);
+
+                if (att.dateModified) {
+                  try {
+                    const d = new Date(att.dateModified);
+                    const metaTime = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+                    card.appendChild(createEl('div', 'mf-map-card-meta', `修改于: ${metaTime}`));
+                  } catch (_) {}
+                }
+
+                const cardActions = createEl('div', 'mf-map-card-actions');
+
+                const openBtn = createEl('button', 'mf-card-btn mf-card-btn-primary', '打开导图 ↗');
+                openBtn.type = 'button';
+                openBtn.addEventListener('click', async (e) => {
+                  e.preventDefault(); e.stopPropagation();
+                  if (openBtn.disabled) return;
+                  openBtn.disabled = true;
+                  try {
+                    await this.openMindflowAttachment(att, win);
+                  } catch (err) {
+                    Zotero.logError?.('[MindFlow] Open map attachment failed: ' + err);
+                  } finally {
+                    openBtn.disabled = false;
+                  }
+                });
+                cardActions.appendChild(openBtn);
+
+                const exportBtn = createEl('button', 'mf-card-btn', '导出大纲笔记 📝');
+                exportBtn.type = 'button';
+                exportBtn.addEventListener('click', async (e) => {
+                  e.preventDefault(); e.stopPropagation();
+                  if (exportBtn.disabled) return;
+                  exportBtn.disabled = true;
+                  try {
+                    await this.exportAttachmentToNote(att, win);
+                  } catch (err) {
+                    Zotero.logError?.('[MindFlow] Export attachment to note failed: ' + err);
+                  } finally {
+                    exportBtn.disabled = false;
+                  }
+                });
+                cardActions.appendChild(exportBtn);
+
+                card.appendChild(cardActions);
+                mapsList.appendChild(card);
+              }
+              mapsSection.appendChild(mapsList);
+              wrapper.appendChild(mapsSection);
+            } else {
+              const emptyGuide = createEl('div', 'mf-empty-guide');
+              emptyGuide.appendChild(createEl('div', 'mf-empty-icon', '💡'));
+              emptyGuide.appendChild(createEl('div', 'mf-empty-title', '思维导图 + 划线互联'));
+              emptyGuide.appendChild(createEl('div', 'mf-empty-desc', '在 PDF 中划线做高亮，可在 MindFlow 导图中快速引用；导图节点亦可一键生成 Zotero 大纲笔记。'));
+              wrapper.appendChild(emptyGuide);
+            }
+
+            body.appendChild(wrapper);
           },
         });
       } catch (error) {
-        Zotero.logError?.('[MindFlow] Could not register Zotero item pane section: ' + error);
+        Zotero.logError?.('[MindFlow] Could not register ItemPane section: ' + error);
       }
-    },
-
-    renderItemPaneSection(props) {
-      const body = props?.body;
-      if (!body) return;
-      if (typeof body.isConnected === 'boolean' && !body.isConnected) return;
-
-      const doc = body.ownerDocument || props?.doc || Zotero.getMainWindow?.()?.document;
-      if (doc) {
-        this.ensureLocalization(doc);
-        this.ensureItemPaneStyles(doc);
-      }
-
-      if (!this._itemPaneStates) this._itemPaneStates = new Set();
-      let state = null;
-      for (const s of this._itemPaneStates) {
-        if (s.body === body) { state = s; break; }
-      }
-      if (!state) {
-        state = { doc, body, item: props?.item, refresh: props?.refresh, targetID: null, render: null, renderVersion: 0 };
-        this._itemPaneStates.add(state);
-      }
-      if (props?.item) state.item = props.item;
-      state.render = () => this.renderItemPaneSection({ ...props, item: state.item });
-      state.renderVersion = (state.renderVersion || 0) + 1;
-
-      if (typeof body.replaceChildren === 'function') {
-        body.replaceChildren();
-      } else {
-        body.innerHTML = '';
-      }
-
-      const target = this.resolveLiteratureTarget(state.item) ||
-        this.resolveLiteratureTarget(Zotero.getMainWindow?.()?.ZoteroPane?.getSelectedItems?.()?.[0]);
-      state.targetID = target?.id || null;
-      const maps = target ? this.getMindflowAttachments(target) : [];
-      const totalMaps = maps.length;
-
-      try {
-        if (typeof props?.setSectionSummary === 'function') {
-          props.setSectionSummary(totalMaps > 0 ? `${totalMaps} 份导图` : (target ? '未创建' : '空白工作区'));
-        }
-      } catch (_) {}
-
-      if (!doc) return;
-
-      const htmlNS = 'http://www.w3.org/1999/xhtml';
-      const createElement = (tag) => (doc.createElementNS ? doc.createElementNS(htmlNS, tag) : doc.createElement(tag));
-      const createEl = (tag, className, text) => {
-        const el = createElement(tag);
-        if (className) el.className = className;
-        if (text) el.textContent = text;
-        return el;
-      };
-      const win = doc.defaultView?.ZoteroPane ? doc.defaultView : Zotero.getMainWindow?.();
-
-      const container = createEl('div', 'mf-pane-wrap');
-
-      // 1. Header Card with Status Badge
-      const headerCard = createEl('div', 'mf-header-card');
-      const headerTop = createEl('div', 'mf-header-top');
-
-      const statusBadge = createEl('span', `mf-status-badge ${totalMaps > 0 ? 'mf-status-active' : 'mf-status-empty'}`);
-      statusBadge.textContent = totalMaps > 0 ? `🧠 已有关联导图 (${totalMaps})` : (target ? '💡 尚未创建导图' : '⚪ 未选择文献');
-      headerTop.appendChild(statusBadge);
-
-      const selectedPDF = state.item?.isPDFAttachment?.() || /\.pdf$/i.test(state.item?.attachmentFilename || '') ? state.item : null;
-      const hasPDF = Boolean(selectedPDF || (target?.getAttachments?.().some(id => {
-        const att = Zotero.Items.get(id);
-        return att && !att.deleted && (att.isPDFAttachment?.() || att.attachmentContentType === 'application/pdf' || /\.pdf$/i.test(att.attachmentFilename || ''));
-      })));
-
-      const metaIndicator = createEl('span', 'mf-header-meta', hasPDF ? '📄 PDF 就绪' : (target ? '⚠️ 无 PDF' : ''));
-      headerTop.appendChild(metaIndicator);
-      headerCard.appendChild(headerTop);
-
-      const paperTitle = target?.getField?.('title') || (target ? '未命名文献' : '可新建独立空白思维导图');
-      const targetTitleEl = createEl('div', 'mf-target-title', paperTitle);
-      targetTitleEl.title = paperTitle;
-      headerCard.appendChild(targetTitleEl);
-      container.appendChild(headerCard);
-
-      // 2. Primary Action Button
-      const primaryBtn = createEl('button', 'mf-btn-primary');
-      primaryBtn.setAttribute('type', 'button');
-      if (totalMaps > 0) {
-        primaryBtn.textContent = '🧠 打开思维导图工作台';
-      } else if (target) {
-        primaryBtn.textContent = '＋ 一键生成文献思维导图';
-      } else {
-        primaryBtn.textContent = '＋ 新建独立空白导图';
-      }
-      primaryBtn.addEventListener('click', async (e) => {
-        e.preventDefault(); e.stopPropagation();
-        if (primaryBtn.disabled) return;
-        primaryBtn.disabled = true;
-        try {
-          if (totalMaps > 0 && maps[0]) {
-            await this.openMindflowAttachment(maps[0], win);
-          } else if (target) {
-            await this.openMindFlow({ mode: 'create_from_selection', items: [target], forceNew: false }, win);
-          } else {
-            await this.openMindFlow({ mode: 'create_blank', forceNew: true }, win);
-          }
-        } catch (err) {
-          Zotero.logError?.('[MindFlow] Sidebar primary action failed: ' + err);
-        } finally {
-          primaryBtn.disabled = false;
-        }
-      });
-      container.appendChild(primaryBtn);
-
-      const hintText = createEl('div', 'mf-hint-text');
-      if (totalMaps > 0) {
-        hintText.textContent = `已关联 ${totalMaps} 份导图源文件，点击直接进入工作台编辑。`;
-      } else if (target) {
-        hintText.textContent = '根据当前文献元数据与 PDF 快速构建树状导图，双向同步笔记。';
-      } else {
-        hintText.textContent = '独立空白导图保存在工作台中，可随时导出或关联到文献。';
-      }
-      container.appendChild(hintText);
-
-      // 3. Academic Template Box
-      const templateBox = createEl('div', 'mf-template-box');
-      const templateRow = createEl('div', 'mf-template-row');
-      templateRow.appendChild(createEl('span', 'mf-template-label', '📚 模板:'));
-
-      const templateSelect = createEl('select', 'mf-template-select');
-      const templates = [
-        { id: 'imrad', name: '经典论文框架 (IMRaD 结构)' },
-        { id: 'review', name: '文献对比与综述导图' },
-        { id: 'critical', name: '批判性精读导图' },
-        { id: 'outline', name: '极简结构大纲' },
-        { id: 'blank', name: '空白思维导图' },
-      ];
-      for (const t of templates) {
-        const opt = createElement('option');
-        opt.value = t.id;
-        opt.textContent = t.name;
-        templateSelect.appendChild(opt);
-      }
-      templateRow.appendChild(templateSelect);
-      templateBox.appendChild(templateRow);
-
-      const templateBtn = createEl('button', 'mf-btn-template-create', '⚡ 按此模板创建导图');
-      templateBtn.setAttribute('type', 'button');
-      templateBtn.addEventListener('click', async (e) => {
-        e.preventDefault(); e.stopPropagation();
-        if (templateBtn.disabled) return;
-        templateBtn.disabled = true;
-        try {
-          const chosenTemplate = templateSelect.value || 'imrad';
-          await this.openMindFlow({
-            mode: target ? 'create_from_selection' : 'create_blank',
-            items: target ? [target] : undefined,
-            template: chosenTemplate,
-            forceNew: totalMaps > 0,
-          }, win);
-        } catch (err) {
-          Zotero.logError?.('[MindFlow] Sidebar template create failed: ' + err);
-        } finally {
-          templateBtn.disabled = false;
-        }
-      });
-      templateBox.appendChild(templateBtn);
-      container.appendChild(templateBox);
-
-      // 4. Quick Tools Grid (4-Pill)
-      const toolsGrid = createEl('div', 'mf-tools-grid');
-
-      const toolAi = createEl('button', 'mf-tool-btn', '✨ AI 论文精读');
-      toolAi.setAttribute('type', 'button');
-      if (!target) toolAi.disabled = true;
-      toolAi.addEventListener('click', async (e) => {
-        e.preventDefault(); e.stopPropagation();
-        if (toolAi.disabled) return;
-        toolAi.disabled = true;
-        try {
-          await this.openMindFlow({ mode: 'ai_analyze', items: [target] }, win);
-        } catch (err) {
-          Zotero.logError?.('[MindFlow] AI analyze action failed: ' + err);
-        } finally {
-          toolAi.disabled = !target;
-        }
-      });
-      toolsGrid.appendChild(toolAi);
-
-      const toolPdf = createEl('button', 'mf-tool-btn', '📖 打开对应 PDF');
-      toolPdf.setAttribute('type', 'button');
-      if (!hasPDF) toolPdf.disabled = true;
-      toolPdf.addEventListener('click', (e) => {
-        e.preventDefault(); e.stopPropagation();
-        openPDFForItem(selectedPDF || target);
-      });
-      toolsGrid.appendChild(toolPdf);
-
-      const toolImport = createEl('button', 'mf-tool-btn', '📥 导入导图');
-      toolImport.setAttribute('type', 'button');
-      toolImport.addEventListener('click', async (e) => {
-        e.preventDefault(); e.stopPropagation();
-        await this.openMindFlow({ mode: 'import_file' }, win);
-      });
-      toolsGrid.appendChild(toolImport);
-
-      const toolBlank = createEl('button', 'mf-tool-btn', '📄 独立空白导图');
-      toolBlank.setAttribute('type', 'button');
-      toolBlank.addEventListener('click', async (e) => {
-        e.preventDefault(); e.stopPropagation();
-        await this.openMindFlow({ mode: 'create_blank', forceNew: true }, win);
-      });
-      toolsGrid.appendChild(toolBlank);
-
-      container.appendChild(toolsGrid);
-
-      // 5. Maps Section or Empty Guide
-      if (totalMaps > 0) {
-        const mapsSection = createEl('div', 'mf-maps-section');
-        const mapsHeader = createEl('div', 'mf-maps-header');
-        mapsHeader.appendChild(createEl('span', 'mf-maps-title', `关联导图列表 (${totalMaps})`));
-
-        const refreshBtn = createEl('button', 'mf-btn-refresh', '🔄');
-        refreshBtn.setAttribute('type', 'button');
-        refreshBtn.title = '刷新列表';
-        refreshBtn.addEventListener('click', (e) => {
-          e.preventDefault(); e.stopPropagation();
-          state.render?.();
-        });
-        mapsHeader.appendChild(refreshBtn);
-        mapsSection.appendChild(mapsHeader);
-
-        const mapsList = createEl('div', 'mf-maps-list');
-        for (const att of maps) {
-          const rawTitle = att.getField?.('title') || att.attachmentFilename || '思维导图';
-          const cleanTitle = String(rawTitle)
-            .replace(/\s*\(MindFlow\s*导图源文件\)$/i, '')
-            .replace(/\.mindflow$/i, '')
-            .trim() || String(rawTitle);
-
-          const card = createEl('div', 'mf-map-card');
-
-          const cardTop = createEl('div', 'mf-map-card-top');
-          cardTop.appendChild(createEl('span', 'mf-map-icon', '🧠'));
-          const cardName = createEl('span', 'mf-map-name', cleanTitle);
-          cardName.title = cleanTitle;
-          cardTop.appendChild(cardName);
-          card.appendChild(cardTop);
-
-          if (att.dateModified) {
-            try {
-              const d = new Date(att.dateModified);
-              const metaTime = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-              card.appendChild(createEl('div', 'mf-map-card-meta', `修改于: ${metaTime}`));
-            } catch (_) {}
-          }
-
-          const cardActions = createEl('div', 'mf-map-card-actions');
-
-          const openBtn = createEl('button', 'mf-card-btn mf-card-btn-primary', '打开导图 ↗');
-          openBtn.setAttribute('type', 'button');
-          openBtn.addEventListener('click', async (e) => {
-            e.preventDefault(); e.stopPropagation();
-            if (openBtn.disabled) return;
-            openBtn.disabled = true;
-            try {
-              await this.openMindflowAttachment(att, win);
-            } catch (err) {
-              Zotero.logError?.('[MindFlow] Open map attachment failed: ' + err);
-            } finally {
-              openBtn.disabled = false;
-            }
-          });
-          cardActions.appendChild(openBtn);
-
-          const exportBtn = createEl('button', 'mf-card-btn', '导出大纲笔记 📝');
-          exportBtn.setAttribute('type', 'button');
-          exportBtn.addEventListener('click', async (e) => {
-            e.preventDefault(); e.stopPropagation();
-            if (exportBtn.disabled) return;
-            exportBtn.disabled = true;
-            try {
-              await this.exportAttachmentToNote(att, win);
-            } catch (err) {
-              Zotero.logError?.('[MindFlow] Export attachment to note failed: ' + err);
-            } finally {
-              exportBtn.disabled = false;
-            }
-          });
-          cardActions.appendChild(exportBtn);
-
-          card.appendChild(cardActions);
-          mapsList.appendChild(card);
-        }
-        mapsSection.appendChild(mapsList);
-        container.appendChild(mapsSection);
-      } else {
-        const emptyGuide = createEl('div', 'mf-empty-guide');
-        emptyGuide.appendChild(createEl('div', 'mf-empty-icon', '💡'));
-        emptyGuide.appendChild(createEl('div', 'mf-empty-title', '思维导图 + 划线互联'));
-        emptyGuide.appendChild(createEl('div', 'mf-empty-desc', '在 PDF 中划线做高亮，可在 MindFlow 导图中快速引用；导图节点亦可一键生成 Zotero 大纲笔记。'));
-        container.appendChild(emptyGuide);
-      }
-
-      body.appendChild(container);
     },
 
     async exportAttachmentToNote(attachment, win) {

@@ -21,6 +21,28 @@ item-pane-sidenav .btn[data-pane*="mindflow-item-pane"] {
   line-height: 0 !important;
   color: transparent !important;
   white-space: nowrap !important;
+  background-image: url("chrome://mindflow/content/icons/mindflow.svg") !important;
+  background-size: 18px 18px !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+}
+
+item-pane-sidenav .btn[data-pane*="mindflow-item-pane"] .icon {
+  display: none !important;
+}
+
+item-pane-custom-section[data-pane*="mindflow-item-pane"] .icon,
+item-pane-custom-section[data-pane*="mindflow-item-pane"] button.header .icon,
+item-pane-custom-section[data-pane*="mindflow-item-pane"] collapsible-section .icon {
+  background-image: url("chrome://mindflow/content/icons/mindflow.svg") !important;
+  background-size: 16px 16px !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+  display: inline-block !important;
+  width: 16px !important;
+  height: 16px !important;
+  min-width: 16px !important;
+  min-height: 16px !important;
 }
 
 .mf-pane-wrap {

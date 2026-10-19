@@ -4,11 +4,14 @@ mindflow-item-menu-add = 添加到当前 MindFlow 导图
 mindflow-collection-menu-create = 生成此分类思维导图
 mindflow-toolbar-tooltip = 打开 MindFlow 思维导图工作区
 mindflow-reader-send = 发送摘录至 MindFlow 导图
-mindflow-item-pane-header = MindFlow 导图
+# 此消息应用到整个原生 collapsible-section。仅设置属性，以保留标题和正文控件。
+mindflow-item-pane-header =
     .label = MindFlow 导图
-    .tooltiptext = MindFlow 导图
+    .tooltiptext = MindFlow 思维导图与文献研读
 mindflow-item-pane-sidenav =
-    .tooltiptext = MindFlow 导图
+    .title = 打开 MindFlow 导图
+    .aria-label = MindFlow 导图
+    .tooltiptext = 打开 MindFlow 导图
 mindflow-item-pane-count =
     { $count ->
         [0] 这篇文献还没有 MindFlow 导图
