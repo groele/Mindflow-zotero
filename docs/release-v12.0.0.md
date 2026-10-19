@@ -54,5 +54,4 @@ Zotero MindFlow 12.0.0 是一个重大的里程碑版本。本版本确立了全
 
 - **支持宿主**：Zotero 10.0.x（在 Windows + Zotero 10.0.6 原生环境下完成全量回归）。
 - **发布文件交付**：
-  - 官方标准规范包：[`zotero-mindflow-12.0.0.xpi`](https://github.com/groele/Zotero-MindFlow/releases/download/v12.0.0/zotero-mindflow-12.0.0.xpi)
-  - 全套设计资产归档：[`Zotero-MindFlow-v12.0.0-Fluid-Origami-Icons.zip`](https://github.com/groele/Zotero-MindFlow/releases/download/v12.0.0/Zotero-MindFlow-v12.0.0-Fluid-Origami-Icons.zip)
+  - 官方插件安装包：[`zotero-mindflow-12.0.0.xpi`](https://github.com/groele/Zotero-MindFlow/releases/download/v12.0.0/zotero-mindflow-12.0.0.xpi)
