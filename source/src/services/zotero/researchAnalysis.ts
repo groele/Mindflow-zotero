@@ -39,6 +39,7 @@ export interface ResearchInputPreview {
   models: ResearchModelOption[];
   archiveState: string;
   quickCalls: number;
+  standardCalls?: number;
   deepCalls: number;
   estimatedCharacters: number;
   sourceCharacters: ResearchSourceCharacters;
@@ -98,11 +99,13 @@ export interface ResearchProgress {
   total: number;
 }
 
+export type ResearchAnalysisIntensity = 'quick' | 'standard' | 'deep';
+
 export interface ResearchRequestOptions {
   abstractSelection?: { preparedId: string; text: string };
   readingMode?: ResearchReadingMode;
   preparedId?: string;
-  mode?: 'quick' | 'deep';
+  mode?: ResearchAnalysisIntensity;
   modelEntryId?: string;
   reasoningLevel?: ResearchReasoningLevel;
   templateId?: string;
@@ -123,8 +126,9 @@ export interface ResearchAnalysis {
     hasAbstract: boolean;
     noteCount: number;
     annotationCount: number;
-    analysisMode?: 'quick' | 'deep';
+    analysisMode?: ResearchAnalysisIntensity;
     quickSampled?: boolean;
+    standardMode?: boolean;
     deepCondensed?: boolean;
     synthesisCandidateLimit?: number;
     model?: string;
@@ -297,8 +301,10 @@ export function createResearchDocument(analysis: ResearchAnalysis, appearance: R
       ['highlights', '批注划线'], ['comments', '读者评论'],
     ] as const).filter(([key]) => scope.selectedSources?.[key]).map(([, label]) => label).join('、')}。` : '',
     scope?.pdfTruncated ? 'PDF 文字超出本次读取范围或经过跨区间采样，部分内容仍可能未纳入分析。' : '',
-    scope?.quickSampled ? '本次为快速模式，PDF 文字仅取跨区间节选。' : '',
-    scope?.analysisMode === 'quick' ? '快速模式进一步限制摘要、笔记与批注的发送条数或长度。' : '',
+    scope?.quickSampled ? '本次为简要快速模式，PDF 文字仅取跨区间节选。' : '',
+    scope?.analysisMode === 'quick' ? '分析强度：简要快速（提炼 3~4 个核心分支，精炼要点，极速概览）。' : '',
+    scope?.analysisMode === 'standard' ? '分析强度：中等复杂度（5~6 个标准学术分支，平衡详略）。' : '',
+    scope?.analysisMode === 'deep' ? '分析强度：详细深析（全面深度解构，深挖定量指标、因果机理与局限展望）。' : '',
     scope?.deepCondensed ? `深入模式最终整合接收每栏最多 ${scope.synthesisCandidateLimit || 5} 条分段候选及缩短的摘要、笔记和批注；候选筛选仍可能遗漏内容。` : '',
     warningDescriptions.length ? `准备阶段截取或未纳入：${warningDescriptions.join('、')}。` : '',
     '绿色勾：短引文与本次原文匹配，不等于科学结论已被独立验证。',

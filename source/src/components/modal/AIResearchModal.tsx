@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AlertCircle, BookOpen, CheckCircle2, Loader2, ShieldCheck, Sparkles, X } from 'lucide-react';
-import { ResearchInputPreview, ResearchProgress, ResearchSourceSelection, ResearchModelSelection, ResearchReasoningLevel, ResearchReadingMode, ResearchAppearance } from '../../services/zotero/researchAnalysis';
+import { ResearchInputPreview, ResearchProgress, ResearchSourceSelection, ResearchModelSelection, ResearchReasoningLevel, ResearchReadingMode, ResearchAppearance, ResearchAnalysisIntensity } from '../../services/zotero/researchAnalysis';
 import { getTheme } from '../../core/theme/themes';
 import { researchTemplates, defaultResearchTemplateId, getResearchTemplate, researchSectionDefinitions } from '../../services/zotero/researchTemplates';
 import { ResearchPresetsPanel } from './ResearchPresetsPanel';
@@ -15,8 +15,8 @@ interface AIResearchModalProps {
   preview: ResearchInputPreview | null;
   progress: ResearchProgress | null;
   error: string;
-  onStart: (mode: 'quick' | 'deep', sources: ResearchSourceSelection, model: ResearchModelSelection) => void;
-  onRetry: (mode: 'quick' | 'deep', sources: ResearchSourceSelection, model: ResearchModelSelection) => void;
+  onStart: (mode: ResearchAnalysisIntensity, sources: ResearchSourceSelection, model: ResearchModelSelection) => void;
+  onRetry: (mode: ResearchAnalysisIntensity, sources: ResearchSourceSelection, model: ResearchModelSelection) => void;
   onCancel: () => void;
   onClose: () => void;
   onRefresh: (readingMode?: ResearchReadingMode, abstractSelection?: { preparedId: string; text: string }) => void;
@@ -26,7 +26,7 @@ interface AIResearchModalProps {
 export const AIResearchModal: React.FC<AIResearchModalProps> = ({
   appearance, isOpen, stage, preview, progress, error, onStart, onRetry, onCancel, onClose, onRefresh, onSettings,
 }) => {
-  const [mode, setMode] = useState<'quick' | 'deep'>('deep');
+  const [mode, setMode] = useState<ResearchAnalysisIntensity>('standard');
   const [readingMode, setReadingMode] = useState<ResearchReadingMode>('abstract');
   const [modelEntryId, setModelEntryId] = useState('');
   const [reasoningLevel, setReasoningLevel] = useState<ResearchReasoningLevel>('default');
@@ -51,17 +51,16 @@ export const AIResearchModal: React.FC<AIResearchModalProps> = ({
     abstract: true, pdf: true, notes: false, highlights: false, comments: false,
   });
   const scope = preview?.sourceScope;
-  const partialReading = (preview?.readingMode || readingMode) !== 'full';
   const sourceRows: Array<{ key: keyof ResearchSourceSelection; label: string; available: boolean }> = [
-    { key: 'abstract', label: '摘要', available: Boolean(scope?.hasAbstract) },
-    { key: 'pdf', label: 'PDF 文字', available: Boolean(scope?.pdfCharacters) },
+    { key: 'abstract', label: '摘要', available: Boolean(scope?.hasAbstract || preview?.abstractText) },
+    { key: 'pdf', label: 'PDF 正文 / 节选', available: Boolean((scope?.pdfCharacters && scope.pdfCharacters > 0) || (preview?.sourceCharacters?.pdf && preview.sourceCharacters.pdf > 0)) },
     { key: 'notes', label: `Zotero 笔记（${scope?.noteCount || 0} 条）`, available: Boolean(scope?.noteCount) },
     { key: 'highlights', label: `批注划线（${scope?.highlightCount || 0} 条）`, available: Boolean(scope?.highlightCount) },
     { key: 'comments', label: `读者评论（${scope?.commentCount || 0} 条）`, available: Boolean(scope?.commentCount) },
   ];
   const enabledSources: ResearchSourceSelection = {
-    abstract: sources.abstract && Boolean(scope?.hasAbstract),
-    pdf: sources.pdf && Boolean(scope?.pdfCharacters),
+    abstract: sources.abstract && Boolean(scope?.hasAbstract || preview?.abstractText),
+    pdf: sources.pdf && Boolean((scope?.pdfCharacters && scope.pdfCharacters > 0) || (preview?.sourceCharacters?.pdf && preview.sourceCharacters.pdf > 0)),
     notes: sources.notes && Boolean(scope?.noteCount),
     highlights: sources.highlights && Boolean(scope?.highlightCount),
     comments: sources.comments && Boolean(scope?.commentCount),
@@ -71,7 +70,7 @@ export const AIResearchModal: React.FC<AIResearchModalProps> = ({
   const hasSelectedContent = Object.values(enabledSources).some(Boolean);
   const hasAvailableContent = sourceRows.some(row => row.available);
   const emptySourceMessage = preview?.readingMode === 'abstract'
-    ? '当前为“仅摘要”模式。该条目的摘要字段为空，且本次未能从 PDF 可靠提取摘要；正文未纳入分析。'
+    ? '当前为“聚焦摘要”模式。该条目的摘要字段为空，且本次未能从 PDF 提取文字。可在下方粘贴补充摘要或改选全文。'
     : scope?.sectionStatus?.missing.length
       ? '当前范围未提取到可分析的文字，所选章节未可靠识别。可以选择其他读取范围。'
       : '当前范围没有可分析的资料。请检查所选文献及关联 PDF 是否已下载、有可提取的文字。';
@@ -149,16 +148,18 @@ export const AIResearchModal: React.FC<AIResearchModalProps> = ({
         </header>
 
         <div className="shrink-0 border-b border-slate-200 px-5 py-3 dark:border-slate-700">
-          <label className="block text-xs font-semibold text-slate-900 dark:text-white">文章读取范围
+          <label className="block text-xs font-semibold text-slate-900 dark:text-white">文章读取范围与分析焦点
             <select aria-label="文章读取范围" value={readingMode} disabled={busy}
               onChange={event => { const value = event.target.value as ResearchReadingMode; setReadingMode(value); onRefresh(value); }}
               className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2 text-sm font-normal dark:border-slate-600 dark:bg-slate-800">
-              <option value="abstract">仅摘要 · 最省输入</option><option value="introduction">仅引言</option>
-              <option value="conclusion">仅结论</option><option value="key-sections">摘要＋引言＋结论</option>
-              <option value="full">全文 · 适合精读与复现</option>
+              <option value="abstract">聚焦摘要 · 核心贡献与主旨</option>
+              <option value="introduction">聚焦引言 · 研究动机与问题缺口</option>
+              <option value="conclusion">聚焦结论 · 核心成果与局限展望</option>
+              <option value="key-sections">核心框架 · 摘要＋引言＋结论</option>
+              <option value="full">全文综合 · 系统精读与完整复现</option>
             </select>
           </label>
-          <p className="mt-1 text-xs leading-5 text-slate-500">读取范围决定发送的正文；快速／深入分析不会扩大范围。章节未识别时不回退全文。</p>
+          <p className="mt-1 text-xs leading-5 text-slate-500">提示词结合读取范围智能聚焦分析焦点；未标注独立小节标题的文献由模型在提供文本中智能定位并提炼。</p>
         </div>
 
         <div className="min-h-0 space-y-4 overflow-y-auto px-5 py-5 text-sm text-slate-700 dark:text-slate-200">
@@ -328,35 +329,75 @@ export const AIResearchModal: React.FC<AIResearchModalProps> = ({
                 </fieldset>
               )}
 
-              {stage === 'ready' && !partialReading && (
-                <fieldset className="space-y-2">
-                  <legend className="mb-2 font-semibold text-slate-900 dark:text-white">分析深度</legend>
-                  {(['quick', 'deep'] as const).map((value) => (
-                    <label key={value} className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 ${mode === value
-                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/40' : 'border-slate-200 dark:border-slate-700'}`}>
-                      <input type="radio" name="ai-research-mode" value={value} checked={mode === value}
-                        onChange={() => setMode(value)} className="mt-1" />
-                      <span><strong>{value === 'quick' ? '快速概览' : '深入分析'}</strong>
-                        <small className="mt-1 block text-slate-600 dark:text-slate-400">
-                          {value === 'quick'
-                            ? `${enabledSources.pdf ? (scope?.pdfCharacters || 0) > 20000 ? '跨区间选取 PDF 节选' : '使用本次已准备的 PDF' : '不纳入 PDF'}，并精简选中的笔记与批注；约 ${preview.quickCalls} 次模型请求。`
-                            : enabledSources.pdf && preview.deepCalls > 1
-                              ? `分段阅读已提取 PDF；整合时压缩候选、笔记和批注，约 ${preview.deepCalls} 次模型请求。`
-                              : '依据现有资料完成单次综合分析，约 1 次模型请求。'}
-                        </small>
-                      </span>
-                    </label>
-                  ))}
+              {(stage === 'ready' || stage === 'error') && (
+                <fieldset className="space-y-3 rounded-xl border border-slate-200 p-4 dark:border-slate-700">
+                  <legend className="px-1 font-semibold text-slate-900 dark:text-white">分析强度 / 复杂度</legend>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    {[
+                      {
+                        value: 'quick' as const,
+                        label: '⚡ 简要快速',
+                        badge: '速览',
+                        desc: '3~4 核心分支 · 精炼主干要点，去除繁杂铺垫与次要参数，极速生成。',
+                      },
+                      {
+                        value: 'standard' as const,
+                        label: '⚖️ 中等复杂度',
+                        badge: '推荐',
+                        desc: '5~6 标准分支 · 平衡学术框架，兼顾研究背景、方法与关键结论。',
+                      },
+                      {
+                        value: 'deep' as const,
+                        label: '🔬 详细深析',
+                        badge: '深度',
+                        desc: '全景多层级 · 深入量化实验指标、因果机理链条与局限展望。',
+                      },
+                    ].map((item) => (
+                      <label
+                        key={item.value}
+                        className={`flex cursor-pointer flex-col justify-between rounded-xl border p-3 transition-colors ${
+                          mode === item.value
+                            ? 'border-blue-500 bg-blue-50/80 shadow-sm dark:border-blue-500 dark:bg-blue-950/40'
+                            : 'border-slate-200 hover:border-slate-300 dark:border-slate-700 dark:hover:border-slate-600'
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="radio"
+                                name="ai-research-mode"
+                                value={item.value}
+                                checked={mode === item.value}
+                                disabled={busy}
+                                onChange={() => setMode(item.value)}
+                                className="text-blue-600 focus:ring-blue-500"
+                              />
+                              <span className="font-semibold text-xs sm:text-sm text-slate-900 dark:text-white">
+                                {item.label}
+                              </span>
+                            </div>
+                            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                              {item.badge}
+                            </span>
+                          </div>
+                          <p className="mt-2 text-xs leading-4 text-slate-500 dark:text-slate-400">
+                            {item.desc}
+                          </p>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    分析强度精准控制提示词与导图细化粒度；结合上方“文章读取范围与焦点”实现灵活多维度的深度研究。
+                  </p>
                 </fieldset>
               )}
-              {stage === 'ready' && partialReading && <p aria-label="部分读取流程" className="rounded-lg bg-blue-50 p-3 text-xs leading-5 dark:bg-blue-950/40">
-                所选部分采用单次分析，随后核对引文并保存；不再分段阅读或二次整合。只围绕这些章节已有的信息组织核心问题与结论。
-              </p>}
 
               <div className="rounded-xl bg-slate-50 p-3 text-xs leading-5 dark:bg-slate-800">
                 <div className="flex items-center gap-2 font-semibold"><ShieldCheck size={15} />数据与费用</div>
                 <p className="mt-1">开始后将通过 llm-for-zotero 向 {selectedModel?.local ? '本机模型' : selectedModel?.host || preview.endpointHost}（{selectedModel?.model || preview.model}，推理强度：{modelSelection.reasoningLevel}）发送资料，
-                  本次选中资料约 {selectedCharacters.toLocaleString()} 字符{!partialReading && mode === 'quick' ? '（快速模式还会进一步节选）' : ''}。调用记录由 llm-for-zotero 管理；实际 token、费用和耗时由模型服务决定。
+                  本次选中资料约 {selectedCharacters.toLocaleString()} 字符{mode === 'quick' ? '（简要模式将精炼节选）' : ''}。调用记录由 llm-for-zotero 管理；实际 token、费用和耗时由模型服务决定。
                   仅有短引文与指定资料片段匹配的判断会标为“原文支持”，仍需回到原文核对。
                   PDF、笔记、批注划线和批注评论会分别编号；评论只作为读者材料。</p>
               </div>
@@ -392,10 +433,10 @@ export const AIResearchModal: React.FC<AIResearchModalProps> = ({
             </button>}
           </div>
           <div className="flex gap-2">
-            {stage === 'ready' && <button type="button" onClick={() => onStart(partialReading ? 'deep' : mode, enabledSources, modelSelection)} disabled={abstractEditor || !hasSelectedContent || !selectedModel?.available}
+            {stage === 'ready' && <button type="button" onClick={() => onStart(mode, enabledSources, modelSelection)} disabled={abstractEditor || !hasSelectedContent || !selectedModel?.available}
               className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
               <CheckCircle2 size={16} />开始分析</button>}
-            {stage === 'error' && <button type="button" onClick={() => onRetry(partialReading ? 'deep' : mode, enabledSources, modelSelection)} disabled={abstractEditor || (Boolean(preview) && (!hasSelectedContent || !selectedModel?.available))}
+            {stage === 'error' && <button type="button" onClick={() => onRetry(mode, enabledSources, modelSelection)} disabled={abstractEditor || (Boolean(preview) && (!hasSelectedContent || !selectedModel?.available))}
               className="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">重试</button>}
             {busy && stage !== 'saving' && <button type="button" onClick={onCancel}
               className="rounded-lg border border-slate-300 px-4 py-2 hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800">取消</button>}

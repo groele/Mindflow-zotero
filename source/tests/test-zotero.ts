@@ -385,4 +385,52 @@ await run('condensed story caps branches and preserves omitted facts and quotes 
     assert.ok(nodes.some(node => node.note?.includes(claim.quote)));
   }
 });
+await run('research analysis supports 3-tier intensity (quick, standard, deep) and forwards mode correctly', async () => {
+  const previous = (globalThis as any).window;
+  const calls: any[] = [];
+  (globalThis as any).window = {
+    Zotero: { MindFlow: {
+      analyzePaperWithAI: async (ref: string, opts: any) => {
+        calls.push({ ref, mode: opts.mode });
+        return {
+          title: 'Paper Title',
+          zoteroUri: 'zotero://select/library/items/TESTITEM',
+          sourceScope: { analysisMode: opts.mode, model: 'test-model' },
+          sections: { findings: [{ text: 'Finding 1', basis: 'paper', quote: 'Finding 1', source: 'pdf', verification: 'matched' }] },
+        };
+      },
+    } },
+  };
+  try {
+    for (const intensity of ['quick', 'standard', 'deep'] as const) {
+      const res = await requestResearchAnalysis('item-ref', { mode: intensity });
+      assert.equal(res.sourceScope.analysisMode, intensity);
+      assert.equal(calls[calls.length - 1].mode, intensity);
+    }
+  } finally {
+    (globalThis as any).window = previous;
+  }
+});
+await run('created research document records intensity level in note and supports prompt-guided focus', () => {
+  for (const intensity of ['quick', 'standard', 'deep'] as const) {
+    const doc = createResearchDocument({
+      title: 'Paper on 2D Materials',
+      zoteroUri: 'zotero://select/library/items/ITEM2D',
+      sourceScope: {
+        analysisMode: intensity,
+        templateId: 'experimental',
+        readingMode: 'introduction',
+      },
+      sections: {
+        question: [{ text: 'Research Question', basis: 'paper', quote: 'Research Question', source: 'pdf', verification: 'matched' }],
+      },
+    } as any, { themeId: 'classic-blue', layoutType: 'mindmap' });
+
+    assert.equal(doc.metadata?.aiSourceScope?.analysisMode, intensity);
+    if (intensity === 'quick') assert.match(doc.root.note || '', /分析强度：简要快速/);
+    if (intensity === 'standard') assert.match(doc.root.note || '', /分析强度：中等复杂度/);
+    if (intensity === 'deep') assert.match(doc.root.note || '', /分析强度：详细深析/);
+    assert.match(doc.root.note || '', /仅引言/);
+  }
+});
 console.log(`${count} frontend data-chain tests passed`);

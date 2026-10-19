@@ -49,7 +49,7 @@ import { BackupService, MAX_BACKUP_BYTES, validateMindMapDocument, WorkspaceBack
 import { WebDAVService } from '../../services/sync/webdavService';
 import { safeStorage } from '../../services/storage/safeStorage';
 import { createResearchDocument, prepareResearchAnalysis, requestResearchAnalysis,
-  ResearchInputPreview, ResearchProgress, ResearchSourceSelection, ResearchModelSelection, ResearchReadingMode, ResearchRequestOptions } from '../../services/zotero/researchAnalysis';
+  ResearchInputPreview, ResearchProgress, ResearchSourceSelection, ResearchModelSelection, ResearchReadingMode, ResearchRequestOptions, ResearchAnalysisIntensity } from '../../services/zotero/researchAnalysis';
 import { AIResearchModal, AIResearchStage } from '../../components/modal/AIResearchModal';
 import { Minimize2 } from 'lucide-react';
 import { sameDocumentSource, planIncomingDocument, detachedMetadata } from '../../services/zotero/documentIdentity';
@@ -1993,7 +1993,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     setSaveStatus({ state: 'warning', message: 'AI 分析已取消；未创建或归档导图。' });
   }, []);
 
-  const handleStartAiAnalysis = useCallback(async (mode: 'quick' | 'deep', sources: ResearchSourceSelection, model: ResearchModelSelection) => {
+  const handleStartAiAnalysis = useCallback(async (mode: ResearchAnalysisIntensity, sources: ResearchSourceSelection, model: ResearchModelSelection) => {
     const workflow = aiWorkflow;
     if (!workflow?.preview || aiAnalyzingRef.current) return;
     const currentMap = latestDocRef.current;
@@ -2009,7 +2009,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
     try {
       const analysis = await requestResearchAnalysis(workflow.reference, {
         preparedId: workflow.preview.preparedId, mode, sources, ...model, signal: controller.signal,
-        expectedCalls: mode === 'deep' && sources.pdf ? workflow.preview.deepCalls : 1,
+        expectedCalls: mode === 'deep' && sources.pdf && workflow.preview.readingMode === 'full' ? workflow.preview.deepCalls : 1,
         onProgress: (progress) => {
           if (token === aiRequestTokenRef.current) {
             setAiWorkflow((current) => current ? { ...current, progress } : current);
