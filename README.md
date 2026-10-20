@@ -7,7 +7,7 @@
 
 | 项目 / Item | 当前状态 / Current status |
 | --- | --- |
-| 公开版本 / Public release | **12.3.2**, [GitHub Release](https://github.com/groele/Zotero-MindFlow/releases/tag/v12.3.2) |
+| 公开版本 / Public release | **12.3.3**, [GitHub Release](https://github.com/groele/Zotero-MindFlow/releases/tag/v12.3.3) |
 | 支持宿主 / Supported host | **Zotero 10.0.x**；原生回归环境为 Windows + Zotero 10.0.6 / Native regression environment: Windows + Zotero 10.0.6 |
 | 插件 ID / Add-on ID | `mindflow@groele.org` |
 | 许可 / License | [MIT](LICENSE) |
@@ -28,14 +28,14 @@ The add-on and Zotero have separate version numbers. This README is bilingual; t
 
 ### 1. 安装与升级
 
-1. 打开 [12.3.2 Release（插件版本）](https://github.com/groele/Zotero-MindFlow/releases/tag/v12.3.2)，下载 [`zotero-mindflow-12.3.2.xpi`](https://github.com/groele/Zotero-MindFlow/releases/download/v12.3.2/zotero-mindflow-12.3.2.xpi)。请选择 XPI 安装包，GitHub 的 Source code ZIP 不能直接作为插件安装。
+1. 打开 [12.3.3 Release（插件版本）](https://github.com/groele/Zotero-MindFlow/releases/tag/v12.3.3)，下载 [`zotero-mindflow-12.3.3.xpi`](https://github.com/groele/Zotero-MindFlow/releases/download/v12.3.3/zotero-mindflow-12.3.3.xpi)。请选择 XPI 安装包，GitHub 的 Source code ZIP 不能直接作为插件安装。
 2. 在 Zotero 中打开 **工具 → 插件**，点击齿轮，选择 **从文件安装插件**。
 3. 选择下载的 XPI，完成安装并重启 Zotero。
 4. 通过文献库工具栏的 MindFlow 图标、工具菜单或分类右键菜单打开工作台。
 
-升级前备份 Zotero 数据目录，并导出重要导图或完整工作区。插件 12.3.2 沿用 `mindflow@groele.org`，可以覆盖同 ID 的旧版本；升级本身不代表历史错误关联已被自动修正。此处 12.3.0 是插件版本，当前经过验证的 Zotero 宿主仍为 10.0.x。
+升级前备份 Zotero 数据目录，并导出重要导图或完整工作区。插件 12.3.3 沿用 `mindflow@groele.org`，可以覆盖同 ID 的旧版本；升级本身不代表历史错误关联已被自动修正。此处 12.3.0 是插件版本，当前经过验证的 Zotero 宿主仍为 10.0.x。
 
-12.3.2 更新清单 [`update.json`](update.json) 与 [`zotero/update.json`](zotero/update.json) 指向精确版本的 XPI，SHA-256 与安装包匹配。修正偏好页复选框尺寸，并统一原生控件对齐、字体与间距；版本说明、构建日期和链接分行列示，见 [12.3.2 发布记录](docs/release-v12.3.2.md)。
+12.3.3 更新清单 [`update.json`](update.json) 与 [`zotero/update.json`](zotero/update.json) 指向精确版本的 XPI，SHA-256 与安装包匹配。修正偏好页复选框尺寸，并统一原生控件对齐、字体与间距；版本说明、构建日期和链接分行列示，见 [12.3.3 发布记录](docs/release-v12.3.3.md)。
 
 ![工具栏预览](docs/toolbar-icon-preview-10.0.1.png)
 
