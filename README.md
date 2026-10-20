@@ -7,7 +7,7 @@
 
 | 项目 / Item | 当前状态 / Current status |
 | --- | --- |
-| 公开版本 / Public release | **12.0.0**, [v12.0.0](https://github.com/groele/Zotero-MindFlow/releases/tag/v12.0.0) |
+| 公开版本 / Public release | **12.0.1**, [v12.0.1](https://github.com/groele/Zotero-MindFlow/releases/tag/v12.0.1) |
 | 支持宿主 / Supported host | **Zotero 10.0.x**；原生回归环境为 Windows + Zotero 10.0.6 / Native regression environment: Windows + Zotero 10.0.6 |
 | 插件 ID / Add-on ID | `mindflow@groele.org` |
 | 许可 / License | [MIT](LICENSE) |
@@ -28,14 +28,14 @@ The add-on and Zotero have separate version numbers. This README is bilingual; t
 
 ### 1. 安装与升级
 
-1. 打开 [12.0.0 Release（插件版本）](https://github.com/groele/Zotero-MindFlow/releases/tag/v12.0.0)，下载 [`zotero-mindflow-12.0.0.xpi`](https://github.com/groele/Zotero-MindFlow/releases/download/v12.0.0/zotero-mindflow-12.0.0.xpi)。请选择 XPI 安装包，GitHub 的 Source code ZIP 不能直接作为插件安装。
+1. 打开 [12.0.1 Release（插件版本）](https://github.com/groele/Zotero-MindFlow/releases/tag/v12.0.1)，下载 [`zotero-mindflow-12.0.1.xpi`](https://github.com/groele/Zotero-MindFlow/releases/download/v12.0.1/zotero-mindflow-12.0.1.xpi)。请选择 XPI 安装包，GitHub 的 Source code ZIP 不能直接作为插件安装。
 2. 在 Zotero 中打开 **工具 → 插件**，点击齿轮，选择 **从文件安装插件**。
 3. 选择下载的 XPI，完成安装并重启 Zotero。
 4. 通过文献库工具栏的 MindFlow 图标、工具菜单或分类右键菜单打开工作台。
 
-升级前备份 Zotero 数据目录，并导出重要导图或完整工作区。插件 12.0.0 沿用 `mindflow@groele.org`，可以覆盖同 ID 的旧版本；升级本身不代表历史错误关联已被自动修正。此处 12.0.0 是插件版本，当前经过验证的 Zotero 宿主仍为 10.0.x。
+升级前备份 Zotero 数据目录，并导出重要导图或完整工作区。插件 12.0.1 沿用 `mindflow@groele.org`，可以覆盖同 ID 的旧版本；升级本身不代表历史错误关联已被自动修正。此处 12.0.1 是插件版本，当前经过验证的 Zotero 宿主仍为 10.0.x。
 
-公开自动更新元数据为 [`update.json`](update.json) 与 [`zotero/update.json`](zotero/update.json)，目前指向 **12.0.0**。作为重大里程碑更新，本版确立了全新品牌视觉体系（Zotero MindFlow & Fluid Origami Wing 流体折纸旋翼标识系统），全方位覆盖工具栏、原生标签页、应用内工作台与欢迎看板，见 [12.0.0 发布记录](docs/release-v12.0.0.md)。
+公开自动更新元数据为 [`update.json`](update.json) 与 [`zotero/update.json`](zotero/update.json)，目前指向 **12.0.1**。本补丁更新了设置面板的分区快速跳转与键盘焦点定位，见 [12.0.1 发布记录](docs/release-v12.0.1.md)。
 
 ![工具栏预览](docs/toolbar-icon-preview-10.0.1.png)
 
@@ -333,14 +333,14 @@ pwsh -NoProfile -File scripts/restart-native-test.ps1
 
 ### 1. Installation and upgrades
 
-1. Open the [12.0.0 Release (add-on version)](https://github.com/groele/Zotero-MindFlow/releases/tag/v12.0.0) and download [`zotero-mindflow-12.0.0.xpi`](https://github.com/groele/Zotero-MindFlow/releases/download/v12.0.0/zotero-mindflow-12.0.0.xpi). Use the XPI asset; GitHub's Source code ZIP cannot be installed directly as the add-on.
+1. Open the [12.0.1 Release (add-on version)](https://github.com/groele/Zotero-MindFlow/releases/tag/v12.0.1) and download [`zotero-mindflow-12.0.1.xpi`](https://github.com/groele/Zotero-MindFlow/releases/download/v12.0.1/zotero-mindflow-12.0.1.xpi). Use the XPI asset; GitHub's Source code ZIP cannot be installed directly as the add-on.
 2. In Zotero, open **Tools → Plugins**, click the gear button, and choose **Install Add-on From File**. Menu labels may vary with your Zotero language.
 3. Select the XPI, finish installation, and restart Zotero.
 4. Open MindFlow through its library toolbar icon, the Tools menu, or the collection's context menu.
 
-Before upgrading, back up your Zotero data directory and export important maps or the complete workspace. Add-on version 12.0.0 keeps the ID `mindflow@groele.org` and can replace an older installation with that ID. The supported Zotero host remains 10.0.x. Upgrading does not automatically repair attachments that were previously associated with the wrong paper.
+Before upgrading, back up your Zotero data directory and export important maps or the complete workspace. Add-on version 12.0.1 keeps the ID `mindflow@groele.org` and can replace an older installation with that ID. The supported Zotero host remains 10.0.x. Upgrading does not automatically repair attachments that were previously associated with the wrong paper.
 
-The public update metadata in [`update.json`](update.json) and [`zotero/update.json`](zotero/update.json) currently points to **12.0.0**. This major milestone release establishes the unified brand visual identity system (Zotero MindFlow & Fluid Origami Wing) across toolbars, native tabs, in-app canvas, and welcome boards; see the [12.0.0 release report](docs/release-v12.0.0.md).
+The public update metadata in [`update.json`](update.json) and [`zotero/update.json`](zotero/update.json) currently points to **12.0.1**. This patch adds settings-section quick navigation and keyboard focus positioning; see the [12.0.1 release report](docs/release-v12.0.1.md).
 
 <a id="en-start"></a>
 

@@ -6,10 +6,22 @@
     <html:div class="mindflow-pref-title-area">
       <html:img class="mindflow-pref-brand-icon" src="chrome://mindflow/content/icons/icon-accent.svg" width="22" height="22" alt="" />
       <html:h1 class="mindflow-pref-title">Zotero MindFlow</html:h1>
-      <html:span class="mindflow-pref-version">v12.0.0</html:span>
+      <html:span class="mindflow-pref-version">v12.0.1</html:span>
     </html:div>
     <html:button id="mindflow-btn-open-workspace" class="mindflow-btn-primary" type="button">打开导图工作台</html:button>
   </html:header>
+  <html:nav class="mindflow-pref-jump" aria-label="设置分区导航">
+    <html:label for="mindflow-pref-jump-select">快速跳转</html:label>
+    <html:select id="mindflow-pref-jump-select" class="mindflow-control">
+      <html:option value="mindflow-group-literature">文献与 PDF 阅读协同</html:option>
+      <html:option value="mindflow-group-ai">AI 论文研究与智能导图</html:option>
+      <html:option value="mindflow-group-interface">工作台界面与工具栏</html:option>
+      <html:option value="mindflow-group-editing">新建导图与节点编辑</html:option>
+      <html:option value="mindflow-group-backup">本地保存与历史快照</html:option>
+      <html:option value="mindflow-group-webdav">WebDAV 备份与同步</html:option>
+      <html:option value="mindflow-group-shortcuts">快捷键指南与系统重置</html:option>
+    </html:select>
+  </html:nav>
   <html:p id="mindflow-pref-status" class="mindflow-pref-status" role="status" aria-live="polite">正在加载设置项…</html:p>
 
   <!-- 1. 文献与 PDF 阅读协同 -->
