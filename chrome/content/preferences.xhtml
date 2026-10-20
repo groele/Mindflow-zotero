@@ -3,26 +3,28 @@
       id="mindflow-preferences-pane" class="mindflow-prefs-container"
       onload="MindFlow_Preferences.init(window)">
   <html:header class="mindflow-pref-header">
-    <html:div class="mindflow-pref-title-area">
-      <html:img class="mindflow-pref-brand-icon" src="chrome://mindflow/content/icons/icon-accent.svg" width="22" height="22" alt="" />
-      <html:h1 class="mindflow-pref-title">Zotero MindFlow</html:h1>
-      <html:span class="mindflow-pref-version">v12.2.0</html:span>
+    <html:div class="mindflow-pref-identity">
+      <html:div class="mindflow-pref-title-area">
+        <html:img class="mindflow-pref-brand-icon" src="chrome://mindflow/content/icons/icon-accent.svg" width="22" height="22" alt="" />
+        <html:h1 class="mindflow-pref-title">Zotero MindFlow</html:h1>
+        <html:span class="mindflow-pref-version">v12.3.0</html:span>
+      </html:div>
+      <html:p id="mindflow-pref-status" class="mindflow-pref-status" role="status" aria-live="polite">正在加载设置项…</html:p>
     </html:div>
     <html:button id="mindflow-btn-open-workspace" class="mindflow-btn-primary" type="button">打开导图工作台</html:button>
   </html:header>
-  <html:p id="mindflow-pref-status" class="mindflow-pref-status" role="status" aria-live="polite">正在加载设置项…</html:p>
 
-  <html:section class="mindflow-setting-card">
-    <html:h2 class="mindflow-card-title">文献与工作台</html:h2>
+  <html:details class="mindflow-setting-card" open="open">
+    <html:summary class="mindflow-card-summary"><html:h2 class="mindflow-card-title">文献与工作台</html:h2></html:summary>
     <html:div class="mindflow-card-body">
       <html:div id="mindflow-pref-literature" class="mindflow-pref-content" />
       <html:h3 class="mindflow-subhead">工作台界面与工具栏</html:h3>
       <html:div id="mindflow-pref-interface" class="mindflow-pref-content" />
     </html:div>
-  </html:section>
+  </html:details>
 
-  <html:section class="mindflow-setting-card">
-    <html:h2 class="mindflow-card-title">AI 研究与数据保存</html:h2>
+  <html:details class="mindflow-setting-card">
+    <html:summary class="mindflow-card-summary"><html:h2 class="mindflow-card-title">AI 研究与数据保存</html:h2></html:summary>
     <html:div class="mindflow-card-body">
       <html:div id="mindflow-pref-ai" class="mindflow-pref-content" />
       <html:h3 class="mindflow-subhead">本地保存与历史快照</html:h3>
@@ -30,10 +32,10 @@
       <html:h3 class="mindflow-subhead">WebDAV 同步</html:h3>
       <html:div id="mindflow-pref-webdav" class="mindflow-pref-content" />
     </html:div>
-  </html:section>
+  </html:details>
 
-  <html:section class="mindflow-setting-card mindflow-pref-group-last">
-    <html:h2 class="mindflow-card-title">导图编辑与快捷键</html:h2>
+  <html:details class="mindflow-setting-card mindflow-pref-group-last">
+    <html:summary class="mindflow-card-summary"><html:h2 class="mindflow-card-title">导图编辑与快捷键</html:h2></html:summary>
     <html:div class="mindflow-card-body">
       <html:div id="mindflow-pref-editing" class="mindflow-pref-content" />
       <html:h3 class="mindflow-subhead">快捷键与系统重置</html:h3>
@@ -65,5 +67,13 @@
         </html:div>
       </html:div>
     </html:div>
-  </html:section>
+  </html:details>
+
+  <html:footer class="mindflow-pref-release" aria-label="版本信息">
+    <html:h2 class="mindflow-pref-release-title">版本信息</html:h2>
+    <html:p><html:span class="mindflow-pref-release-label">版本说明：</html:span>插件偏好页采用统一样式；一级设置分组可折叠；版本信息独立列示</html:p>
+    <html:p><html:span class="mindflow-pref-release-label">构建日期：</html:span>2026-10-20</html:p>
+    <html:p><html:span class="mindflow-pref-release-label">Release 下载：</html:span><html:a href="https://github.com/groele/Zotero-MindFlow/releases/download/v12.3.0/zotero-mindflow-12.3.0.xpi" target="_blank" rel="noopener noreferrer">zotero-mindflow-12.3.0.xpi</html:a></html:p>
+    <html:p><html:span class="mindflow-pref-release-label">GitHub 仓库：</html:span><html:a href="https://github.com/groele/Zotero-MindFlow" target="_blank" rel="noopener noreferrer">github.com/groele/Zotero-MindFlow</html:a></html:p>
+  </html:footer>
 </vbox>

@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Zotero MindFlow",
-  "version": "12.2.0",
+  "version": "12.3.0",
   "description": "面向科研文献的可视化知识组织与智能思维导图工具。 From Papers to Ideas, From Ideas to Knowledge.",
   "homepage_url": "https://github.com/groele/Zotero-MindFlow",
   "author": "groele",

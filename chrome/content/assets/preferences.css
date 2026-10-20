@@ -1,480 +1,320 @@
-/* ==========================================================================
-   Zotero MindFlow - Native Preferences Theme (v12.2.0)
-   Designed in full accordance with Zotero 7/10 Design System & MetaFlow styles
-   ========================================================================== */
-
+/* Zotero MindFlow preferences: compact, direct-visible settings groups. */
 .mindflow-prefs-container {
+  --mindflow-accent: var(--accent-blue, #4072e5);
   box-sizing: border-box;
   width: 100%;
   max-width: 780px;
   min-width: 0;
-  padding: 4px 12px 24px 4px;
+  margin-inline: auto;
+  padding: 10px 14px 28px;
   color: var(--fill-primary, inherit);
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  font-size: 12px;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 13px;
   line-height: 1.5;
 }
 
 .mindflow-prefs-container *,
 .mindflow-prefs-container *::before,
-.mindflow-prefs-container *::after {
-  box-sizing: border-box;
-}
+.mindflow-prefs-container *::after { box-sizing: border-box; }
 
-/* --------------------------------------------------------------------------
-   Header Area
-   -------------------------------------------------------------------------- */
 .mindflow-pref-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  margin: 2px 0 8px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--color-border, rgba(0, 0, 0, 0.12));
+  gap: 12px 20px;
+  margin: 0 0 12px;
+  padding: 0 0 10px;
+  border-bottom: 1px solid var(--color-border, rgba(0, 0, 0, .12));
 }
 
-.mindflow-pref-title-area {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.mindflow-pref-brand-icon {
-  width: 22px;
-  height: 22px;
-  flex-shrink: 0;
-}
-
+.mindflow-pref-identity { min-width: 0; }
+.mindflow-pref-title-area { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.mindflow-pref-brand-icon { width: 20px; height: 20px; flex: 0 0 auto; }
 .mindflow-pref-title {
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 1.35;
   color: var(--fill-primary, inherit);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.3;
 }
-
 .mindflow-pref-version {
   display: inline-block;
+  padding: 2px 7px;
+  border: 1px solid color-mix(in srgb, var(--mindflow-accent) 26%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--mindflow-accent) 8%, transparent);
+  color: var(--mindflow-accent);
   font-size: 11px;
-  font-weight: 500;
-  line-height: 1;
-  padding: 2.5px 7px;
-  border-radius: 10px;
-  background: var(--color-quinary-on-sidepane, rgba(0, 0, 0, 0.06));
-  color: var(--fill-secondary, #888888);
+  line-height: 1.3;
+  white-space: nowrap;
 }
-
-/* Status Text */
 .mindflow-pref-status {
-  margin: 0 0 10px;
+  margin: 3px 0 0 28px;
   color: var(--fill-secondary, GrayText);
-  font-size: 11.5px;
-  line-height: 1.5;
+  font-size: 12px;
+  line-height: 1.45;
   white-space: pre-wrap;
-  word-break: break-all;
+  overflow-wrap: anywhere;
 }
+.mindflow-pref-error { color: var(--color-invalid, #d9383a) !important; font-weight: 500; }
 
-.mindflow-pref-error {
-  color: var(--color-invalid, #d9383a) !important;
-  font-weight: 500;
-}
-
-/* --------------------------------------------------------------------------
-   Buttons (Native Tokens)
-   -------------------------------------------------------------------------- */
-.mindflow-btn-primary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 4px 14px;
-  min-height: 26px;
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 1.4;
-  border-radius: 4px;
-  cursor: pointer;
-  background: var(--accent-blue, #4072e5);
-  color: #ffffff !important;
-  border: 1px solid var(--accent-blue, #4072e5);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
-  transition: opacity 0.15s ease;
-  user-select: none;
-  white-space: nowrap;
-}
-
-.mindflow-btn-primary:hover {
-  opacity: 0.9;
-}
-
-.mindflow-btn-primary:active {
-  opacity: 0.8;
-}
-
-.mindflow-btn-secondary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 3px 12px;
-  min-height: 26px;
-  font-size: 12px;
-  font-weight: 400;
-  line-height: 1.4;
-  border-radius: 4px;
-  cursor: pointer;
-  background: var(--color-button, #ffffff);
-  color: var(--fill-primary, inherit);
-  border: 1px solid var(--color-border, rgba(0, 0, 0, 0.18));
-  transition: background-color 0.15s ease;
-  user-select: none;
-  white-space: nowrap;
-}
-
-.mindflow-btn-secondary:hover {
-  background: var(--color-quinary-on-sidepane, #e6e6e6);
-}
-
-.mindflow-btn-secondary:active {
-  transform: translateY(1px);
-}
-
-.mindflow-icon-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 28px;
-  min-height: 26px;
-  padding: 2px 8px;
-  cursor: pointer;
-  background: var(--color-button, #ffffff);
-  border: 1px solid var(--color-border, rgba(0, 0, 0, 0.18));
-  border-radius: 4px;
-  font-size: 12px;
-  color: var(--fill-primary, inherit);
-  user-select: none;
-  transition: background-color 0.15s ease;
-}
-
-.mindflow-icon-btn:hover {
-  background: var(--color-quinary-on-sidepane, #e6e6e6);
-}
-
-/* --------------------------------------------------------------------------
-   Setting Card (Details / Summary Accordion - MetaFlow Style)
-   -------------------------------------------------------------------------- */
 .mindflow-setting-card {
   min-width: 0;
-  margin-block: 8px;
-  border: 1px solid var(--color-border, rgba(0, 0, 0, 0.14));
-  border-radius: 6px;
-  background-color: var(--color-background, #ffffff);
-  transition: border-color 0.15s ease;
-  padding: 12px 14px 14px;
+  margin: 0 0 10px;
+  padding: 0;
+  border: 1px solid var(--color-border, rgba(0, 0, 0, .18));
+  border-color: color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 8px;
+  background: var(--color-background, transparent);
+  background: color-mix(in srgb, currentColor 2%, transparent);
 }
-
-.mindflow-setting-card:hover {
-  border-color: var(--fill-tertiary, rgba(0, 0, 0, 0.25));
+.mindflow-card-summary {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 36px;
+  padding: 0 13px;
+  border-radius: 7px;
+  color: var(--fill-primary, inherit);
+  cursor: pointer;
+  list-style: none;
 }
-
+.mindflow-card-summary::-webkit-details-marker { display: none; }
+.mindflow-card-summary::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  opacity: .65;
+  transform: rotate(-45deg);
+  transition: transform .15s ease;
+}
+.mindflow-setting-card[open] > .mindflow-card-summary {
+  border-bottom: 1px solid color-mix(in srgb, currentColor 10%, transparent);
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.mindflow-setting-card[open] > .mindflow-card-summary::before { transform: rotate(45deg); }
+.mindflow-card-summary:focus-visible {
+  outline: 2px solid var(--accent-blue, #4072e5);
+  outline-offset: -2px;
+}
+.mindflow-pref-group-last { margin-bottom: 0; }
 .mindflow-card-title {
-  margin: 0 0 8px;
+  margin: 0;
+  padding: 7px 0;
+  color: var(--fill-primary, inherit);
   font-size: 13px;
   font-weight: 600;
   line-height: 1.4;
-  color: var(--fill-primary, inherit);
 }
+.mindflow-card-body { min-width: 0; padding: 0 13px 10px; }
+.mindflow-pref-content { display: flex; flex-direction: column; min-width: 0; }
 
-.mindflow-card-body {
-  box-sizing: border-box;
-  min-width: 0;
-  padding: 0;
-  background: var(--color-background, #ffffff);
-}
-
-.mindflow-pref-group-last {
-  margin-bottom: 0;
-}
-
-.mindflow-pref-content {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-/* --------------------------------------------------------------------------
-   Subheadings & Dividers
-   -------------------------------------------------------------------------- */
 .mindflow-subhead {
-  margin: 14px 0 6px;
+  margin: 8px 0 2px;
   padding-top: 6px;
+  border-top: 1px solid color-mix(in srgb, currentColor 11%, transparent);
+  color: var(--fill-primary, inherit);
   font-size: 12px;
   font-weight: 600;
   line-height: 1.4;
-  color: var(--fill-primary, inherit);
-  border-top: 1px dashed var(--color-border50, rgba(0, 0, 0, 0.08));
 }
 
-/* --------------------------------------------------------------------------
-   Form Rows (Key-Value Grids - MetaFlow Pattern)
-   -------------------------------------------------------------------------- */
 .mindflow-form-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(9em, max-content);
   align-items: center;
-  gap: 16px;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--color-border, rgba(0, 0, 0, 0.08));
-  box-sizing: border-box;
-}
-
-.mindflow-form-row:last-child {
-  border-bottom: none;
-}
-
-.mindflow-form-label-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  gap: 8px 16px;
   min-width: 0;
+  padding: 6px 0;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 9%, transparent);
 }
-
+.mindflow-form-row:last-child { border-bottom: 0; }
+.mindflow-form-label-wrap { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .mindflow-form-label {
+  margin: 0;
   color: var(--fill-primary, inherit);
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 500;
   line-height: 1.4;
-  margin: 0;
 }
-
 .mindflow-form-desc {
-  color: var(--fill-secondary, rgba(0, 0, 0, 0.55));
-  font-size: 11.5px;
-  line-height: 1.5;
   margin: 0;
+  color: var(--fill-secondary, GrayText);
+  font-size: 12px;
+  line-height: 1.45;
   overflow-wrap: anywhere;
 }
 
-/* --------------------------------------------------------------------------
-   Checkbox Option Rows (Indented Secondary Descriptions)
-   -------------------------------------------------------------------------- */
 .mindflow-check-option {
-  padding: 7px 0;
-  border-bottom: 1px solid var(--color-border, rgba(0, 0, 0, 0.08));
-  box-sizing: border-box;
+  padding: 5px 0;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 9%, transparent);
 }
-
-.mindflow-check-option:last-child {
-  border-bottom: none;
-}
-
-.mindflow-check-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  cursor: pointer;
-}
-
+.mindflow-check-option:last-child { border-bottom: 0; }
+.mindflow-check-row { display: flex; align-items: center; gap: 8px; min-width: 0; cursor: pointer; }
 .mindflow-check-row input[type="checkbox"] {
   width: 15px;
   height: 15px;
+  flex: 0 0 auto;
   margin: 0;
-  cursor: pointer;
   accent-color: var(--accent-blue, #4072e5);
-  flex-shrink: 0;
-}
-
-.mindflow-check-label {
   cursor: pointer;
-  font-size: 12.5px;
+}
+.mindflow-check-label {
+  color: var(--fill-primary, inherit);
+  font-size: 13px;
   font-weight: 500;
   line-height: 1.4;
-  color: var(--fill-primary, inherit);
+  cursor: pointer;
   user-select: none;
 }
-
 .mindflow-check-desc {
-  margin: 3px 0 0;
-  margin-inline-start: 23px; /* Aligns neatly under text, past the checkbox */
-  font-size: 11.5px;
-  line-height: 1.55;
-  color: var(--fill-secondary, rgba(0, 0, 0, 0.55));
+  margin: 2px 0 0 23px;
+  color: var(--fill-secondary, GrayText);
+  font-size: 12px;
+  line-height: 1.45;
   overflow-wrap: anywhere;
 }
-
-/* --------------------------------------------------------------------------
-   Choice Grid (2-Column Checkboxes - e.g. Toolbar Toggles)
-   -------------------------------------------------------------------------- */
 .mindflow-choice-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px 20px;
-  padding: 4px 0 8px;
+  gap: 4px 18px;
+  padding: 3px 0 6px;
 }
+.mindflow-choice-grid .mindflow-check-row { padding: 2px 0; }
 
-.mindflow-choice-grid .mindflow-check-row {
-  padding: 3px 0;
-}
-
-/* --------------------------------------------------------------------------
-   Input Controls & Selects
-   -------------------------------------------------------------------------- */
 .mindflow-control {
   width: auto;
   min-width: 140px;
   max-width: 290px;
-  min-height: 26px;
+  min-height: 28px;
   margin: 0;
-  padding: 3px 8px;
+  padding: 4px 8px;
+  border: 1px solid var(--color-border, rgba(0, 0, 0, .18));
+  border-radius: 4px;
+  background: var(--color-control, var(--color-background, transparent));
+  color: var(--fill-primary, inherit);
   font: inherit;
   font-size: 12px;
-  color: var(--fill-primary, inherit);
-  background: var(--color-control, #ffffff);
-  border: 1px solid var(--color-border, rgba(0, 0, 0, 0.18));
-  border-radius: 4px;
-  box-sizing: border-box;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
-
-.mindflow-control:focus {
-  outline: none;
-  border-color: var(--accent-blue, #4072e5);
-  box-shadow: 0 0 0 2px var(--accent-blue30, rgba(64, 114, 229, 0.25));
+.mindflow-control:focus-visible,
+.mindflow-btn-primary:focus-visible,
+.mindflow-btn-secondary:focus-visible,
+.mindflow-icon-btn:focus-visible,
+.mindflow-btn-open-llm:focus-visible,
+.mindflow-check-row input:focus-visible {
+  outline: 2px solid var(--accent-blue, #4072e5);
+  outline-offset: 2px;
 }
-
+.mindflow-control:focus { border-color: var(--accent-blue, #4072e5); }
 select.mindflow-control {
   appearance: none;
   -moz-appearance: none;
+  padding-right: 24px;
   background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="%23888888" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>');
   background-repeat: no-repeat;
   background-position: right 8px center;
-  padding-right: 24px;
   cursor: pointer;
 }
+.mindflow-control-group { display: flex; align-items: center; gap: 6px; width: 100%; max-width: 320px; }
+.mindflow-control-group .mindflow-control { flex: 1; max-width: none; }
 
-.mindflow-control-group {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  max-width: 320px;
-}
-
-.mindflow-control-group .mindflow-control {
-  flex: 1;
-  max-width: none;
-}
-
-/* --------------------------------------------------------------------------
-   Information Notices & Callouts
-   -------------------------------------------------------------------------- */
-.mindflow-notice {
-  margin: 10px 0 2px;
-  padding: 8px 12px;
-  background: var(--color-quinary-on-sidepane, rgba(0, 0, 0, 0.03));
-  border: 1px solid var(--color-border50, rgba(0, 0, 0, 0.08));
-  border-radius: 6px;
-  font-size: 11.5px;
-  line-height: 1.55;
-  color: var(--fill-secondary, rgba(0, 0, 0, 0.6));
-}
-
-.mindflow-notice code {
-  font-family: inherit;
-  font-size: 0.95em;
-  padding: 1px 4px;
-  border-radius: 3px;
-  background: var(--color-quinary-on-sidepane, rgba(0, 0, 0, 0.06));
-}
-
-.mindflow-notice strong {
-  font-weight: 600;
-  color: var(--fill-primary, inherit);
-}
-
+.mindflow-btn-primary,
+.mindflow-btn-secondary,
+.mindflow-icon-btn,
 .mindflow-btn-open-llm {
-  align-self: flex-start;
-  margin-top: 8px;
-  padding: 4px 12px;
-  min-height: 26px;
-  font-size: 12px;
-  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 5px 9px;
+  border: 1px solid var(--color-border, rgba(0, 0, 0, .18));
   border-radius: 4px;
-  border: 1px solid var(--color-border, rgba(0, 0, 0, 0.18));
-  background: var(--color-button, #ffffff);
+  background: var(--color-button, var(--color-background, transparent));
   color: var(--fill-primary, inherit);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.35;
   cursor: pointer;
-  transition: background-color 0.15s ease;
   user-select: none;
 }
-
-.mindflow-btn-open-llm:hover {
-  background: var(--color-quinary-on-sidepane, #e6e6e6);
+.mindflow-btn-primary {
+  flex: 0 0 auto;
+  border-color: var(--accent-blue, #4072e5);
+  background: var(--accent-blue, #4072e5);
+  color: #fff !important;
+  font-weight: 500;
 }
+.mindflow-btn-primary:hover { filter: brightness(.96); }
+.mindflow-btn-secondary:hover,
+.mindflow-icon-btn:hover,
+.mindflow-btn-open-llm:hover { background: var(--color-quinary-on-sidepane, rgba(0, 0, 0, .06)); }
+.mindflow-icon-btn { min-width: 28px; padding-inline: 8px; }
+.mindflow-btn-open-llm { align-self: flex-start; margin-top: 6px; }
 
-/* --------------------------------------------------------------------------
-   Shortcut Key Badges Grid
-   -------------------------------------------------------------------------- */
+.mindflow-notice {
+  margin: 8px 0 2px;
+  padding: 7px 10px;
+  border: 1px solid color-mix(in srgb, currentColor 10%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, currentColor 3%, transparent);
+  color: var(--fill-secondary, GrayText);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.mindflow-notice code { padding: 1px 4px; border-radius: 3px; background: color-mix(in srgb, currentColor 6%, transparent); font: inherit; }
+.mindflow-notice strong { color: var(--fill-primary, inherit); font-weight: 600; }
+
 .mindflow-shortcuts-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px 20px;
-  padding: 6px 0 10px;
-  border-bottom: 1px solid var(--color-border, rgba(0, 0, 0, 0.08));
+  gap: 6px 18px;
+  padding: 5px 0 8px;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 9%, transparent);
 }
-
-.mindflow-shortcut-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--fill-primary, inherit);
-}
-
+.mindflow-shortcut-item { display: flex; align-items: center; gap: 8px; color: var(--fill-primary, inherit); font-size: 12px; }
 .mindflow-kbd {
   display: inline-block;
   padding: 1px 6px;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, currentColor 4%, transparent);
+  color: var(--fill-primary, inherit);
   font-family: inherit;
   font-size: 11px;
   font-weight: 600;
   line-height: 1.4;
-  color: var(--fill-primary, inherit);
-  background: var(--color-button, #f5f5f5);
-  border: 1px solid var(--color-border, rgba(0, 0, 0, 0.2));
-  border-radius: 4px;
-  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.06);
 }
+.mindflow-shortcut-label { color: var(--fill-secondary, GrayText); font-size: 12px; }
 
-.mindflow-shortcut-label {
+.mindflow-pref-release {
+  margin-top: 14px;
+  padding: 10px 13px;
+  border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, currentColor 2%, transparent);
+  color: var(--fill-secondary, GrayText);
   font-size: 12px;
-  color: var(--fill-secondary, rgba(0, 0, 0, 0.6));
+  line-height: 1.5;
 }
+.mindflow-pref-release-title {
+  margin: 0 0 4px;
+  color: var(--fill-primary, inherit);
+  font-size: 12px;
+  font-weight: 600;
+}
+.mindflow-pref-release p { margin: 2px 0; overflow-wrap: anywhere; }
+.mindflow-pref-release-label { color: var(--fill-primary, inherit); font-weight: 500; }
+.mindflow-pref-release a { color: var(--accent-blue, #4072e5); text-decoration: underline; }
 
-/* --------------------------------------------------------------------------
-   Responsive Adaptations
-   -------------------------------------------------------------------------- */
 @media (max-width: 620px) {
-  .mindflow-prefs-container {
-    padding-right: 4px;
-  }
-
-  .mindflow-form-row {
-    grid-template-columns: 1fr;
-    gap: 8px;
-    align-items: stretch;
-  }
-
-  .mindflow-control,
-  .mindflow-control-group {
-    max-width: 100%;
-    width: 100%;
-  }
-
-  .mindflow-choice-grid,
-  .mindflow-shortcuts-grid {
-    grid-template-columns: 1fr;
-    gap: 6px;
-  }
+  .mindflow-prefs-container { padding-right: 4px; }
+  .mindflow-pref-header { align-items: flex-start; flex-direction: column; }
+  .mindflow-form-row { grid-template-columns: minmax(0, 1fr); align-items: stretch; gap: 6px; }
+  .mindflow-control, .mindflow-control-group { width: 100%; max-width: 100%; }
+  .mindflow-choice-grid, .mindflow-shortcuts-grid { grid-template-columns: minmax(0, 1fr); gap: 4px; }
 }
