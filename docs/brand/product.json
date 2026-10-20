@@ -1,0 +1,21 @@
+{
+  "name": "Zotero MindFlow",
+  "series": "Zotero Flow",
+  "role": [
+    "知识组织",
+    "Knowledge"
+  ],
+  "shortDescription": [
+    "将文献、批注与思路组织为可编辑导图。",
+    "Organize papers, annotations, and ideas into editable maps."
+  ],
+  "introduction": [
+    "面向论文研读和知识整理，在 Zotero 内用画布与大纲组织文献材料、节点和任务，并按需使用 AI 生成研读草稿。",
+    "For paper reading and knowledge organization: arrange literature, nodes, and tasks using a canvas and outline in Zotero, with optional AI-generated reading drafts."
+  ],
+  "githubDescription": "Organize papers, annotations, and ideas into editable maps. Part of Zotero Flow.",
+  "repository": "https://github.com/groele/Zotero-MindFlow",
+  "addonID": "mindflow@groele.org",
+  "version": "12.3.3",
+  "license": "MIT"
+}
