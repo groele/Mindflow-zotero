@@ -9,6 +9,7 @@
 | 12.2.0 / Add-on minor | 发布准备 / Release preparation | 设置页改为三个常显分组，更新清单指向版本专属安装包 / Three always-visible settings groups and version-specific update-feed target |
 | 12.3.0 / Add-on minor | 历史版本 / Historical | 统一偏好页紧凑样式 / Unified compact preferences style |
 | 12.3.1 / Add-on patch | 已发布 / Published | 修正偏好页复选框尺寸并统一字体、间距与控件对齐 / Normalize checkbox size, typography, spacing, and control alignment |
+| 12.3.2 / Add-on patch | 版本记录 / Release record | 统一配色、折叠样式与原生控件 / Unified colors, disclosure cards, and native controls |
 | 12.0.0 / Add-on major | 公开发布 / Public release | 全新品牌视觉系统（Zotero MindFlow & Fluid Origami Wing 流体折纸旋翼标识系统），覆盖工具栏、原生标签页、应用内工作台与欢迎看板 / Major brand rebrand and Fluid Origami Wing visual identity across toolbar, native tabs, in-app canvas, and welcome modal |
 | 11.2.0 / Add-on minor | 历史发布 / Historical release | 可保存的论文研究提示词与呈现预设、AI 导图工作流改进 / Reusable research prompt and presentation presets with AI mind-map workflow improvements |
 | 11.1.2 / Add-on patch | 历史发布 / Historical release | 修复折叠偏好覆盖、空状态无提示及动态元素命名空间 / Fix restored collapse state, empty-state hint, and dynamic element namespace |
@@ -87,3 +88,5 @@
 - [5.0.1 native baseline](baseline-5.0.1-native-results.json): historical failure evidence for immediate-close saving.
 
 Detailed audit reports are currently in Chinese. Historical versions, hashes, and unpublished status refer to their respective stages. Use [GitHub Releases](https://github.com/groele/Zotero-MindFlow/releases) to identify public installation assets; a local validation report does not imply publication.
+
+- [12.3.2 发布记录 / Release record](release-v12.3.2.md)

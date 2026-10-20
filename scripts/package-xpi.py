@@ -8,7 +8,9 @@ parser.add_argument('--output', help='Local derivative package filename')
 parser.add_argument('--report', default='docs/package-verification.json')
 args = parser.parse_args()
 output = root / (args.output or f"zotero-mindflow-{manifest['version']}.xpi")
-files = [root / name for name in ['manifest.json', 'bootstrap.js', 'prefs.js', 'chrome.manifest', 'update.json']]
+# The remote update feed contains the final XPI hash and cannot checksum itself.
+# Zotero reads it from manifest.update_url; it is not an add-on runtime resource.
+files = [root / name for name in ['manifest.json', 'bootstrap.js', 'prefs.js', 'chrome.manifest']]
 for directory in ['chrome', 'locale']:
     files.extend(p for p in (root / directory).rglob('*') if p.is_file())
 with zipfile.ZipFile(output, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
