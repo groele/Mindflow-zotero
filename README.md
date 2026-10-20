@@ -7,7 +7,7 @@
 
 | 项目 / Item | 当前状态 / Current status |
 | --- | --- |
-| 公开版本 / Public release | **12.3.0**, [GitHub Release](https://github.com/groele/Zotero-MindFlow/releases/tag/v12.3.0) |
+| 公开版本 / Public release | **12.3.1**, [GitHub Release](https://github.com/groele/Zotero-MindFlow/releases/tag/v12.3.1) |
 | 支持宿主 / Supported host | **Zotero 10.0.x**；原生回归环境为 Windows + Zotero 10.0.6 / Native regression environment: Windows + Zotero 10.0.6 |
 | 插件 ID / Add-on ID | `mindflow@groele.org` |
 | 许可 / License | [MIT](LICENSE) |
@@ -28,14 +28,14 @@ The add-on and Zotero have separate version numbers. This README is bilingual; t
 
 ### 1. 安装与升级
 
-1. 打开 [12.3.0 Release（插件版本）](https://github.com/groele/Zotero-MindFlow/releases/tag/v12.3.0)，下载 [`zotero-mindflow-12.3.0.xpi`](https://github.com/groele/Zotero-MindFlow/releases/download/v12.3.0/zotero-mindflow-12.3.0.xpi)。请选择 XPI 安装包，GitHub 的 Source code ZIP 不能直接作为插件安装。
+1. 打开 [12.3.1 Release（插件版本）](https://github.com/groele/Zotero-MindFlow/releases/tag/v12.3.1)，下载 [`zotero-mindflow-12.3.1.xpi`](https://github.com/groele/Zotero-MindFlow/releases/download/v12.3.1/zotero-mindflow-12.3.1.xpi)。请选择 XPI 安装包，GitHub 的 Source code ZIP 不能直接作为插件安装。
 2. 在 Zotero 中打开 **工具 → 插件**，点击齿轮，选择 **从文件安装插件**。
 3. 选择下载的 XPI，完成安装并重启 Zotero。
 4. 通过文献库工具栏的 MindFlow 图标、工具菜单或分类右键菜单打开工作台。
 
-升级前备份 Zotero 数据目录，并导出重要导图或完整工作区。插件 12.3.0 沿用 `mindflow@groele.org`，可以覆盖同 ID 的旧版本；升级本身不代表历史错误关联已被自动修正。此处 12.3.0 是插件版本，当前经过验证的 Zotero 宿主仍为 10.0.x。
+升级前备份 Zotero 数据目录，并导出重要导图或完整工作区。插件 12.3.1 沿用 `mindflow@groele.org`，可以覆盖同 ID 的旧版本；升级本身不代表历史错误关联已被自动修正。此处 12.3.0 是插件版本，当前经过验证的 Zotero 宿主仍为 10.0.x。
 
-12.3.0 更新清单 [`update.json`](update.json) 与 [`zotero/update.json`](zotero/update.json) 指向精确版本的 XPI。Release 更新清单包含与最终 XPI 匹配的 SHA-256。设置面板统一为紧凑样式，三个一级分组可折叠；版本说明、构建日期和链接分行列示，见 [12.3.0 发布记录](docs/release-v12.3.0.md)。
+12.3.1 更新清单 [`update.json`](update.json) 与 [`zotero/update.json`](zotero/update.json) 指向精确版本的 XPI，SHA-256 与安装包匹配。修正偏好页复选框尺寸，并统一原生控件对齐、字体与间距；版本说明、构建日期和链接分行列示，见 [12.3.1 发布记录](docs/release-v12.3.1.md)。
 
 ![工具栏预览](docs/toolbar-icon-preview-10.0.1.png)
 
@@ -333,14 +333,14 @@ pwsh -NoProfile -File scripts/restart-native-test.ps1
 
 ### 1. Installation and upgrades
 
-1. Open the [12.3.0 Release (add-on version)](https://github.com/groele/Zotero-MindFlow/releases/tag/v12.3.0) and download [`zotero-mindflow-12.3.0.xpi`](https://github.com/groele/Zotero-MindFlow/releases/download/v12.3.0/zotero-mindflow-12.3.0.xpi). Use the XPI asset; GitHub's Source code ZIP cannot be installed directly as the add-on.
+1. Open the [12.3.1 Release (add-on version)](https://github.com/groele/Zotero-MindFlow/releases/tag/v12.3.1) and download [`zotero-mindflow-12.3.1.xpi`](https://github.com/groele/Zotero-MindFlow/releases/download/v12.3.1/zotero-mindflow-12.3.1.xpi). Use the XPI asset; GitHub's Source code ZIP cannot be installed directly as the add-on.
 2. In Zotero, open **Tools → Plugins**, click the gear button, and choose **Install Add-on From File**. Menu labels may vary with your Zotero language.
 3. Select the XPI, finish installation, and restart Zotero.
 4. Open MindFlow through its library toolbar icon, the Tools menu, or the collection's context menu.
 
-Before upgrading, back up your Zotero data directory and export important maps or the complete workspace. Add-on version 12.3.0 keeps the ID `mindflow@groele.org` and can replace an older installation with that ID. The supported Zotero host remains 10.0.x. Upgrading does not automatically repair attachments that were previously associated with the wrong paper.
+Before upgrading, back up your Zotero data directory and export important maps or the complete workspace. Add-on version 12.3.1 keeps the ID `mindflow@groele.org` and can replace an older installation with that ID. The supported Zotero host remains 10.0.x. Upgrading does not automatically repair attachments that were previously associated with the wrong paper.
 
-The 12.3.0 candidate update metadata in [`update.json`](update.json) and [`zotero/update.json`](zotero/update.json) points to the version-specific XPI URL. Add the final package SHA-256 after building the XPI. The settings pane uses the shared compact style with three collapsible top-level groups and separately listed version information; see the [12.3.0 release report](docs/release-v12.3.0.md).
+The 12.3.1 update metadata in [`update.json`](update.json) and [`zotero/update.json`](zotero/update.json) points to the version-specific XPI URL, with SHA-256 matching the package. The settings pane corrects checkbox sizing and aligns native controls, typography, and spacing; version information remains listed separately. See the [12.3.1 release report](docs/release-v12.3.1.md).
 
 <a id="en-start"></a>
 
