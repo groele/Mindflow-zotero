@@ -569,14 +569,6 @@ window.MindFlow_Preferences = (() => {
   function init(win) {
     try {
       const doc = win.document;
-      const jumpSelect = doc.getElementById('mindflow-pref-jump-select');
-      if (jumpSelect) jumpSelect.onchange = () => {
-        const section = doc.getElementById(jumpSelect.value);
-        if (!section) return;
-        section.open = true;
-        section.scrollIntoView?.({ block: 'start' });
-        section.querySelector('summary')?.focus();
-      };
       const settings = readSettings();
 
       for (const [group, fields] of Object.entries(FIELDS)) {

@@ -6,90 +6,37 @@
     <html:div class="mindflow-pref-title-area">
       <html:img class="mindflow-pref-brand-icon" src="chrome://mindflow/content/icons/icon-accent.svg" width="22" height="22" alt="" />
       <html:h1 class="mindflow-pref-title">Zotero MindFlow</html:h1>
-      <html:span class="mindflow-pref-version">v12.0.1</html:span>
+      <html:span class="mindflow-pref-version">v12.2.0</html:span>
     </html:div>
     <html:button id="mindflow-btn-open-workspace" class="mindflow-btn-primary" type="button">打开导图工作台</html:button>
   </html:header>
-  <html:nav class="mindflow-pref-jump" aria-label="设置分区导航">
-    <html:label for="mindflow-pref-jump-select">快速跳转</html:label>
-    <html:select id="mindflow-pref-jump-select" class="mindflow-control">
-      <html:option value="mindflow-group-literature">文献与 PDF 阅读协同</html:option>
-      <html:option value="mindflow-group-ai">AI 论文研究与智能导图</html:option>
-      <html:option value="mindflow-group-interface">工作台界面与工具栏</html:option>
-      <html:option value="mindflow-group-editing">新建导图与节点编辑</html:option>
-      <html:option value="mindflow-group-backup">本地保存与历史快照</html:option>
-      <html:option value="mindflow-group-webdav">WebDAV 备份与同步</html:option>
-      <html:option value="mindflow-group-shortcuts">快捷键指南与系统重置</html:option>
-    </html:select>
-  </html:nav>
   <html:p id="mindflow-pref-status" class="mindflow-pref-status" role="status" aria-live="polite">正在加载设置项…</html:p>
 
-  <!-- 1. 文献与 PDF 阅读协同 -->
-  <html:details id="mindflow-group-literature" class="mindflow-setting-card" open="true">
-    <html:summary class="mindflow-card-summary">
-      <html:h2 class="mindflow-card-title">文献与 PDF 阅读协同</html:h2>
-    </html:summary>
+  <html:section class="mindflow-setting-card">
+    <html:h2 class="mindflow-card-title">文献与工作台</html:h2>
     <html:div class="mindflow-card-body">
       <html:div id="mindflow-pref-literature" class="mindflow-pref-content" />
-    </html:div>
-  </html:details>
-
-  <!-- 2. AI 论文研究与智能导图（可选） -->
-  <html:details id="mindflow-group-ai" class="mindflow-setting-card">
-    <html:summary class="mindflow-card-summary">
-      <html:h2 class="mindflow-card-title">AI 论文研究与智能导图（可选）</html:h2>
-    </html:summary>
-    <html:div class="mindflow-card-body">
-      <html:div id="mindflow-pref-ai" class="mindflow-pref-content" />
-    </html:div>
-  </html:details>
-
-  <!-- 3. 工作台界面与工具栏 -->
-  <html:details id="mindflow-group-interface" class="mindflow-setting-card">
-    <html:summary class="mindflow-card-summary">
-      <html:h2 class="mindflow-card-title">工作台界面与工具栏</html:h2>
-    </html:summary>
-    <html:div class="mindflow-card-body">
+      <html:h3 class="mindflow-subhead">工作台界面与工具栏</html:h3>
       <html:div id="mindflow-pref-interface" class="mindflow-pref-content" />
     </html:div>
-  </html:details>
+  </html:section>
 
-  <!-- 4. 新建导图与节点编辑 -->
-  <html:details id="mindflow-group-editing" class="mindflow-setting-card">
-    <html:summary class="mindflow-card-summary">
-      <html:h2 class="mindflow-card-title">新建导图与节点编辑</html:h2>
-    </html:summary>
+  <html:section class="mindflow-setting-card">
+    <html:h2 class="mindflow-card-title">AI 研究与数据保存</html:h2>
     <html:div class="mindflow-card-body">
-      <html:div id="mindflow-pref-editing" class="mindflow-pref-content" />
-    </html:div>
-  </html:details>
-
-  <!-- 5. 本地保存与历史快照 -->
-  <html:details id="mindflow-group-backup" class="mindflow-setting-card">
-    <html:summary class="mindflow-card-summary">
-      <html:h2 class="mindflow-card-title">本地保存与历史快照</html:h2>
-    </html:summary>
-    <html:div class="mindflow-card-body">
+      <html:div id="mindflow-pref-ai" class="mindflow-pref-content" />
+      <html:h3 class="mindflow-subhead">本地保存与历史快照</html:h3>
       <html:div id="mindflow-pref-backup" class="mindflow-pref-content" />
-    </html:div>
-  </html:details>
-
-  <!-- 6. WebDAV 备份与同步（可选） -->
-  <html:details id="mindflow-group-webdav" class="mindflow-setting-card">
-    <html:summary class="mindflow-card-summary">
-      <html:h2 class="mindflow-card-title">WebDAV 备份与同步（可选）</html:h2>
-    </html:summary>
-    <html:div class="mindflow-card-body">
+      <html:h3 class="mindflow-subhead">WebDAV 同步</html:h3>
       <html:div id="mindflow-pref-webdav" class="mindflow-pref-content" />
     </html:div>
-  </html:details>
+  </html:section>
 
-  <!-- 7. 快捷键指南与系统重置 -->
-  <html:details id="mindflow-group-shortcuts" class="mindflow-setting-card mindflow-pref-group-last">
-    <html:summary class="mindflow-card-summary">
-      <html:h2 class="mindflow-card-title">快捷键指南与系统重置</html:h2>
-    </html:summary>
+  <html:section class="mindflow-setting-card mindflow-pref-group-last">
+    <html:h2 class="mindflow-card-title">导图编辑与快捷键</html:h2>
     <html:div class="mindflow-card-body">
+      <html:div id="mindflow-pref-editing" class="mindflow-pref-content" />
+      <html:h3 class="mindflow-subhead">快捷键与系统重置</html:h3>
       <html:div id="mindflow-pref-shortcuts" class="mindflow-pref-content">
         <html:div class="mindflow-shortcuts-grid">
           <html:div class="mindflow-shortcut-item">
@@ -118,5 +65,5 @@
         </html:div>
       </html:div>
     </html:div>
-  </html:details>
+  </html:section>
 </vbox>
