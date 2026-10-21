@@ -1,13 +1,13 @@
 {
   "name": "zotero-mindflow",
-  "version": "12.5.1",
+  "version": "12.5.2",
   "type": "module",
   "main": "index.js",
   "scripts": {
     "build": "node ../scripts/build-local.mjs",
     "build:zotero": "node ../scripts/build-local.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "vite-node tests/test-zotero.ts && vite-node tests/test-logic.ts && vite-node tests/test-research-presets.ts"
+    "test": "vite-node tests/test-zotero.ts && vite-node tests/test-logic.ts && vite-node tests/test-research-presets.ts && vite-node tests/test-emergency-backup.ts"
   },
   "keywords": [
     "zotero",

@@ -29,6 +29,7 @@ import {
 import { playAddNode, playDeleteNode } from '../../services/audio/soundService';
 import { Canvas } from '../../components/canvas/Canvas';
 import { CanvasErrorBoundary } from '../../components/canvas/CanvasErrorBoundary';
+import { emergencyDocument, EmergencyNodeDraft } from '../../core/model/emergencyBackup';
 import { Toolbar } from '../../components/toolbar/Toolbar';
 import { PropertySidebar } from '../../components/sidebar/PropertySidebar';
 import { LeftWorkbench, WorkbenchTab } from '../../components/sidebar/LeftWorkbench';
@@ -133,6 +134,8 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   const cleanRelationshipsRef = useRef<RelationshipLink[]>([]);
   const latestDocRef = useRef<MindMapDocument | null>(null);
   const latestRelationshipsRef = useRef<RelationshipLink[]>([]);
+  // Lives outside the canvas boundary: its input DOM disappears after a crash.
+  const emergencyDraftRef = useRef<EmergencyNodeDraft | null>(null);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const zoteroSyncQueueRef = useRef<Promise<void>>(Promise.resolve());
   const pendingSaveTokenRef = useRef(0);
@@ -152,6 +155,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
 
   useEffect(() => {
     saveGenerationRef.current += 1;
+    emergencyDraftRef.current = null;
     setEditingId(null);
     setContextMenuState(null);
     setCanvasContextMenuState(null);
@@ -161,6 +165,9 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
   const captureCurrentDrafts = useCallback(() => captureNodeDrafts(latestDocRef.current,
     Array.from(document.querySelectorAll<HTMLInputElement>('[data-mindflow-node-draft]'),
       input => ({ id: input.dataset.mindflowNodeDraft || '', text: input.value }))), []);
+
+  const getEmergencyDocument = useCallback(() => emergencyDocument(
+    latestDocRef.current, latestRelationshipsRef.current, emergencyDraftRef.current), []);
 
   // Load Settings on mount & handle Welcome display
   useEffect(() => {
@@ -1342,6 +1349,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
 
 
   const handleCommitEdit = useCallback((id: string, newText: string) => {
+    emergencyDraftRef.current = null;
     setEditingId(null);
     if (!doc) return;
     const target = findNode(doc.root, id);
@@ -2480,8 +2488,27 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
         )}
 
         {/* Central Infinite Canvas */}
-        <div className="flex-1 h-full relative overflow-hidden">
-          <CanvasErrorBoundary key={doc.id} rootNode={doc.root} onReset={() => centerCanvas(layout.bounds)}>
+        <div className="flex-1 h-full relative overflow-hidden" onInputCapture={(event) => {
+          const input = event.target as HTMLInputElement;
+          const id = input.dataset?.mindflowNodeDraft;
+          if (id && currentDocIdRef.current) {
+            emergencyDraftRef.current = { documentId: currentDocIdRef.current, id, text: input.value };
+          }
+        }}>
+          <CanvasErrorBoundary key={doc.id} getDocument={getEmergencyDocument} onReset={() => {
+            const recovered = getEmergencyDocument();
+            if (recovered) {
+              if (latestDocRef.current && recovered.root !== latestDocRef.current.root) {
+                historyRef.current.push({ root: latestDocRef.current.root, relationships: latestRelationshipsRef.current });
+                syncHistoryState();
+              }
+              latestDocRef.current = recovered;
+              setDoc(recovered);
+              emergencyDraftRef.current = null;
+              setEditingId(null);
+            }
+            centerCanvas(layout.bounds);
+          }}>
             <Canvas
               nodes={layout.nodes}
               connections={layout.connections}
@@ -2499,7 +2526,7 @@ export const App: React.FC<AppProps> = ({ isSidepanelMode = false }) => {
               onSelectMultipleNodes={handleSelectMultipleNodes}
               onStartEditNode={(id) => setEditingId(id)}
               onCommitEditNode={handleCommitEdit}
-              onCancelEditNode={() => setEditingId(null)}
+              onCancelEditNode={() => { emergencyDraftRef.current = null; setEditingId(null); }}
               onToggleCollapse={handleToggleCollapse}
               onCycleTaskStatus={handleCycleTaskStatus}
               onOpenInternalLink={(documentId, nodeId) => { void openDocumentAt(documentId, nodeId); }}

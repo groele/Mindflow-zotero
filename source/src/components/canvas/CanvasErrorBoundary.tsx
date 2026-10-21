@@ -1,27 +1,31 @@
 import { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, Download } from 'lucide-react';
-import { MindMapNode } from '../../core/model/types';
+import { MindMapDocument } from '../../core/model/types';
 import { exportToJSON } from '../../services/io/exporter';
 
 interface Props {
   children: ReactNode;
-  rootNode?: MindMapNode;
+  getDocument: () => MindMapDocument | null;
   onReset?: () => void;
 }
 
 interface State {
   hasError: boolean;
   error: Error | null;
+  exportMessage: string;
+  exportFailed: boolean;
 }
 
 export class CanvasErrorBoundary extends Component<Props, State> {
   public state: State = {
     hasError: false,
     error: null,
+    exportMessage: '',
+    exportFailed: false,
   };
 
   public static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error };
+    return { hasError: true, error, exportMessage: '', exportFailed: false };
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
@@ -29,15 +33,20 @@ export class CanvasErrorBoundary extends Component<Props, State> {
   }
 
   private handleReset = () => {
-    this.setState({ hasError: false, error: null });
+    this.setState({ hasError: false, error: null, exportMessage: '', exportFailed: false });
     if (this.props.onReset) {
       this.props.onReset();
     }
   };
 
   private handleEmergencyExport = () => {
-    if (this.props.rootNode) {
-      exportToJSON(this.props.rootNode, `mindflow-emergency-backup-${Date.now()}`);
+    try {
+      const document = this.props.getDocument();
+      if (!document) throw new Error('当前没有可导出的导图文档');
+      exportToJSON(document);
+      this.setState({ exportMessage: '已发起完整文档 JSON 下载，请确认文件已保存。', exportFailed: false });
+    } catch (error) {
+      this.setState({ exportMessage: `应急备份失败：${error instanceof Error ? error.message : String(error)}`, exportFailed: true });
     }
   };
 
@@ -53,7 +62,7 @@ export class CanvasErrorBoundary extends Component<Props, State> {
               画布渲染发生异常
             </h2>
             <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
-              思维导图节点或视图计算遇到未预期的问题。别担心，您的底层数据完整安全。
+              画布暂时无法显示，尚未确认最新编辑是否已保存。建议先下载应急备份，再重新加载画布。
             </p>
 
             {this.state.error && (
@@ -70,17 +79,20 @@ export class CanvasErrorBoundary extends Component<Props, State> {
                 <RefreshCw className="w-4 h-4" />
                 重新加载画布
               </button>
-              {this.props.rootNode && (
-                <button
-                  onClick={this.handleEmergencyExport}
-                  className="flex items-center justify-center gap-2 py-2.5 px-4 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-sm font-medium hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
-                  title="安全导出当前脑图的JSON数据"
-                >
-                  <Download className="w-4 h-4" />
-                  应急备份
-                </button>
-              )}
+              <button
+                onClick={this.handleEmergencyExport}
+                className="flex items-center justify-center gap-2 py-2.5 px-4 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-sm font-medium hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                title="导出当前完整文档，保留已捕获的文字草稿、关系线、主题、布局和文献关联"
+              >
+                <Download className="w-4 h-4" />
+                应急备份
+              </button>
             </div>
+            {this.state.exportMessage && (
+              <p role={this.state.exportFailed ? 'alert' : 'status'} className="mt-4 text-sm text-left">
+                {this.state.exportMessage}
+              </p>
+            )}
           </div>
         </div>
       );
