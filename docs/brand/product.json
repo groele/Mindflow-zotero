@@ -16,6 +16,6 @@
   "githubDescription": "Organize papers, annotations, and ideas into editable maps. Part of Zotero Flow.",
   "repository": "https://github.com/groele/Zotero-MindFlow",
   "addonID": "mindflow@groele.org",
-  "version": "12.3.4",
+  "version": "12.5.0",
   "license": "MIT"
 }
