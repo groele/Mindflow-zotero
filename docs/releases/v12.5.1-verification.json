@@ -1,0 +1,50 @@
+{
+  "product": "Zotero MindFlow",
+  "version": "12.5.1",
+  "tag": "v12.5.1",
+  "asset": "zotero-mindflow-12.5.1.xpi",
+  "sourceBaseCommit": "1957c63f5a10ec1d92ecc128215754b748caca0c",
+  "builtFromWorkingTree": true,
+  "bytes": 519075,
+  "sha256": "2f4d4db0ebce5686d526aa8caf4adcacba02dad0a6fd9344b06a84be91614400",
+  "entries": 61,
+  "addonID": "mindflow@groele.org",
+  "compatibility": {
+    "id": "mindflow@groele.org",
+    "strict_min_version": "10.0",
+    "strict_max_version": "10.0.*",
+    "update_url": "https://raw.githubusercontent.com/groele/Zotero-MindFlow/main/zotero/update.json"
+  },
+  "checks": {
+    "build": "passed",
+    "archiveIntegrity": "passed",
+    "runtimeResources": "passed",
+    "sourcePayloadEquality": "passed",
+    "manifestAndSettingsVersion": "passed",
+    "updateFeedVersionLinkAndHash": "passed",
+    "unitTests": {
+      "passed": 68,
+      "failed": 13,
+      "identicalFailuresOnOriginalSource": true,
+      "failures": [
+        "not ok 17 - reading scopes send only selected article sections and abstract mode never extracts PDF",
+        "not ok 19 - long selected sections use one analysis call without quick sampling or full-paper leakage",
+        "not ok 20 - missing or ambiguous section headings never cause a silent full-paper fallback",
+        "not ok 21 - missing metadata abstract is recovered from PDF front pages without sending the body or widening the reading scope",
+        "not ok 22 - unrecognized or duplicate PDF abstracts leave an actionable empty preview and never substitute the body",
+        "not ok 23 - confirmed PDF abstract selection enables abstract-only input without leaking local recovery text",
+        "not ok 25 - section boundaries handle summary, theory and tight numbering without treating measurements as headings",
+        "not ok 74 - item pane section resolves parent for literature item and sibling PDF, displays names without expanding, and allows adding map",
+        "not ok 75 - item pane refresh follows the newly selected item and stops observing after destroy",
+        "not ok 76 - item pane stays expandable without a literature selection and creates a blank map",
+        "not ok 77 - item-pane reopens its empty quick-action section after Zotero restores saved collapsed state",
+        "not ok 78 - sidebar quick actions follow the selected PDF parent and keep standalone imports unlinked",
+        "not ok 79 - sidebar errors are visible and repeated renders register only one refresh per body"
+      ]
+    },
+    "liveZoteroInstall": "not run",
+    "typescript": "passed"
+  },
+  "releaseURL": "https://github.com/groele/Zotero-MindFlow/releases/tag/v12.5.1",
+  "downloadURL": "https://github.com/groele/Zotero-MindFlow/releases/download/v12.5.1/zotero-mindflow-12.5.1.xpi"
+}
