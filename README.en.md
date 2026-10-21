@@ -6,7 +6,7 @@ Organize papers, annotations, and ideas into editable maps.
 
 [简体中文](README.md) · [English](README.en.md)
 
-[![Release](https://img.shields.io/badge/version-12.3.3-245ac7?style=flat-square)](https://github.com/groele/Zotero-MindFlow/releases/tag/v12.3.3) · [Download XPI](https://github.com/groele/Zotero-MindFlow/releases/download/v12.3.3/zotero-mindflow-12.3.3.xpi) · [Report an issue](https://github.com/groele/Zotero-MindFlow/issues)
+[![Release](https://img.shields.io/badge/version-12.3.4-245ac7?style=flat-square)](https://github.com/groele/Zotero-MindFlow/releases/tag/v12.3.4) · [Download XPI](https://github.com/groele/Zotero-MindFlow/releases/download/v12.3.4/zotero-mindflow-12.3.4.xpi) · [Report an issue](https://github.com/groele/Zotero-MindFlow/issues)
 
 [Overview](#overview) · [Installation and updates](#installation) · [Quick start](#quick-start) · [Key features](#features) · [Settings](#settings) · [Data, sync, and services](#data) · [Compatibility and validation](#compatibility) · [Troubleshooting](#troubleshooting) · [Development and documentation](#development) · [The Flow series](#series) · [Origin and license](#license)
 
@@ -22,7 +22,7 @@ Install this add-on independently and combine it with other Flow products as nee
 
 ## Installation and updates
 
-1. Download [zotero-mindflow-12.3.3.xpi](https://github.com/groele/Zotero-MindFlow/releases/download/v12.3.3/zotero-mindflow-12.3.3.xpi) (add-on version **12.3.3**), not the Source code ZIP.
+1. Download [zotero-mindflow-12.3.4.xpi](https://github.com/groele/Zotero-MindFlow/releases/download/v12.3.4/zotero-mindflow-12.3.4.xpi) (add-on version **12.3.4**), not the Source code ZIP.
 2. In Zotero, open **Tools → Plugins/Add-ons**, then choose **Install Add-on From File** from the gear menu.
 3. Select the XPI, complete installation, and restart if requested.
 
@@ -71,9 +71,9 @@ Configure window mode, welcome page, material imports, outline notes, and worksp
 
 | Item | Scope |
 |---|---|
-| Current add-on version | 12.3.3 |
+| Current add-on version | 12.3.4 |
 | Declared Zotero range | `10.0` through `10.0.*` |
-| Evidence boundary | The current manifest limits support to Zotero 10.0.x. The 12.3.3 settings pane was checked in Windows Zotero 10.0.6; live AI, WebDAV, and cross-device workflows were not rerun. |
+| Evidence boundary | The current manifest limits support to Zotero 10.0.x. The 12.3.4 settings pane was checked in Windows Zotero 10.0.6, including sequential navigation and MetaFlow card palette comparison; live AI, WebDAV, and cross-device workflows were not rerun. |
 
 Add-on and Zotero versions are separate. Manifest compatibility does not establish testing on every host, operating system, or service. This branding/documentation update does not rerun business workflow tests.
 
@@ -99,7 +99,7 @@ python scripts/package-xpi.py
 ```
 
 - [审查文档索引 / Audit documentation](docs/README.md)
-- [版本说明 / Release notes](docs/release-v12.3.3.md)
+- [版本说明 / Release notes](docs/release-v12.3.4.md)
 - [产品简介 / Product profile](docs/brand/PRODUCT.md)
 - [品牌规范 / Brand guide](docs/brand/BRAND.md)
 - [README 模板 / README template](docs/brand/README-TEMPLATE.md)
