@@ -2,6 +2,8 @@
 
 **Zotero Flow Series · 知识组织**
 
+*让研究的每一步衔接起来。 / Connect each step of research.*
+
 将文献、批注与思路组织为可编辑导图。
 
 [简体中文](README.md) · [English](README.en.md)

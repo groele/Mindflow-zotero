@@ -1,8 +1,8 @@
-mindflow-menu-open = MindFlow 思维导图
+mindflow-menu-open = Zotero MindFlow 思维导图
 mindflow-item-menu-create = 在 MindFlow 中生成思维导图
 mindflow-item-menu-add = 添加到当前 MindFlow 导图
 mindflow-collection-menu-create = 生成此分类思维导图
-mindflow-toolbar-tooltip = 打开 MindFlow 思维导图工作区
+mindflow-toolbar-tooltip = 打开 Zotero MindFlow 思维导图工作区
 mindflow-reader-send = 发送摘录至 MindFlow 导图
 # 此消息应用到整个原生 collapsible-section。仅设置属性，以保留标题和正文控件。
 mindflow-item-pane-header =

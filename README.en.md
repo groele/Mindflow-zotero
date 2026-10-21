@@ -2,6 +2,8 @@
 
 **Zotero Flow Series · Knowledge**
 
+*让研究的每一步衔接起来。 / Connect each step of research.*
+
 Organize papers, annotations, and ideas into editable maps.
 
 [简体中文](README.md) · [English](README.en.md)
