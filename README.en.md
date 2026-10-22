@@ -136,3 +136,5 @@ Project code is distributed under MIT; papers, images, dependencies, and model s
 License: [MIT](LICENSE).
 
 This series is independently maintained and is not an official Zotero product. Zotero and third-party names, trademarks, and materials belong to their respective rights holders.
+
+[Release/tag policy](docs/release-tag-policy.md)
