@@ -1,0 +1,23 @@
+name: Runtime and release integrity
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: python scripts/test-release-package.py
+      - run: node --test scripts/test-host.mjs
+      - run: python scripts/package-xpi.py --output /tmp/candidate.xpi --report /tmp/package-verification.json

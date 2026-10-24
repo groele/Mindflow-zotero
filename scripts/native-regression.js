@@ -199,27 +199,32 @@
       await win.document.l10n.translateElements([custom]);
       check(!custom.textContent.trim(), 'sidenav button contains visible text');
       check(!custom.getAttribute('label'), 'sidenav button exposes a visual label');
-      check(['MindFlow 导图', 'MindFlow Maps'].includes(custom.getAttribute('tooltiptext')),
+      const [localized] = await win.document.l10n.formatMessages([{ id: 'mindflow-item-pane-sidenav' }]);
+      const tooltip = localized?.attributes?.find(attribute => attribute.name === 'tooltiptext')?.value;
+      check(Boolean(tooltip) && tooltip.includes('MindFlow') && custom.getAttribute('tooltiptext') === tooltip,
         'sidenav tooltip localization is missing or incorrect: ' + custom.getAttribute('tooltiptext'));
     });
     await run('native sidebar quick actions render without overflow and route the selected paper', async () => {
       const nav = [...win.document.querySelectorAll('item-pane-sidenav')].map(n => n.querySelector('.btn[data-pane*="mindflow"]')).find(Boolean);
       nav.click();
-      const panel = await waitFor(() => [...win.document.querySelectorAll('.mindflow-sidebar-section')].find(n => n.getBoundingClientRect().width > 0), 'visible MindFlow sidebar');
+      const panel = await waitFor(() => [...win.document.querySelectorAll('.mf-pane-wrap')].find(n => n.querySelector('.mf-template-select') && n.getBoundingClientRect().width > 0), 'visible MindFlow sidebar');
       const collapsible = panel.closest('collapsible-section');
       check(collapsible?.empty === false && collapsible.open === true, 'MindFlow quick actions did not become visible on first open');
       await win.document.l10n.translateFragment(panel);
       const action = id => panel.querySelector(`[data-mindflow-action="${id}"]`);
-      check(['create','ai','workspace','import','pdf','blank','refresh'].every(id => action(id)), 'missing sidebar action');
-      check(action('pdf').disabled, 'paper without PDF has enabled PDF shortcut');
-      const open = hostRuntime.openMindFlow, calls = [];
+      check(['ai','workspace','import','blank'].every(id => action(id)) && panel.querySelector('.mf-btn-primary') && panel.querySelector('.mf-btn-refresh'), 'missing sidebar action');
+      check(!action('pdf'), 'paper without PDF exposes a PDF shortcut');
+      const open = hostRuntime.openMindFlow, openAttachment = hostRuntime.openMindflowAttachment, calls = [];
       hostRuntime.openMindFlow = options => calls.push(options);
+      hostRuntime.openMindflowAttachment = attachment => calls.push({ mode: 'open_attachment', parentID: attachment.parentItemID });
       try {
-        for (const id of ['ai','workspace','import','blank','create']) { action(id).click(); await Zotero.Promise.delay(20); }
-        check(calls.map(c => c.mode).join(',') === 'ai_analyze,open,import_file,create_blank,create_from_selection', 'sidebar action routing mismatch');
-        check(calls[0].items[0].id === a.id && calls[4].items[0].id === a.id, 'sidebar used stale paper');
+        for (const id of ['ai','workspace','import','blank']) { action(id).click(); await Zotero.Promise.delay(20); }
+        panel.querySelector('.mf-btn-primary').click();
+        await Zotero.Promise.delay(20);
+        check(calls.map(c => c.mode).join(',') === 'ai_analyze,open_attachment,import_file,create_blank,open_attachment', 'sidebar action routing mismatch');
+        check(calls[0].items[0].id === a.id && calls[1].parentID === a.id && calls[4].parentID === a.id, 'sidebar used stale paper');
         check(!calls[3].items && calls[3].forceNew, 'standalone map became linked');
-      } finally { hostRuntime.openMindFlow = open; }
+      } finally { hostRuntime.openMindFlow = open; hostRuntime.openMindflowAttachment = openAttachment; }
       const originalWidth = panel.style.width;
       try {
         for (const width of [320, 240, 200]) {
