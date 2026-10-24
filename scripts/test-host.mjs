@@ -159,6 +159,28 @@ function llmFixture(runTurn = async () => ({ kind: 'completed', text: '{"section
   return f;
 }
 
+test('shutdown cancels direct AI work, clears prepared material and rejects further analysis', async () => {
+  let started;
+  const ready = new Promise(resolve => { started = resolve; });
+  const f = llmFixture((request, onEvent, options) => { started(); return hangingTurn(request, onEvent, options); });
+  const paper = f.paper('SHUTDOWN'), ref = `zotero://select/library/items/${paper.key}`;
+  const preview = await f.host.preparePaperAnalysis(ref);
+  const controller = new AbortController();
+  const pending = f.host.analyzePaperWithAI(ref, { preparedId: preview.preparedId, signal: controller.signal });
+  await ready;
+  let watchdog;
+  try {
+    f.host.shutdown();
+    await assert.rejects(() => Promise.race([pending,
+      new Promise((_resolve, reject) => { watchdog = setTimeout(() => reject(new Error('shutdown left AI work running')), 250); }),
+    ]), /取消/);
+    assert.equal(f.host._aiPrepared?.size || 0, 0);
+    assert.equal(f.host._aiCancellers?.size || 0, 0);
+    await assert.rejects(() => f.host.preparePaperAnalysis(ref), /取消/);
+    await assert.rejects(() => f.host.analyzePaperWithAI(ref), /取消/);
+  } finally { clearTimeout(watchdog); controller.abort(); await pending.catch(() => {}); }
+});
+
 test('missing or old upstream plugin produces an actionable error without own HTTP fallback', () => {
   const f = fixture();
   assert.throws(() => f.host.getAIConfiguration(), /安装并启用 llm-for-zotero/);

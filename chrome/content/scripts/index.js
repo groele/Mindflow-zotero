@@ -3752,16 +3752,19 @@
     },
 
     async preparePaperAnalysis(reference, options = {}) {
+      if (this._lifecycleActive === false) throw new Error(AI_CANCELLED);
       const readingMode = options.readingMode || 'abstract';
       if (!AI_READING_MODES.includes(readingMode)) throw new Error('论文读取范围无效，请重新选择。');
       let cancelled = false;
       const cancel = () => { cancelled = true; };
+      if (!this._aiCancellers) this._aiCancellers = new Set();
+      this._aiCancellers.add(cancel);
       options.registerCancel?.(cancel);
       if (options.signal) {
         if (options.signal.aborted) cancel();
         else options.signal.addEventListener('abort', cancel, { once: true });
       }
-      const ensureActive = () => { if (cancelled) throw new Error(AI_CANCELLED); };
+      const ensureActive = () => { if (cancelled || this._lifecycleActive === false) throw new Error(AI_CANCELLED); };
       try {
       ensureActive();
       const item = resolveItemReference(reference);
@@ -4028,16 +4031,20 @@
         estimatedCharacters: abstract.length + pdfText.length +
           notes.map((entry) => entry.text).join('').length +
           annotations.map((entry) => entry.text + entry.comment).join('').length };
-      } finally { options.signal?.removeEventListener('abort', cancel); }
+      } finally {
+        options.signal?.removeEventListener('abort', cancel);
+        this._aiCancellers.delete(cancel);
+      }
     },
 
     async analyzePaperWithAI(reference, options = {}) {
-      if (options.signal?.aborted) throw new Error(AI_CANCELLED);
+      if (options.signal?.aborted || this._lifecycleActive === false) throw new Error(AI_CANCELLED);
       if (options.customPrompt !== undefined && (typeof options.customPrompt !== 'string' || options.customPrompt.length > 6000)) {
         throw new Error('补充提示词须为文本且不超过 6000 字符。');
       }
       const customPrompt = (options.customPrompt || '').trim();
       const template = await getAIResearchTemplate(options.templateId);
+      if (options.signal?.aborted || this._lifecycleActive === false) throw new Error(AI_CANCELLED);
       const sectionKeys = template.keys;
       let prepared = options.preparedId && this._aiPrepared?.get(options.preparedId);
       if (options.preparedId && (!prepared || prepared.reference !== reference ||
@@ -4046,6 +4053,7 @@
       }
       if (!prepared) {
         const preview = await this.preparePaperAnalysis(reference, options);
+        if (options.signal?.aborted || this._lifecycleActive === false) throw new Error(AI_CANCELLED);
         prepared = this._aiPrepared.get(preview.preparedId);
       }
       if (options.readingMode && options.readingMode !== prepared.readingMode) {
@@ -4088,12 +4096,14 @@
       let cancelled = false;
       let cancelRequest = null;
       const cancel = () => { cancelled = true; try { cancelRequest?.(); } catch (_) {} };
+      if (!this._aiCancellers) this._aiCancellers = new Set();
+      this._aiCancellers.add(cancel);
       options.registerCancel?.(cancel);
       if (options.signal) {
         if (options.signal.aborted) cancel();
         else options.signal.addEventListener('abort', cancel, { once: true });
       }
-      const ensureActive = () => { if (cancelled) throw new Error(AI_CANCELLED); };
+      const ensureActive = () => { if (cancelled || this._lifecycleActive === false) throw new Error(AI_CANCELLED); };
       try {
       const progress = (phase, completed, total) => options.onProgress?.(phase, completed, total);
       const partialReading = prepared.readingMode !== 'full';
@@ -4401,7 +4411,10 @@
       if (!prepared.results) prepared.results = {};
       prepared.results[scopeKey] = JSON.parse(JSON.stringify(result));
       return result;
-      } finally { options.signal?.removeEventListener('abort', cancel); }
+      } finally {
+        options.signal?.removeEventListener('abort', cancel);
+        this._aiCancellers.delete(cancel);
+      }
     },
 
     saveMindMapToItem(data = {}, targetWindow = null) {
@@ -4822,6 +4835,12 @@
 
     shutdown() {
       this._lifecycleActive = false;
+      for (const job of this._aiJobs?.values() || []) job.cancel();
+      this._aiJobs?.clear();
+      // Direct injected API calls bypass the message-job map and need the same cleanup.
+      for (const cancel of this._aiCancellers || []) cancel();
+      this._aiCancellers?.clear();
+      this._aiPrepared?.clear();
       if (this._quitObserver) {
         try { Services.obs.removeObserver(this._quitObserver,'quit-application-granted'); } catch (_) {}
         this._quitObserver = null;

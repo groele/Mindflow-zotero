@@ -9,7 +9,7 @@
 
 [简体中文](README.md) · [English](README.en.md)
 
-[![当前版本](https://img.shields.io/badge/version-12.5.5-245ac7?style=flat-square)](https://github.com/groele/Zotero-MindFlow/releases/tag/v12.5.5) · [下载 XPI](https://github.com/groele/Zotero-MindFlow/releases/download/v12.5.5/zotero-mindflow-12.5.5.xpi) · [问题反馈](https://github.com/groele/Zotero-MindFlow/issues)
+[![当前版本](https://img.shields.io/badge/version-12.5.6-245ac7?style=flat-square)](https://github.com/groele/Zotero-MindFlow/releases/tag/v12.5.6) · [下载 XPI](https://github.com/groele/Zotero-MindFlow/releases/download/v12.5.6/zotero-mindflow-12.5.6.xpi) · [问题反馈](https://github.com/groele/Zotero-MindFlow/issues)
 
 [产品定位](#overview) · [安装与更新](#installation) · [快速开始](#quick-start) · [核心功能](#features) · [设置与使用](#settings) · [数据、同步与外部服务](#data) · [兼容性与验证范围](#compatibility) · [常见问题](#troubleshooting) · [开发与详细文档](#development) · [系列产品](#series) · [项目来源与许可](#license)
 
@@ -25,7 +25,7 @@
 
 ## 安装与更新
 
-1. 下载 [zotero-mindflow-12.5.5.xpi](https://github.com/groele/Zotero-MindFlow/releases/download/v12.5.5/zotero-mindflow-12.5.5.xpi)（插件版本 **12.5.5**），不要安装 Source code ZIP。
+1. 下载 [zotero-mindflow-12.5.6.xpi](https://github.com/groele/Zotero-MindFlow/releases/download/v12.5.6/zotero-mindflow-12.5.6.xpi)（插件版本 **12.5.6**），不要安装 Source code ZIP。
 2. 在 Zotero 打开 **工具 → 插件／附加组件**，从齿轮菜单选择 **从文件安装插件**。
 3. 选择 XPI，完成安装；按提示重启 Zotero。
 
@@ -74,11 +74,11 @@
 
 | 项目 | 范围 |
 |---|---|
-| 当前插件版本 | 12.5.5 |
+| 当前插件版本 | 12.5.6 |
 | 清单声明的 Zotero 范围 | `10.0` 至 `10.0.*` |
 | 当前说明 | 当前清单限定 Zotero 10.0.x。12.3.4 设置页已在 Windows Zotero 10.0.6 原生检查（含同窗连续切换与 MetaFlow 卡片配色对照）；本轮未重跑真实 AI、WebDAV 或跨设备协作。 |
 
-插件版本与 Zotero 版本分别管理。12.5.5 已通过 81 项宿主模拟回归，并在隔离 Windows Zotero 10.0.6 中通过 44 项原生检查（含真实 React 弹窗键盘检查）。真实 AI 服务、WebDAV 与跨设备流程未重新验收；详见版本说明。
+插件版本与 Zotero 版本分别管理。12.5.6 通过 82 项宿主模拟回归、前端套件与类型检查，新增禁用期间 AI 取消与预览清理回归。原生验收见版本报告；真实 AI 服务、WebDAV 与跨设备流程未重新验收。
 
 <a id="troubleshooting"></a>
 
@@ -104,7 +104,7 @@ python scripts/package-xpi.py --verify-only
 ```
 
 - [审查文档索引 / Audit documentation](docs/README.md)
-- [版本说明 / Release notes](docs/release-v12.5.5.md)
+- [版本说明 / Release notes](docs/release-v12.5.6.md)
 - [产品简介 / Product profile](docs/brand/PRODUCT.md)
 - [品牌规范 / Brand guide](docs/brand/BRAND.md)
 - [README 模板 / README template](docs/brand/README-TEMPLATE.md)

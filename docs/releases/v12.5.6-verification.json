@@ -1,0 +1,29 @@
+{
+  "product": "Zotero MindFlow",
+  "version": "12.5.6",
+  "addonID": "mindflow@groele.org",
+  "file": "zotero-mindflow-12.5.6.xpi",
+  "bytes": 521176,
+  "sha256": "c15e4a7e1cd221fe48b3af98ddf2dc467352494503841b8e1d4395fac9582359",
+  "sha512": "14dc8970cae9d2700de62680d6a16e7178f89b234dde03a0b8ef612c8c56fd9a90ed4dbaacb9308ce1780c4ab2b180e5f4107c1b54ff9bd3bba11db670778e6e",
+  "entries": 61,
+  "sourcePayloadVerified": true,
+  "updateFeedsVerified": [
+    "update.json",
+    "zotero/update.json"
+  ],
+  "sourceBaseCommit": "6745bad985db1de17edc0c92d95129a737176641",
+  "automatedTests": {
+    "passed": 82,
+    "failed": 0
+  },
+  "nativeZotero": {
+    "version": "10.0.6",
+    "profile": "isolated",
+    "initial": 9,
+    "restart": 9,
+    "boundary": "Four production plugins. Controlled reminder/AI/column checks plus real loopback Gecko HTTP via MetaFlow helper. Not paid AI, live metadata providers, Word insertion or full visual QA."
+  },
+  "mainProfileInstalled": false,
+  "automaticUpdateInstallation": "not performed"
+}
