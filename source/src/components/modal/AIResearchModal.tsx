@@ -78,6 +78,11 @@ export const AIResearchModal: React.FC<AIResearchModalProps> = ({
   const progressPercent = progress && progress.total > 0
     ? Math.min(100, Math.max(0, Math.round((progress.completed / progress.total) * 100)))
     : null;
+  const liveStatus = stage === 'preparing' ? '正在整理所选论文资料，尚未向模型发送内容。'
+    : stage === 'running' ? (progress?.phase || '正在分析论文。')
+      : stage === 'saving' ? '分析结果已生成，正在保存可编辑草稿。'
+        : stage === 'error' ? `分析失败：${error || '请检查设置后重试。'}`
+          : '论文资料已准备，请确认发送范围后开始分析。';
   const dialogRef = React.useRef<HTMLElement>(null);
   const previewPaperRef = React.useRef('');
   // Initialize a new preview before controls can receive input. A delayed
@@ -132,8 +137,10 @@ export const AIResearchModal: React.FC<AIResearchModalProps> = ({
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/55 p-3 sm:p-6"
       role="presentation">
-      <section ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="ai-research-title"
+      <section ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="ai-research-title" aria-describedby="ai-research-live-status"
+        aria-busy={busy}
         className="flex max-h-[min(760px,92vh)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+        <span id="ai-research-live-status" className="sr-only" role="status" aria-live="polite">{liveStatus}</span>
         <header className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 dark:border-slate-700">
           <div>
             <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
