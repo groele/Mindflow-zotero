@@ -276,9 +276,20 @@ export const AIResearchModal: React.FC<AIResearchModalProps> = ({
                       <label key={key} className="flex items-center gap-2 text-xs">
                         <input type="checkbox" checked={available && sources[key]} disabled={!available || busy}
                           onChange={(event) => setSources((current) => ({ ...current, [key]: event.target.checked }))} />
-                        <span className={!available ? 'text-slate-400' : ''}>{label}</span>
+                        <span className={!available ? 'text-slate-400' : ''}>
+                          {key === 'abstract' && scope?.abstractSource === 'manual'
+                            ? '摘要（待核对）'
+                            : key === 'abstract' && scope?.abstractSource === 'pdf-selected'
+                              ? '摘要（已选 PDF 片段）'
+                              : label}
+                        </span>
                       </label>
                     ))}
+                  </div>
+                  <div role="status" aria-live="polite" className="rounded-lg bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                    {hasSelectedContent
+                      ? `当前将发送 ${Object.values(enabledSources).filter(Boolean).length} 类资料，约 ${selectedCharacters.toLocaleString()} 字符；未勾选的来源不会发送给模型。`
+                      : '当前没有选中可发送的资料；请至少勾选一种已有内容的来源。'}
                   </div>
                   {preview.readingMode === 'abstract' && <div className="mt-3 space-y-2">
                     <button type="button" aria-expanded={abstractEditor} onClick={() => setAbstractEditor(current => !current)}
