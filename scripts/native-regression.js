@@ -654,6 +654,44 @@
         check(saved.title === restored.title, 'old editor state overwrote restored document');
       } finally { editor.confirm = originalConfirm; hostRuntime.workspaceStorage = originalStorage; }
     });
+    await run('AI dialog preserves focus, traps Tab while saving, restores launcher and rejects invalid progress', async () => {
+      const fixture = win.document.createElementNS('http://www.w3.org/1999/xhtml', 'iframe');
+      fixture.style.cssText = 'position:fixed;inset:0;width:800px;height:700px;z-index:999999';
+      fixture.src = 'chrome://mindflow/content/modal-test.html';
+      win.document.documentElement.appendChild(fixture);
+      try {
+        const api = await waitFor(() => fixture.contentWindow?.wrappedJSObject?.__mindflowModalTest, 'real React modal fixture');
+        const doc = fixture.contentDocument, view = fixture.contentWindow;
+        const key = (value, shiftKey = false) => {
+          const event = new view.KeyboardEvent('keydown', { key: value, shiftKey, bubbles: true, cancelable: true });
+          doc.activeElement.dispatchEvent(event);
+          return event.defaultPrevented;
+        };
+        const launcher = doc.getElementById('modal-launcher');
+        launcher.focus(); api.render('preparing', true);
+        let dialog = doc.querySelector('[role="dialog"]');
+        check(dialog.contains(doc.activeElement), 'Opening did not move focus into the modal');
+        api.render('saving', true);
+        check(doc.activeElement === dialog, 'Disabled control did not hand off focus to dialog');
+        check(key('Tab') && doc.activeElement === dialog, 'Tab escaped a saving dialog');
+        check(key('Tab', true) && doc.activeElement === dialog, 'Shift+Tab escaped a saving dialog');
+        key('Escape'); check(api.calls.close === 0 && api.calls.cancel === 0, 'Saving was cancelled');
+        api.render('error', true);
+        const controls = [...dialog.querySelectorAll('button:not([disabled]), select:not([disabled])')].filter(n => n.getClientRects().length);
+        check(controls.includes(doc.activeElement), 'Focus was not restored when controls reappeared');
+        controls[controls.length - 1].focus();
+        check(key('Tab') && doc.activeElement === controls[0], 'Forward Tab did not wrap');
+        check(key('Tab', true) && doc.activeElement === controls[controls.length - 1], 'Reverse Tab did not wrap');
+        api.render('running', true, { phase: 'test', completed: NaN, total: 10 });
+        check(!doc.querySelector('[role="progressbar"]').hasAttribute('aria-valuenow'), 'Nonfinite progress exposed an invalid ARIA value');
+        api.render('running', true, { phase: 'test', completed: 20, total: 10 });
+        check(doc.querySelector('[role="progressbar"]').getAttribute('aria-valuenow') === '100', 'Progress not clamped');
+        key('Escape'); check(api.calls.cancel === 1, 'Running analysis did not cancel on Escape');
+        api.render('error', true); key('Escape'); check(api.calls.close === 1, 'Idle modal did not close on Escape');
+        api.render('error', false);
+        check(doc.activeElement === launcher, 'Closing did not restore the original launcher');
+      } finally { fixture.remove(); }
+    });
     tabs.close(auditTab); await host._closeSaveQueue;
     try {
       tabs.select(tabA);

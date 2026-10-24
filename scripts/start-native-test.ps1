@@ -7,7 +7,7 @@ $dataDir = Join-Path $testRoot 'data'
 $addon = Join-Path $profile 'extensions\mindflow@groele.org'
 New-Item -ItemType Directory -Path $addon,$dataDir -Force | Out-Null
 $version = (Get-Content -LiteralPath (Join-Path $workspace 'manifest.json') -Raw | ConvertFrom-Json).version
-$packagePath = Join-Path $workspace $(if ($PackageName) { $PackageName } else { "mindflow-zotero-$version.xpi" })
+$packagePath = Join-Path $workspace $(if ($PackageName) { $PackageName } else { "zotero-mindflow-$version.xpi" })
 if (!(Test-Path -LiteralPath $packagePath)) { throw 'Build and package the XPI before native tests.' }
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 [IO.Compression.ZipFile]::ExtractToDirectory($packagePath, $addon)
@@ -34,6 +34,12 @@ if (window._mindflowInitialAction?.mode === 'import_file') {
   [IO.File]::WriteAllText($testIndexPath, $testIndex.Replace('</head>', $importProbe + '</head>'))
 }
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot $(if ($PreviewMap) { 'native-preview-map.js' } else { 'native-regression.js' })) -Destination (Join-Path $addon 'native-regression.js')
+if (!$PreviewMap) {
+  & node (Join-Path $PSScriptRoot 'build-modal-test.mjs')
+  if ($LASTEXITCODE -ne 0) { throw 'Modal test fixture build failed.' }
+  Copy-Item -LiteralPath (Join-Path $workspace 'tests/modal-fixture/modal-test.html') -Destination (Join-Path $addon 'chrome/content/modal-test.html')
+  Copy-Item -LiteralPath (Join-Path $workspace 'tests/modal-fixture/modal-test.iife.js') -Destination (Join-Path $addon 'chrome/content/assets/modal-test.iife.js')
+}
 if ($PreviewMap) { Copy-Item -LiteralPath (Resolve-Path -LiteralPath $PreviewMap).Path -Destination (Join-Path $dataDir 'preview-input.mindflow') }
 $bootstrapPath = Join-Path $addon 'bootstrap.js'
 $bootstrap = [IO.File]::ReadAllText($bootstrapPath)

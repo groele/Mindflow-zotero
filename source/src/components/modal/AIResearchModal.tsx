@@ -75,7 +75,7 @@ export const AIResearchModal: React.FC<AIResearchModalProps> = ({
       ? '当前范围未提取到可分析的文字，所选章节未可靠识别。可以选择其他读取范围。'
       : '当前范围没有可分析的资料。请检查所选文献及关联 PDF 是否已下载、有可提取的文字。';
   const busy = stage === 'preparing' || stage === 'running' || stage === 'saving';
-  const progressPercent = progress && progress.total > 0
+  const progressPercent = progress && Number.isFinite(progress.total) && Number.isFinite(progress.completed) && progress.total > 0
     ? Math.min(100, Math.max(0, Math.round((progress.completed / progress.total) * 100)))
     : null;
   const liveStatus = stage === 'preparing' ? '正在整理所选论文资料，尚未向模型发送内容。'
@@ -84,6 +84,10 @@ export const AIResearchModal: React.FC<AIResearchModalProps> = ({
         : stage === 'error' ? `分析失败：${error || '请检查设置后重试。'}`
           : '论文资料已准备，请确认发送范围后开始分析。';
   const dialogRef = React.useRef<HTMLElement>(null);
+  const focusableControls = () => Array.from(dialogRef.current?.querySelectorAll<HTMLElement>(
+    'button, input:not([type="hidden"]), select, textarea, a[href], [tabindex]') || [])
+    .filter(control => !control.matches(':disabled, [tabindex="-1"]')
+      && !control.closest('[hidden], [inert]') && control.getClientRects().length > 0);
   const previewPaperRef = React.useRef('');
   // Initialize a new preview before controls can receive input. A delayed
   // passive effect could overwrite a user's freshly selected model.
@@ -103,12 +107,21 @@ export const AIResearchModal: React.FC<AIResearchModalProps> = ({
           !model.reasoningOptions.some(option => option.id === reasoningLevel)) setReasoningLevel('default');
     }
   }, [preview?.preparedId]);
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     if (!isOpen) return;
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    dialogRef.current?.querySelector<HTMLElement>('button:not([disabled]), input:not([disabled]), select:not([disabled])')?.focus();
-    return () => previous?.focus();
+    return () => { if (previous?.isConnected) previous.focus(); };
   }, [isOpen]);
+  React.useLayoutEffect(() => {
+    if (!isOpen || !dialogRef.current) return;
+    const active = document.activeElement;
+    const controls = focusableControls();
+    // A stage change can disable or unmount the focused control. Keep typing
+    // and Tab inside the dialog even while saving has no enabled controls.
+    if (!active || !dialogRef.current.contains(active) || !controls.includes(active as HTMLElement)) {
+      (controls[0] || dialogRef.current).focus();
+    }
+  }, [isOpen, stage, abstractEditor]);
   React.useEffect(() => {
     if (!isOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -117,13 +130,16 @@ export const AIResearchModal: React.FC<AIResearchModalProps> = ({
         event.stopPropagation();
         if (stage !== 'saving') (busy ? onCancel : onClose)();
       } else if (event.key === 'Tab') {
-        const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>(
-          'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])') || [])
-          .filter(control => control.getClientRects().length > 0);
-        if (!controls.length) return;
+        event.stopPropagation();
+        const controls = focusableControls();
+        if (!controls.length) {
+          event.preventDefault(); dialogRef.current?.focus(); return;
+        }
         const first = controls[0];
         const last = controls[controls.length - 1];
-        if (event.shiftKey && document.activeElement === first) {
+        if (!controls.includes(document.activeElement as HTMLElement)) {
+          event.preventDefault(); (event.shiftKey ? last : first).focus();
+        } else if (event.shiftKey && document.activeElement === first) {
           event.preventDefault(); last.focus();
         } else if (!event.shiftKey && document.activeElement === last) {
           event.preventDefault(); first.focus();
@@ -137,7 +153,7 @@ export const AIResearchModal: React.FC<AIResearchModalProps> = ({
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/55 p-3 sm:p-6"
       role="presentation">
-      <section ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="ai-research-title" aria-describedby="ai-research-live-status"
+      <section ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="ai-research-title" aria-describedby="ai-research-live-status"
         aria-busy={busy}
         className="flex max-h-[min(760px,92vh)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
         <span id="ai-research-live-status" className="sr-only" role="status" aria-live="polite">{liveStatus}</span>
