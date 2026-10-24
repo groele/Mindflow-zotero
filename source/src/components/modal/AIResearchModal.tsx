@@ -75,6 +75,9 @@ export const AIResearchModal: React.FC<AIResearchModalProps> = ({
       ? '当前范围未提取到可分析的文字，所选章节未可靠识别。可以选择其他读取范围。'
       : '当前范围没有可分析的资料。请检查所选文献及关联 PDF 是否已下载、有可提取的文字。';
   const busy = stage === 'preparing' || stage === 'running' || stage === 'saving';
+  const progressPercent = progress && progress.total > 0
+    ? Math.min(100, Math.max(0, Math.round((progress.completed / progress.total) * 100)))
+    : null;
   const dialogRef = React.useRef<HTMLElement>(null);
   const previewPaperRef = React.useRef('');
   // Initialize a new preview before controls can receive input. A delayed
@@ -418,13 +421,25 @@ export const AIResearchModal: React.FC<AIResearchModalProps> = ({
           {stage === 'running' && (
             <div role="status" aria-live="polite" className="flex items-center gap-3 rounded-xl bg-blue-50 p-4 dark:bg-blue-950/40">
               <Loader2 className="shrink-0 animate-spin text-blue-600" size={19} />
-              <div><strong>{progress?.phase || '正在联系模型服务'}</strong>
+              <div className="min-w-0 flex-1"><strong>{progress?.phase || '正在联系模型服务'}</strong>
                 <div className="mt-1 text-xs">{progress ? `${progress.completed} / ${progress.total} 步完成` : '准备请求中'}。
                   取消会中止当前请求；已发送的请求可能由模型服务计费。</div>
+                <div
+                  role="progressbar"
+                  aria-label="论文分析进度"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={progressPercent === null ? undefined : progressPercent}
+                  aria-valuetext={progressPercent === null ? '正在准备分析进度' : `${progressPercent}%`}
+                  className="mt-3 h-2 overflow-hidden rounded-full bg-blue-100 dark:bg-blue-900/60"
+                >
+                  <div className={`h-full rounded-full bg-blue-600 transition-all ${progressPercent === null ? 'w-1/3 animate-pulse' : ''}`}
+                    style={progressPercent === null ? undefined : { width: `${progressPercent}%` }} />
+                </div>
               </div>
             </div>
           )}
-          {stage === 'saving' && <div role="status" className="flex items-center gap-3 rounded-xl bg-blue-50 p-4 dark:bg-blue-950/40">
+          {stage === 'saving' && <div role="status" aria-live="polite" className="flex items-center gap-3 rounded-xl bg-blue-50 p-4 dark:bg-blue-950/40">
             <Loader2 className="animate-spin text-blue-600" size={19} />正在把可编辑草稿保存到本机。保存完成后可在画布审阅，再归档至 Zotero。
           </div>}
           {stage === 'error' && <div role="alert" className="flex items-start gap-2 rounded-xl bg-amber-50 p-4 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
